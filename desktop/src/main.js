@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
@@ -15,17 +15,17 @@ function createWindow() {
       contextIsolation: true,
       preload: path.join(__dirname, 'preload.js')
     },
-    icon: path.join(__dirname, 'assets', 'icon.png'),
     title: 'Skills Manager',
     backgroundColor: '#0f172a'
   });
 
   // 加载本地网页
-  const isDev = process.argv.includes('--dev');
-  if (isDev) {
-    mainWindow.loadFile(path.join(__dirname, '..', 'web', 'templates', 'index.html'));
-  } else {
-    mainWindow.loadFile(path.join(__dirname, '..', 'web', 'templates', 'index.html'));
+  const indexPath = path.join(__dirname, '..', 'web', 'templates', 'index.html');
+  mainWindow.loadFile(indexPath);
+
+  // 开发模式打开开发者工具
+  if (process.argv.includes('--dev')) {
+    mainWindow.webContents.openDevTools();
   }
 
   mainWindow.on('closed', () => {
@@ -47,7 +47,7 @@ app.on('activate', () => {
   }
 });
 
-// IPC 处理器：读取 Skills 数据
+// IPC 处理器：读取 Skills 索引
 ipcMain.handle('read-skills-index', async () => {
   const indexPath = path.join(__dirname, '..', 'data', 'skills-index.json');
   try {
@@ -59,10 +59,19 @@ ipcMain.handle('read-skills-index', async () => {
   }
 });
 
+// IPC 处理器：读取 Skills 文件
+ipcMain.handle('read-skill-file', async (event, skillPath) => {
+  const fullPath = path.join(__dirname, '..', 'data', 'all-skills', skillPath);
+  try {
+    return fs.readFileSync(fullPath, 'utf-8');
+  } catch (error) {
+    console.error('Error reading skill file:', error);
+    return null;
+  }
+});
+
 // IPC 处理器：安装 Skills 到 IDE
 ipcMain.handle('install-skills', async (event, { ide, skillsPath }) => {
-  const { execSync } = require('child_process');
-  
   const targetDirs = {
     claude: path.join(app.getPath('home'), '.claude', 'skills'),
     cursor: path.join(app.getPath('home'), '.cursor', 'skills'),
@@ -90,6 +99,7 @@ ipcMain.handle('install-skills', async (event, { ide, skillsPath }) => {
 
     return { success: true, path: targetDir };
   } catch (error) {
+    console.error('Error installing skills:', error);
     return { success: false, error: error.message };
   }
 });
@@ -101,7 +111,8 @@ ipcMain.handle('open-external', async (event, url) => {
 
 // IPC 处理器：显示文件夹
 ipcMain.handle('show-in-folder', async (event, filePath) => {
-  shell.showItemInFolder(filePath);
+  const fullPath = path.join(__dirname, '..', 'data', filePath);
+  shell.showItemInFolder(fullPath);
 });
 
 // IPC 处理器：获取版本
