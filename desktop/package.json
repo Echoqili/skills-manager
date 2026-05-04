@@ -1,0 +1,19 @@
+{
+  "name": "skills-manager-desktop",
+  "version": "1.0.0",
+  "description": "Skills Manager Desktop Application",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "build": "electron-builder",
+    "build:win": "electron-builder --win"
+  },
+  "keywords": ["skills", "manager", "electron"],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.1.8"
+  }
+}

@@ -1,0 +1,2233 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🧠 Skills Manager - 智能 Skills 导航</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* ========== 核心变量 & 主题 ========== */
+        :root {
+            --primary: #6366f1;
+            --primary-dark: #4f46e5;
+            --primary-light: #818cf8;
+            --accent: #f472b6;
+            --accent-secondary: #38bdf8;
+            --bg-main: #0f172a;
+            --bg-card: rgba(30, 41, 59, 0.85);
+            --bg-secondary: rgba(15, 23, 42, 0.9);
+            --bg-glass: rgba(255, 255, 255, 0.05);
+            --bg-glass-hover: rgba(255, 255, 255, 0.1);
+            --text: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            --border: rgba(255, 255, 255, 0.1);
+            --border-glow: rgba(99, 102, 241, 0.3);
+            --success: #10b981;
+            --warning: #f59e0b;
+            --error: #ef4444;
+            --gradient-primary: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a855f7 100%);
+            --gradient-accent: linear-gradient(135deg, #f472b6 0%, #818cf8 100%);
+            --gradient-bg: linear-gradient(180deg, #0f172a 0%, #1e1b4b 50%, #0f172a 100%);
+            --shadow-card: 0 4px 24px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.05);
+            --shadow-glow: 0 0 40px rgba(99, 102, 241, 0.15);
+            --radius-sm: 8px;
+            --radius-md: 12px;
+            --radius-lg: 16px;
+            --radius-xl: 24px;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html { scroll-behavior: smooth; }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--gradient-bg);
+            color: var(--text);
+            line-height: 1.6;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* ========== 动态背景 ========== */
+        .bg-orbs {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; z-index: 0; overflow: hidden;
+        }
+        .bg-orb {
+            position: absolute; border-radius: 50%;
+            filter: blur(80px); opacity: 0.35;
+            animation: float 20s ease-in-out infinite;
+        }
+        .bg-orb:nth-child(1) { width: 600px; height: 600px; background: var(--primary); top: -200px; left: -200px; animation-delay: 0s; }
+        .bg-orb:nth-child(2) { width: 500px; height: 500px; background: var(--accent); top: 50%; right: -150px; animation-delay: -7s; }
+        .bg-orb:nth-child(3) { width: 400px; height: 400px; background: var(--accent-secondary); bottom: -100px; left: 30%; animation-delay: -14s; }
+
+        @keyframes float {
+            0%, 100% { transform: translate(0, 0) scale(1); }
+            33% { transform: translate(30px, -30px) scale(1.05); }
+            66% { transform: translate(-20px, 20px) scale(0.95); }
+        }
+
+        /* ========== 容器布局 ========== */
+        .app-container {
+            position: relative; z-index: 1;
+            max-width: 1400px; margin: 0 auto;
+            padding: 40px 24px;
+        }
+
+        /* ========== Hero 区域 ========== */
+        .hero {
+            text-align: center; padding: 60px 0 40px; margin-bottom: 40px;
+        }
+        .hero-badge {
+            display: inline-flex; align-items: center; gap: 8px;
+            padding: 8px 16px; background: var(--bg-glass);
+            border: 1px solid var(--border); border-radius: 100px;
+            font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 24px;
+            backdrop-filter: blur(10px); animation: fadeInDown 0.6s ease-out;
+        }
+        .hero-badge .dot {
+            width: 8px; height: 8px; background: var(--success);
+            border-radius: 50%; animation: pulse 2s ease-in-out infinite;
+        }
+        @keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.5; transform: scale(1.2); } }
+        .hero h1 {
+            font-size: 3.5rem; font-weight: 700;
+            background: var(--gradient-primary);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+            background-clip: text; margin-bottom: 16px;
+            animation: fadeInUp 0.6s ease-out 0.1s both;
+        }
+        .hero p {
+            font-size: 1.2rem; color: var(--text-secondary);
+            max-width: 600px; margin: 0 auto;
+            animation: fadeInUp 0.6s ease-out 0.2s both;
+        }
+
+        @keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes fadeInDown { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* ========== 统计条 ========== */
+        .stats-bar {
+            display: flex; gap: 16px; justify-content: center; flex-wrap: wrap;
+            margin-top: 24px; animation: fadeInUp 0.6s ease-out 0.3s both;
+        }
+        .stats-bar-item {
+            display: flex; align-items: center; gap: 8px;
+            padding: 8px 20px; background: var(--bg-glass);
+            border: 1px solid var(--border); border-radius: 100px;
+            font-size: 0.9rem; backdrop-filter: blur(10px);
+        }
+        .stats-bar-item strong { color: var(--primary-light); }
+
+        /* ========== 搜索区域 ========== */
+        .search-section {
+            max-width: 800px; margin: 0 auto 50px;
+            animation: fadeInUp 0.6s ease-out 0.35s both;
+        }
+        .search-wrapper { position: relative; display: flex; gap: 12px; }
+        .search-box { position: relative; flex: 1; }
+        .search-box::before {
+            content: ''; position: absolute; inset: 0;
+            border-radius: var(--radius-lg); padding: 2px;
+            background: var(--gradient-primary);
+            -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+            mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+            -webkit-mask-composite: xor; mask-composite: exclude;
+            opacity: 0.5; transition: opacity 0.3s;
+        }
+        .search-box:focus-within::before { opacity: 1; }
+        .search-box input {
+            width: 100%; padding: 18px 24px 18px 56px;
+            font-size: 1.05rem; background: var(--bg-card);
+            border: none; border-radius: var(--radius-lg);
+            color: var(--text); outline: none;
+            backdrop-filter: blur(20px); transition: all 0.3s;
+        }
+        .search-box input::placeholder { color: var(--text-muted); }
+        .search-icon {
+            position: absolute; left: 20px; top: 50%;
+            transform: translateY(-50%); width: 22px; height: 22px;
+            color: var(--text-muted); transition: color 0.3s;
+        }
+        .search-box:focus-within .search-icon { color: var(--primary); }
+        .search-btn {
+            padding: 0 28px; background: var(--gradient-primary);
+            border: none; border-radius: var(--radius-lg);
+            color: white; font-size: 0.95rem; font-weight: 600;
+            cursor: pointer; transition: all 0.3s;
+            white-space: nowrap;
+        }
+        .search-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 30px rgba(99, 102, 241, 0.4); }
+        .search-btn:active { transform: translateY(0); }
+        .search-btn.secondary {
+            background: var(--bg-glass); border: 1px solid var(--border);
+            padding: 0 20px;
+        }
+        .search-btn.secondary:hover { background: var(--bg-glass-hover); box-shadow: none; }
+
+        /* 搜索热词 */
+        .search-hints {
+            display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px;
+            justify-content: center;
+        }
+        .search-hint {
+            padding: 5px 14px; background: var(--bg-glass);
+            border: 1px solid var(--border); border-radius: 100px;
+            font-size: 0.8rem; color: var(--text-secondary);
+            cursor: pointer; transition: all 0.2s;
+        }
+        .search-hint:hover { background: var(--bg-glass-hover); color: var(--text); border-color: var(--border-glow); }
+
+        /* ========== 导航标签 ========== */
+        .nav-tabs {
+            display: flex; gap: 6px; padding: 6px;
+            background: var(--bg-glass); border-radius: var(--radius-xl);
+            margin-bottom: 32px; overflow-x: auto;
+            backdrop-filter: blur(20px);
+            animation: fadeInUp 0.6s ease-out 0.4s both;
+        }
+        .nav-tabs::-webkit-scrollbar { height: 0; }
+        .nav-tab {
+            padding: 11px 22px; background: transparent;
+            border: none; border-radius: var(--radius-md);
+            color: var(--text-secondary); font-size: 0.9rem; font-weight: 500;
+            cursor: pointer; transition: all 0.3s; white-space: nowrap;
+            display: flex; align-items: center; gap: 6px;
+        }
+        .nav-tab:hover { background: var(--bg-glass-hover); color: var(--text); }
+        .nav-tab.active {
+            background: var(--gradient-primary); color: white;
+            box-shadow: 0 4px 20px rgba(99, 102, 241, 0.3);
+        }
+        .nav-tab .count {
+            padding: 2px 7px; background: rgba(255,255,255,0.2);
+            border-radius: 100px; font-size: 0.72rem;
+        }
+
+        /* ========== 内容区域 ========== */
+        .content-section { display: none; animation: fadeIn 0.4s ease-out; }
+        .content-section.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+        .section-header {
+            display: flex; align-items: center; justify-content: space-between;
+            margin-bottom: 24px; flex-wrap: wrap; gap: 16px;
+        }
+        .section-title { display: flex; align-items: center; gap: 12px; }
+        .section-title h2 { font-size: 1.5rem; font-weight: 600; }
+        .section-title .tag {
+            padding: 4px 12px; background: var(--bg-glass);
+            border-radius: 100px; font-size: 0.85rem; color: var(--text-secondary);
+        }
+
+        /* ========== 技能卡片网格 ========== */
+        .skills-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 20px;
+        }
+        .skill-card {
+            background: var(--bg-card); border: 1px solid var(--border);
+            border-radius: var(--radius-lg); padding: 22px;
+            backdrop-filter: blur(20px);
+            transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+            cursor: pointer; position: relative; overflow: hidden;
+        }
+        .skill-card::before {
+            content: ''; position: absolute; top: 0; left: 0; right: 0;
+            height: 3px; background: var(--gradient-primary);
+            opacity: 0; transition: opacity 0.3s;
+        }
+        .skill-card:hover {
+            transform: translateY(-6px); border-color: var(--border-glow);
+            box-shadow: var(--shadow-card), var(--shadow-glow);
+        }
+        .skill-card:hover::before { opacity: 1; }
+
+        .skill-card-header {
+            display: flex; align-items: flex-start; gap: 14px; margin-bottom: 14px;
+        }
+        .skill-emoji {
+            width: 50px; height: 50px; display: flex; align-items: center; justify-content: center;
+            background: var(--bg-glass); border-radius: var(--radius-md); font-size: 1.6rem;
+            flex-shrink: 0; transition: all 0.3s;
+        }
+        .skill-card:hover .skill-emoji { transform: scale(1.1) rotate(-5deg); background: var(--bg-glass-hover); }
+        .skill-info { flex: 1; min-width: 0; }
+        .skill-name {
+            font-size: 1rem; font-weight: 600; margin-bottom: 4px;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .skill-category {
+            display: inline-flex; align-items: center; gap: 5px;
+            padding: 3px 9px; background: var(--bg-glass);
+            border-radius: 100px; font-size: 0.78rem; color: var(--text-secondary);
+        }
+        .skill-desc {
+            color: var(--text-secondary); font-size: 0.88rem; line-height: 1.55;
+            margin-bottom: 14px;
+            display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+        }
+        .skill-actions {
+            display: flex; gap: 8px; padding-top: 14px; border-top: 1px solid var(--border);
+        }
+        .skill-action {
+            flex: 1; padding: 9px 14px; border: none; border-radius: var(--radius-sm);
+            font-size: 0.82rem; font-weight: 500; cursor: pointer; transition: all 0.3s;
+            display: flex; align-items: center; justify-content: center; gap: 5px;
+        }
+        .skill-action.primary { background: var(--gradient-primary); color: white; }
+        .skill-action.primary:hover { box-shadow: 0 4px 20px rgba(99, 102, 241, 0.4); transform: translateY(-1px); }
+        .skill-action.secondary { background: var(--bg-glass); color: var(--text-secondary); border: 1px solid var(--border); }
+        .skill-action.secondary:hover { background: var(--bg-glass-hover); color: var(--text); }
+        .skill-action.danger { background: rgba(239,68,68,0.1); color: var(--error); border: 1px solid rgba(239,68,68,0.2); }
+        .skill-action.danger:hover { background: var(--error); color: white; }
+
+        /* ========== GitHub 卡片 ========== */
+        .github-grid {
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 20px;
+        }
+        .github-card {
+            background: var(--bg-card); border: 1px solid var(--border);
+            border-radius: var(--radius-lg); padding: 22px;
+            backdrop-filter: blur(20px);
+            transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .github-card:hover { transform: translateY(-5px); border-color: var(--border-glow); box-shadow: var(--shadow-card); }
+        .github-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+        .github-owner { color: var(--text-muted); font-size: 0.83rem; }
+        .github-stars {
+            display: flex; align-items: center; gap: 4px; padding: 3px 9px;
+            background: rgba(245, 158, 11, 0.1); border-radius: 100px;
+            font-size: 0.83rem; color: #fbbf24;
+        }
+        .github-name {
+            font-size: 1.1rem; font-weight: 600; color: var(--primary-light);
+            text-decoration: none; display: block; margin-bottom: 8px; transition: color 0.3s;
+        }
+        .github-name:hover { color: var(--accent); }
+        .github-desc {
+            color: var(--text-secondary); font-size: 0.88rem; margin-bottom: 14px;
+            display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+        }
+        .github-meta { display: flex; align-items: center; gap: 14px; font-size: 0.83rem; color: var(--text-muted); }
+        .github-lang { display: flex; align-items: center; gap: 5px; }
+        .lang-dot { width: 10px; height: 10px; border-radius: 50%; }
+
+        /* ========== 场景卡片 ========== */
+        .scenarios-grid {
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 16px;
+        }
+        .scenario-card {
+            background: var(--bg-card); border: 1px solid var(--border);
+            border-radius: var(--radius-lg); padding: 24px 18px;
+            text-align: center; cursor: pointer;
+            transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative; overflow: hidden;
+        }
+        .scenario-card::after {
+            content: ''; position: absolute; inset: 0;
+            background: var(--gradient-primary); opacity: 0; transition: opacity 0.3s;
+        }
+        .scenario-card:hover { transform: translateY(-5px) scale(1.02); border-color: var(--border-glow); box-shadow: var(--shadow-card); }
+        .scenario-card:hover::after { opacity: 0.05; }
+        .scenario-emoji { font-size: 2.5rem; margin-bottom: 12px; display: block; position: relative; z-index: 1; transition: transform 0.3s; }
+        .scenario-card:hover .scenario-emoji { transform: scale(1.2); }
+        .scenario-card h3 { font-size: 0.95rem; font-weight: 600; margin-bottom: 6px; position: relative; z-index: 1; }
+        .scenario-card p { font-size: 0.8rem; color: var(--text-muted); position: relative; z-index: 1; }
+        .scenario-count {
+            position: absolute; top: 10px; right: 10px;
+            padding: 3px 8px; background: var(--bg-glass);
+            border-radius: 100px; font-size: 0.72rem; color: var(--text-secondary); z-index: 1;
+        }
+
+        /* ========== 分类卡片 ========== */
+        .categories-grid {
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px;
+        }
+        .category-card {
+            background: var(--bg-card); border: 1px solid var(--border);
+            border-radius: var(--radius-lg); padding: 22px; cursor: pointer;
+            transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .category-card:hover { transform: translateY(-5px); border-color: var(--border-glow); box-shadow: var(--shadow-card); }
+        .category-header { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+        .category-emoji {
+            width: 44px; height: 44px; display: flex; align-items: center; justify-content: center;
+            background: var(--bg-glass); border-radius: var(--radius-md); font-size: 1.4rem;
+        }
+        .category-info h3 { font-size: 0.95rem; font-weight: 600; }
+        .category-count { font-size: 0.82rem; color: var(--text-muted); }
+        .category-bar { height: 4px; background: var(--bg-glass); border-radius: 2px; overflow: hidden; }
+        .category-bar-fill { height: 100%; background: var(--gradient-primary); border-radius: 2px; transition: width 1s ease-out; }
+
+        /* ========== 打包清单 ========== */
+        .cart-actions { display: flex; gap: 12px; margin-bottom: 24px; flex-wrap: wrap; }
+        .cart-empty { text-align: center; padding: 80px 20px; color: var(--text-muted); }
+        .cart-empty-icon { font-size: 4rem; margin-bottom: 20px; opacity: 0.5; }
+        .cart-empty h3 { font-size: 1.2rem; margin-bottom: 8px; color: var(--text-secondary); }
+
+        /* ========== AI 推荐卡片 ========== */
+        .ai-card {
+            background: linear-gradient(135deg, rgba(99, 102, 241, 0.12), rgba(168, 85, 247, 0.12));
+            border: 1px solid rgba(99, 102, 241, 0.25); border-radius: var(--radius-lg);
+            padding: 22px; margin-bottom: 24px; backdrop-filter: blur(20px);
+            animation: slideIn 0.5s ease-out;
+        }
+        @keyframes slideIn { from { opacity: 0; transform: translateY(-16px); } to { opacity: 1; transform: translateY(0); } }
+        .ai-header { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+        .ai-avatar {
+            width: 44px; height: 44px; display: flex; align-items: center; justify-content: center;
+            background: var(--gradient-primary); border-radius: 50%; font-size: 1.3rem;
+        }
+        .ai-label { font-size: 0.82rem; color: var(--text-muted); }
+        .ai-name { font-weight: 600; font-size: 0.95rem; }
+        .ai-text { color: var(--text); font-size: 0.93rem; line-height: 1.65; margin-bottom: 14px; }
+        .ai-suggestions { display: flex; flex-wrap: wrap; gap: 8px; }
+        .ai-suggestion {
+            padding: 5px 12px; background: rgba(99, 102, 241, 0.15);
+            border: 1px solid rgba(99, 102, 241, 0.25); border-radius: 100px;
+            font-size: 0.82rem; color: var(--primary-light); cursor: pointer; transition: all 0.3s;
+        }
+        .ai-suggestion:hover { background: rgba(99, 102, 241, 0.25); transform: translateY(-2px); }
+
+        /* ========== 详情页 ========== */
+        .detail-section {
+            background: var(--bg-card); border: 1px solid var(--border);
+            border-radius: var(--radius-xl); padding: 36px; backdrop-filter: blur(20px);
+        }
+        .detail-header {
+            display: flex; align-items: flex-start; gap: 22px;
+            margin-bottom: 28px; padding-bottom: 28px; border-bottom: 1px solid var(--border);
+        }
+        .detail-emoji {
+            width: 72px; height: 72px; display: flex; align-items: center; justify-content: center;
+            background: var(--bg-glass); border-radius: var(--radius-lg); font-size: 2.5rem;
+        }
+        .detail-info h2 { font-size: 1.8rem; font-weight: 700; margin-bottom: 8px; }
+        .detail-meta { display: flex; gap: 14px; color: var(--text-muted); font-size: 0.88rem; flex-wrap: wrap; }
+        .detail-desc { font-size: 1.05rem; line-height: 1.75; color: var(--text-secondary); margin-bottom: 28px; }
+        .detail-files {
+            background: var(--bg-glass); border-radius: var(--radius-lg); padding: 22px; margin-bottom: 28px;
+        }
+        .detail-files h4 { font-size: 0.95rem; margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
+        .file-list { list-style: none; }
+        .file-item {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 10px 14px; background: var(--bg-card); border-radius: var(--radius-sm);
+            margin-bottom: 7px; font-size: 0.88rem; transition: all 0.3s;
+        }
+        .file-item:hover { background: var(--bg-glass-hover); }
+        .file-name { display: flex; align-items: center; gap: 8px; color: var(--text); }
+        .file-size { color: var(--text-muted); font-size: 0.82rem; }
+        .detail-actions { display: flex; gap: 12px; flex-wrap: wrap; }
+
+        /* ========== 加载骨架屏 ========== */
+        .skeleton {
+            background: linear-gradient(90deg, var(--bg-glass) 25%, var(--bg-glass-hover) 50%, var(--bg-glass) 75%);
+            background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: var(--radius-sm);
+        }
+        @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+        .skeleton-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 22px; }
+        .skeleton-header { display: flex; gap: 14px; margin-bottom: 14px; }
+        .skeleton-emoji { width: 50px; height: 50px; border-radius: var(--radius-md); }
+        .skeleton-info { flex: 1; }
+        .skeleton-title { height: 18px; width: 60%; margin-bottom: 8px; }
+        .skeleton-subtitle { height: 13px; width: 40%; }
+        .skeleton-text { height: 13px; margin-bottom: 7px; }
+        .skeleton-text:last-child { width: 80%; }
+
+        /* ========== Toast 通知 ========== */
+        .toast-container { position: fixed; top: 24px; right: 24px; z-index: 9999; display: flex; flex-direction: column; gap: 10px; }
+        .toast {
+            padding: 14px 20px; background: var(--bg-card); border: 1px solid var(--border);
+            border-radius: var(--radius-md); backdrop-filter: blur(20px);
+            display: flex; align-items: center; gap: 10px;
+            min-width: 280px; max-width: 420px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            animation: toastIn 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .toast.removing { animation: toastOut 0.3s ease-in forwards; }
+        @keyframes toastIn { from { opacity: 0; transform: translateX(100%); } to { opacity: 1; transform: translateX(0); } }
+        @keyframes toastOut { to { opacity: 0; transform: translateX(100%); } }
+        .toast-icon { font-size: 1.2rem; flex-shrink: 0; }
+        .toast-content { flex: 1; }
+        .toast-title { font-weight: 600; font-size: 0.9rem; margin-bottom: 2px; }
+        .toast-message { font-size: 0.82rem; color: var(--text-secondary); }
+        .toast-close { background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 4px; transition: color 0.3s; }
+        .toast-close:hover { color: var(--text); }
+        .toast.success { border-left: 3px solid var(--success); }
+        .toast.success .toast-icon { color: var(--success); }
+        .toast.error { border-left: 3px solid var(--error); }
+        .toast.error .toast-icon { color: var(--error); }
+        .toast.warning { border-left: 3px solid var(--warning); }
+        .toast.warning .toast-icon { color: var(--warning); }
+        .toast.info { border-left: 3px solid var(--primary); }
+        .toast.info .toast-icon { color: var(--primary); }
+
+        /* ========== 空状态 ========== */
+        .empty-state { text-align: center; padding: 70px 20px; animation: fadeIn 0.5s ease-out; }
+        .empty-icon { font-size: 4.5rem; margin-bottom: 20px; opacity: 0.55; }
+        .empty-title { font-size: 1.4rem; font-weight: 600; margin-bottom: 8px; }
+        .empty-desc { color: var(--text-muted); max-width: 380px; margin: 0 auto 22px; }
+
+        /* ========== 按钮 ========== */
+        .btn {
+            display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+            padding: 13px 26px; font-size: 0.92rem; font-weight: 600;
+            border: none; border-radius: var(--radius-md); cursor: pointer; transition: all 0.3s;
+        }
+        .btn-primary { background: var(--gradient-primary); color: white; }
+        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 30px rgba(99, 102, 241, 0.4); }
+        .btn-secondary { background: var(--bg-glass); color: var(--text); border: 1px solid var(--border); }
+        .btn-secondary:hover { background: var(--bg-glass-hover); }
+        .btn-ghost { background: transparent; color: var(--text-secondary); }
+        .btn-ghost:hover { color: var(--text); background: var(--bg-glass); }
+        .btn-outline { background: transparent; border: 2px solid var(--primary); color: var(--primary); }
+        .btn-outline:hover { background: var(--primary); color: white; }
+        .btn-back {
+            display: inline-flex; align-items: center; gap: 7px;
+            padding: 9px 18px; background: var(--bg-glass); border: 1px solid var(--border);
+            border-radius: var(--radius-md); color: var(--text-secondary); font-size: 0.88rem;
+            cursor: pointer; transition: all 0.3s; margin-bottom: 22px;
+        }
+        .btn-back:hover { background: var(--bg-glass-hover); color: var(--text); }
+
+        /* ========== 发现页面 ========== */
+        .discover-tabs { display: flex; gap: 8px; margin-bottom: 0; }
+        .discover-tab {
+            padding: 11px 22px; background: transparent;
+            border: 1px solid var(--border); border-bottom: none;
+            border-radius: var(--radius-md) var(--radius-md) 0 0;
+            color: var(--text-secondary); font-weight: 500; cursor: pointer; transition: all 0.2s;
+        }
+        .discover-tab:hover { color: var(--text); background: var(--bg-secondary); }
+        .discover-tab.active { color: var(--primary); background: var(--bg-secondary); border-color: var(--primary); }
+        .discover-panel {
+            background: var(--bg-secondary); border: 1px solid var(--border);
+            border-top: none; border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+            padding: 20px; margin-bottom: 22px;
+        }
+        .discover-controls {
+            background: var(--bg-secondary); border: 1px solid var(--border);
+            border-radius: var(--radius-lg); padding: 18px; margin-bottom: 22px;
+        }
+        .discover-filters { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin-bottom: 14px; }
+        .discover-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+        .select-input {
+            padding: 10px 14px; background: var(--bg-card); border: 1px solid var(--border);
+            border-radius: var(--radius-md); color: var(--text); font-size: 0.9rem;
+            outline: none; cursor: pointer;
+        }
+        .select-input:focus { border-color: var(--primary); }
+        .ai-discover-box {
+            background: linear-gradient(135deg, rgba(99, 102, 241, 0.08), rgba(168, 85, 247, 0.08));
+            border: 1px solid rgba(99, 102, 241, 0.2); border-radius: var(--radius-lg); padding: 22px;
+        }
+        .ai-discover-header { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+        .ai-discover-header .ai-icon { font-size: 1.4rem; }
+        .ai-discover-header .ai-title { font-size: 1.05rem; font-weight: 600; color: var(--text); }
+        .ai-textarea {
+            width: 100%; min-height: 110px; padding: 14px;
+            background: var(--bg-card); border: 1px solid var(--border);
+            border-radius: var(--radius-md); color: var(--text); font-size: 0.92rem;
+            font-family: inherit; resize: vertical; margin-bottom: 14px;
+        }
+        .ai-textarea:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1); }
+        .ai-textarea::placeholder { color: var(--text-muted); }
+        .ai-discover-footer { display: flex; gap: 10px; align-items: center; justify-content: flex-end; }
+        .btn-ai { background: linear-gradient(135deg, var(--primary), #8b5cf6); color: white; border: none; }
+        .btn-ai:hover { background: linear-gradient(135deg, var(--primary-dark), #7c3aed); }
+
+        /* 统计条 */
+        .stats-row { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 22px; }
+        .stat-badge {
+            display: flex; align-items: center; gap: 10px;
+            padding: 14px 20px; background: var(--bg-secondary);
+            border: 1px solid var(--border); border-radius: var(--radius-lg);
+            flex: 1; min-width: 130px; transition: all 0.2s;
+        }
+        .stat-badge:hover { border-color: var(--primary); transform: translateY(-2px); }
+        .stat-icon { font-size: 1.4rem; }
+        .stat-num { font-size: 1.65rem; font-weight: 700; color: var(--text); }
+        .stat-text { font-size: 0.82rem; color: var(--text-secondary); }
+        .stat-total { background: linear-gradient(135deg, rgba(99,102,241,0.1), rgba(139,92,246,0.1)); border-color: rgba(99,102,241,0.3); }
+        .stat-pending { background: linear-gradient(135deg, rgba(245,158,11,0.1), rgba(234,88,12,0.1)); border-color: rgba(245,158,11,0.3); }
+        .stat-approved { background: linear-gradient(135deg, rgba(16,185,129,0.1), rgba(5,150,105,0.1)); border-color: rgba(16,185,129,0.3); }
+        .stat-rejected { background: linear-gradient(135deg, rgba(239,68,68,0.1), rgba(220,38,38,0.1)); border-color: rgba(239,68,68,0.3); }
+
+        /* 候选卡片 */
+        .repo-list { display: flex; flex-direction: column; gap: 14px; }
+        .candidate-card {
+            background: var(--bg-secondary); border: 1px solid var(--border);
+            border-radius: var(--radius-lg); padding: 18px 22px; transition: all 0.2s;
+        }
+        .candidate-card:hover { border-color: var(--primary); box-shadow: 0 4px 20px rgba(99,102,241,0.1); }
+        .candidate-main { display: flex; justify-content: space-between; align-items: flex-start; gap: 18px; }
+        .candidate-info { flex: 1; min-width: 0; }
+        .candidate-name { font-size: 1.1rem; font-weight: 600; color: var(--primary); text-decoration: none; margin-bottom: 7px; display: block; }
+        .candidate-name:hover { text-decoration: underline; }
+        .candidate-desc { color: var(--text-secondary); font-size: 0.92rem; margin-bottom: 10px; line-height: 1.5; }
+        .candidate-tags { display: flex; gap: 7px; flex-wrap: wrap; }
+        .tag { display: inline-flex; align-items: center; padding: 5px 10px; border-radius: 18px; font-size: 0.78rem; font-weight: 500; }
+        .tag-stars { background: rgba(245,158,11,0.12); color: #f59e0b; }
+        .tag-lang { background: rgba(99,102,241,0.12); color: #818cf8; }
+        .tag-score { background: rgba(16,185,129,0.12); color: #10b981; }
+        .candidate-actions { display: flex; gap: 9px; flex-shrink: 0; }
+        .btn-approve, .btn-reject {
+            display: flex; align-items: center; gap: 5px;
+            padding: 9px 16px; border-radius: var(--radius-md);
+            font-size: 0.88rem; font-weight: 600; cursor: pointer; transition: all 0.2s; border: none;
+        }
+        .btn-approve { background: rgba(16,185,129,0.12); color: #10b981; }
+        .btn-approve:hover { background: #10b981; color: white; }
+        .btn-reject { background: rgba(239,68,68,0.1); color: #ef4444; }
+        .btn-reject:hover { background: #ef4444; color: white; }
+        .empty-discover {
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            padding: 56px 20px; background: var(--bg-secondary); border: 2px dashed var(--border);
+            border-radius: var(--radius-xl); text-align: center;
+        }
+
+        /* ========== 分页 ========== */
+        .pagination {
+            display: flex; align-items: center; justify-content: center;
+            gap: 8px; margin-top: 32px;
+        }
+        .page-btn {
+            padding: 8px 16px; background: var(--bg-glass); border: 1px solid var(--border);
+            border-radius: var(--radius-sm); color: var(--text-secondary);
+            font-size: 0.88rem; cursor: pointer; transition: all 0.2s;
+        }
+        .page-btn:hover { background: var(--bg-glass-hover); color: var(--text); }
+        .page-btn.active { background: var(--gradient-primary); color: white; border-color: transparent; }
+        .page-info { color: var(--text-muted); font-size: 0.88rem; padding: 0 8px; }
+
+        /* ========== 滚动条 ========== */
+        ::-webkit-scrollbar { width: 7px; height: 7px; }
+        ::-webkit-scrollbar-track { background: var(--bg-main); }
+        ::-webkit-scrollbar-thumb { background: var(--bg-glass-hover); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+        /* ========== 语言切换按钮 ========== */
+        .lang-toggle {
+            position: fixed; top: 18px; right: 24px; z-index: 1000;
+            display: flex; align-items: center; gap: 6px;
+            padding: 7px 16px; background: var(--bg-glass);
+            border: 1px solid var(--border); border-radius: 100px;
+            color: var(--text-secondary); font-size: 0.85rem; font-weight: 600;
+            cursor: pointer; backdrop-filter: blur(10px);
+            transition: all 0.3s; user-select: none;
+        }
+        .lang-toggle:hover { background: var(--bg-glass-hover); color: var(--text); border-color: var(--border-glow); }
+        .lang-toggle .lang-label { min-width: 18px; text-align: center; }
+        .lang-toggle .lang-arrow { font-size: 0.7rem; transition: transform 0.3s; }
+        .lang-menu {
+            position: fixed; top: 56px; right: 24px; z-index: 1001;
+            background: var(--bg-card); border: 1px solid var(--border);
+            border-radius: var(--radius-md); padding: 6px;
+            backdrop-filter: blur(20px);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+            display: none; min-width: 140px;
+        }
+        .lang-menu.show { display: block; animation: fadeInDown 0.2s ease-out; }
+        .lang-option {
+            padding: 9px 16px; border-radius: var(--radius-sm);
+            font-size: 0.88rem; color: var(--text-secondary);
+            cursor: pointer; transition: all 0.2s;
+            display: flex; align-items: center; gap: 8px;
+        }
+        .lang-option:hover { background: var(--bg-glass-hover); color: var(--text); }
+        .lang-option.active { color: var(--primary-light); background: rgba(99,102,241,0.1); }
+        @keyframes fadeInDown { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
+        footer {
+            text-align: center; padding: 36px 20px; color: var(--text-muted);
+            font-size: 0.88rem; border-top: 1px solid var(--border); margin-top: 56px;
+        }
+        footer a { color: var(--primary-light); text-decoration: none; }
+        footer a:hover { text-decoration: underline; }
+
+        /* ========== 返回到顶部的场景展开 ========== */
+        .breadcrumb {
+            display: flex; align-items: center; gap: 8px;
+            margin-bottom: 18px; font-size: 0.88rem; color: var(--text-muted);
+        }
+        .breadcrumb-sep { color: var(--border); }
+        .breadcrumb-link { color: var(--primary-light); cursor: pointer; transition: color 0.2s; }
+        .breadcrumb-link:hover { color: var(--accent); }
+        .breadcrumb-current { color: var(--text-secondary); }
+
+        /* ========== 响应式 ========== */
+        @media (max-width: 768px) {
+            .app-container { padding: 20px 14px; }
+            .hero h1 { font-size: 2rem; }
+            .hero p { font-size: 0.95rem; }
+            .search-wrapper { flex-direction: column; }
+            .search-btn { width: 100%; padding: 15px; justify-content: center; }
+            .nav-tabs { gap: 3px; padding: 5px; }
+            .nav-tab { padding: 9px 14px; font-size: 0.82rem; }
+            .skills-grid { grid-template-columns: 1fr; }
+            .github-grid { grid-template-columns: 1fr; }
+            .scenarios-grid { grid-template-columns: repeat(2, 1fr); }
+            .categories-grid { grid-template-columns: repeat(2, 1fr); }
+            .detail-header { flex-direction: column; align-items: center; text-align: center; }
+            .detail-section { padding: 22px; }
+            .toast-container { left: 14px; right: 14px; }
+            .toast { min-width: auto; max-width: none; }
+            .discover-controls { flex-direction: column; align-items: stretch; }
+            .candidate-main { flex-direction: column; }
+            .candidate-actions { width: 100%; }
+            .btn-approve, .btn-reject { flex: 1; justify-content: center; }
+            .stats-row { flex-direction: column; }
+            .stat-badge { min-width: auto; }
+        }
+    </style>
+</head>
+<body>
+    <!-- 动态背景 -->
+    <div class="bg-orbs">
+        <div class="bg-orb"></div>
+        <div class="bg-orb"></div>
+        <div class="bg-orb"></div>
+    </div>
+
+    <!-- 语言切换 -->
+    <button class="lang-toggle" id="langToggle" onclick="toggleLangMenu()">
+        <span id="langLabel">中</span>
+        <span class="lang-arrow">▼</span>
+    </button>
+    <div class="lang-menu" id="langMenu">
+        <div class="lang-option active" data-lang="zh" onclick="setLang('zh')">🇨🇳 中文</div>
+        <div class="lang-option" data-lang="en" onclick="setLang('en')">🇺🇸 English</div>
+    </div>
+
+    <div class="app-container">
+        <!-- Hero 区域 -->
+        <header class="hero">
+            <div class="hero-badge">
+                <span class="dot"></span>
+                <span data-i18n="running">Skills Manager 正在运行</span>
+            </div>
+            <h1>🧠 Skills Manager</h1>
+            <p data-i18n="hero_desc">智能 Skills 搜索引擎，发现、浏览、打包您的技能工具箱</p>
+            <div class="stats-bar">
+                <div class="stats-bar-item" id="statsBarSkills" data-i18n="stats_skills">📦 共 <strong id="totalSkills">{}</strong> 个 Skills</div>
+                <div class="stats-bar-item" id="statsBarCategories" data-i18n="stats_categories">📂 覆盖 <strong id="totalCategories">{}</strong> 个分类</div>
+                <div class="stats-bar-item" data-i18n="stats_github">🌐 支持 GitHub 发现</div>
+            </div>
+        </header>
+
+        <!-- 搜索区域 -->
+        <section class="search-section">
+            <div class="search-wrapper">
+                <div class="search-box">
+                    <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="11" cy="11" r="8"/>
+                        <path d="m21 21-4.35-4.35"/>
+                    </svg>
+                <input type="text" id="searchInput"
+                    placeholder="搜索 Skills（如：sprint规划、测试策略、AI安全、用户故事...）"
+                    data-i18n-placeholder="search_placeholder"
+                    onkeydown="if(event.key==='Enter') searchSkills()">
+                </div>
+                <button onclick="searchSkills()" class="search-btn" data-i18n="search_btn">🔍 搜索</button>
+                <button onclick="searchAll()" class="search-btn secondary" data-i18n="search_all">🌐 全网</button>
+            </div>
+            <div class="search-hints">
+                <span class="search-hint" onclick="quickSearch('sprint')" data-i18n="hint_sprint">🏃 Sprint</span>
+                <span class="search-hint" onclick="quickSearch('test')" data-i18n="hint_test">🧪 测试</span>
+                <span class="search-hint" onclick="quickSearch('prd')" data-i18n="hint_prd">📋 PRD</span>
+                <span class="search-hint" onclick="quickSearch('api')" data-i18n="hint_api">🌐 API</span>
+                <span class="search-hint" onclick="quickSearch('tdd')" data-i18n="hint_tdd">⚡ TDD</span>
+                <span class="search-hint" onclick="quickSearch('design')" data-i18n="hint_design">🎨 设计</span>
+                <span class="search-hint" onclick="quickSearch('debug')" data-i18n="hint_debug">🔧 调试</span>
+                <span class="search-hint" onclick="quickSearch('mvp')" data-i18n="hint_mvp">💰 MVP</span>
+            </div>
+        </section>
+
+        <!-- 导航标签 -->
+        <nav class="nav-tabs">
+            <button class="nav-tab active" data-tab="search">
+                <span data-i18n="tab_local">📋 本地 Skills</span>
+            </button>
+            <button class="nav-tab" data-tab="github">
+                <span data-i18n="tab_github">🐙 GitHub 仓库</span>
+            </button>
+            <button class="nav-tab" data-tab="scenarios">
+                <span data-i18n="tab_scenarios">🎯 场景推荐</span>
+            </button>
+            <button class="nav-tab" data-tab="categories">
+                <span data-i18n="tab_categories">📂 分类浏览</span>
+            </button>
+            <button class="nav-tab" data-tab="cart">
+                <span data-i18n="tab_cart">📦 打包清单</span> <span class="count" id="cartCount">0</span>
+            </button>
+            <button class="nav-tab" data-tab="discover">
+                <span data-i18n="tab_discover">🔍 发现新 Skills</span>
+            </button>
+        </nav>
+
+        <main>
+            <!-- 本地 Skills 搜索结果 -->
+            <section id="searchSection" class="content-section active">
+                <div class="section-header">
+                    <div class="section-title">
+                        <h2 data-i18n="sec_local">📋 本地 Skills</h2>
+                        <span class="tag" id="searchTag" data-i18n="tag_local">显示最新 Skills</span>
+                    </div>
+                    <div style="display:flex;gap:8px;align-items:center;">
+                        <span style="color:var(--text-muted);font-size:0.85rem;" data-i18n="sort_label">排序：</span>
+                        <select id="sortOrder" class="select-input" style="font-size:0.82rem;padding:6px 10px;" onchange="onSortChange()">
+                            <option value="default" data-i18n="sort_default">默认</option>
+                            <option value="name" data-i18n="sort_name">名称 A-Z</option>
+                            <option value="category" data-i18n="sort_category">按分类</option>
+                        </select>
+                    </div>
+                </div>
+                <div id="aiRecommendation"></div>
+                <div class="skills-grid" id="searchResults"></div>
+                <div id="searchPagination"></div>
+            </section>
+
+            <!-- GitHub 仓库 -->
+            <section id="githubSection" class="content-section">
+                <div class="section-header">
+                    <div class="section-title">
+                        <h2 data-i18n="sec_github">🐙 GitHub 仓库</h2>
+                        <span class="tag" id="githubTag" data-i18n="tag_github">发现优质开源项目</span>
+                    </div>
+                </div>
+                <div class="github-grid" id="githubResults">
+                    <div class="empty-state">
+                        <div class="empty-icon">🐙</div>
+                        <h3 class="empty-title" data-i18n="github_title">搜索 GitHub 仓库</h3>
+                        <p class="empty-desc" data-i18n="github_desc">在搜索框中输入关键词，点击「全网」按钮即可搜索 GitHub 上的优质 Skills 仓库</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 场景推荐 -->
+            <section id="scenariosSection" class="content-section">
+                <div class="section-header">
+                    <div class="section-title">
+                        <h2 data-i18n="sec_scenarios">🎯 场景化推荐</h2>
+                        <span class="tag" id="scenarioTag" data-i18n="tag_scenarios">选择您的使用场景</span>
+                    </div>
+                    <button class="btn btn-ghost" id="scenarioBackBtn" onclick="loadScenarios()" style="display:none;" data-i18n="btn_back_scenarios">
+                        ← 返回场景列表
+                    </button>
+                </div>
+                <div id="scenariosList"></div>
+            </section>
+
+            <!-- 分类浏览 -->
+            <section id="categoriesSection" class="content-section">
+                <div class="section-header">
+                    <div class="section-title">
+                        <h2 data-i18n="sec_categories">📂 分类浏览</h2>
+                        <span class="tag" id="categoriesTag" data-i18n="tag_categories">按分类查看所有 Skills</span>
+                    </div>
+                    <button class="btn btn-ghost" id="categoryBackBtn" onclick="loadCategories()" style="display:none;" data-i18n="btn_back_categories">
+                        ← 返回分类列表
+                    </button>
+                </div>
+                <div id="categoriesList"></div>
+            </section>
+
+            <!-- 打包清单 -->
+            <section id="cartSection" class="content-section">
+                <div class="section-header">
+                    <div class="section-title">
+                        <h2 data-i18n="sec_cart">📦 打包清单</h2>
+                        <span class="tag" id="cartTag" data-i18n="tag_cart">已选择 0 个 Skills</span>
+                    </div>
+                </div>
+                <div class="cart-actions">
+                    <button class="btn btn-primary" onclick="packageSelected()" data-i18n="btn_package">📦 打包下载选中项</button>
+                    <button class="btn btn-secondary" onclick="packageAll()" data-i18n="btn_package_all">📦 打包全部 Skills</button>
+                    <button class="btn btn-ghost" onclick="clearCart()" data-i18n="btn_clear_cart">🗑️ 清空清单</button>
+                </div>
+                <div id="cartList"></div>
+            </section>
+
+            <!-- 发现新 Skills -->
+            <section id="discoverSection" class="content-section">
+                <div class="section-header">
+                    <div class="section-title">
+                        <h2 data-i18n="sec_discover">🔍 发现新 Skills</h2>
+                        <span class="tag" id="discoverTag" data-i18n="tag_discover">从 GitHub 发现优质 Skills</span>
+                    </div>
+                </div>
+                <div class="discover-controls">
+                    <div class="discover-tabs">
+                        <button class="discover-tab active" data-mode="keyword" onclick="switchDiscoverMode('keyword')" data-i18n="discover_keyword">🔍 关键词搜索</button>
+                        <button class="discover-tab" data-mode="ai" onclick="switchDiscoverMode('ai')" data-i18n="discover_ai">🤖 AI 智能推荐</button>
+                    </div>
+                </div>
+                <div id="keywordPanel" class="discover-panel">
+                    <div class="discover-filters">
+                        <select id="discoverCategory" class="select-input">
+                            <option value="" data-i18n="discover_cat_all">全部分类</option>
+                            <option value="ai_agent" data-i18n="discover_cat_ai">🤖 AI Agent</option>
+                            <option value="product" data-i18n="discover_cat_product">📋 产品经理</option>
+                            <option value="agile" data-i18n="discover_cat_agile">🏃 敏捷开发</option>
+                            <option value="qa_testing" data-i18n="discover_cat_qa">🧪 QA测试</option>
+                            <option value="architecture" data-i18n="discover_cat_arch">🏗️ 架构设计</option>
+                            <option value="dev_workflow" data-i18n="discover_cat_dev">⚡ 开发工作流</option>
+                        </select>
+                        <input type="number" id="minStars" class="select-input" placeholder="最低 Stars" data-i18n-placeholder="discover_min_stars" value="50" min="10" style="width:130px;">
+                    </div>
+                    <div class="discover-actions">
+                        <button class="btn btn-primary" onclick="runDiscovery()" data-i18n="discover_run">🚀 开始发现</button>
+                        <button class="btn btn-outline" onclick="loadCandidates()" data-i18n="discover_list">📋 候选列表</button>
+                    </div>
+                </div>
+                <div id="aiPanel" class="discover-panel" style="display:none;">
+                    <div class="ai-discover-box">
+                        <div class="ai-discover-header">
+                            <span class="ai-icon">🤖</span>
+                            <span class="ai-title" data-i18n="ai_title">AI 智能推荐</span>
+                        </div>
+                        <textarea id="aiRequirement" class="ai-textarea"
+                            placeholder="描述你需要的 Skills，例如：&#10;• 我需要一个帮助代码审查的 Skill&#10;• 想要提高团队敏捷开发效率&#10;• 需要产品需求文档编写的最佳实践"></textarea>
+                        <div class="ai-discover-footer">
+                            <input type="number" id="aiMinStars" class="select-input" placeholder="最低 Stars" data-i18n-placeholder="ai_min_stars" value="50" min="10" style="width:130px;">
+                            <button class="btn btn-primary btn-ai" onclick="runAIDiscovery()" data-i18n="ai_run">🚀 AI 发现</button>
+                        </div>
+                    </div>
+                </div>
+                <div id="discoverStats"></div>
+                <div id="discoverResults" class="repo-list"></div>
+            </section>
+
+            <!-- 详情页 -->
+            <section id="detailSection" class="content-section">
+                <button class="btn-back" onclick="goBack()">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="m15 18-6-6 6-6"/>
+                    </svg>
+                    <span data-i18n="btn_back">返回</span>
+                </button>
+                <div id="skillDetail"></div>
+            </section>
+        </main>
+
+        <footer>
+            <p data-i18n="footer">Skills Manager | <span id="footerTotal">0</span> 个 Skills | 涵盖 16+ 个分类 | <a href="https://github.com" target="_blank">GitHub</a></p>
+        </footer>
+    </div>
+
+    <!-- Toast 容器 -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <script>
+        // ========== i18n 多语言支持 ==========
+        let currentLang = localStorage.getItem('lang') || 'zh';
+
+        const translations = {
+            zh: {
+                // Hero
+                running: 'Skills Manager 正在运行',
+                hero_title: '🧠 Skills Manager',
+                hero_desc: '智能 Skills 搜索引擎，发现、浏览、打包您的技能工具箱',
+                stats_skills: '📦 共 <strong id="totalSkills">{}</strong> 个 Skills',
+                stats_categories: '📂 覆盖 <strong id="totalCategories">{}</strong> 个分类',
+                stats_github: '🌐 支持 GitHub 发现',
+                // Search
+                search_placeholder: '搜索 Skills（如：sprint规划、测试策略、AI安全、用户故事...）',
+                search_btn: '🔍 搜索',
+                search_all: '🌐 全网',
+                hint_sprint: '🏃 Sprint',
+                hint_test: '🧪 测试',
+                hint_prd: '📋 PRD',
+                hint_api: '🌐 API',
+                hint_tdd: '⚡ TDD',
+                hint_design: '🎨 设计',
+                hint_debug: '🔧 调试',
+                hint_mvp: '💰 MVP',
+                // Nav tabs
+                tab_local: '📋 本地 Skills',
+                tab_github: '🐙 GitHub 仓库',
+                tab_scenarios: '🎯 场景推荐',
+                tab_categories: '📂 分类浏览',
+                tab_cart: '📦 打包清单',
+                tab_discover: '🔍 发现新 Skills',
+                // Section headers
+                sec_local: '📋 本地 Skills',
+                tag_local: '显示最新 Skills',
+                tag_search: '找到 {} 个 Skills',
+                tag_searching: '正在搜索: "{}"',
+                tag_local_all: '全部 {} 个 Skills',
+                tag_github: '发现优质开源项目',
+                tag_github_result: 'GitHub 找到 {} 个仓库',
+                github_desc: '在搜索框中输入关键词，点击「全网」按钮即可搜索 GitHub 上的优质 Skills 仓库',
+                github_title: '搜索 GitHub 仓库',
+                // Scenarios
+                sec_scenarios: '🎯 场景化推荐',
+                tag_scenarios: '选择您的使用场景',
+                btn_back_scenarios: '← 返回场景列表',
+                scenario_pm_basics: '产品经理基础',
+                scenario_pm_advanced: '高级产品经理',
+                scenario_customer_discovery: '客户探索验证',
+                scenario_agile_dev: '敏捷开发团队',
+                scenario_scrum_team: 'Scrum团队',
+                scenario_qa_testing: 'QA与测试',
+                scenario_architecture: '架构设计',
+                scenario_dev_quality: '开发质量',
+                scenario_tdd_workflow: 'TDD测试驱动',
+                scenario_indie_hacker: '独立开发者',
+                scenario_ai_product: 'AI产品开发',
+                scenario_design_system: '设计系统',
+                scenario_skill_creation: 'Skill开发',
+                // Categories
+                sec_categories: '📂 分类浏览',
+                tag_categories: '按分类查看所有 Skills',
+                btn_back_categories: '← 返回分类列表',
+                // Cart
+                sec_cart: '📦 打包清单',
+                tag_cart: '已选择 {} 个 Skills',
+                btn_package: '📦 打包下载选中项',
+                btn_package_all: '📦 打包全部 Skills',
+                btn_clear_cart: '🗑️ 清空清单',
+                cart_empty_title: '清单为空',
+                cart_empty_desc: '浏览 Skills 并添加感兴趣的到清单中',
+                // Discover
+                sec_discover: '🔍 发现新 Skills',
+                tag_discover: '从 GitHub 发现优质 Skills',
+                discover_keyword: '🔍 关键词搜索',
+                discover_ai: '🤖 AI 智能推荐',
+                discover_cat_all: '全部分类',
+                discover_cat_ai: '🤖 AI Agent',
+                discover_cat_product: '📋 产品经理',
+                discover_cat_agile: '🏃 敏捷开发',
+                discover_cat_qa: '🧪 QA测试',
+                discover_cat_arch: '🏗️ 架构设计',
+                discover_cat_dev: '⚡ 开发工作流',
+                discover_min_stars: '最低 Stars',
+                discover_run: '🚀 开始发现',
+                discover_list: '📋 候选列表',
+                ai_title: 'AI 智能推荐',
+                ai_placeholder: '描述你需要的 Skills，例如：\n• 我需要一个帮助代码审查的 Skill\n• 想要提高团队敏捷开发效率\n• 需要产品需求文档编写的最佳实践',
+                ai_min_stars: '最低 Stars',
+                ai_run: '🚀 AI 发现',
+                stat_total: '候选总数',
+                stat_pending: '待审批',
+                stat_approved: '已批准',
+                stat_rejected: '已拒绝',
+                // Sort
+                sort_label: '排序：',
+                sort_default: '默认',
+                sort_name: '名称 A-Z',
+                sort_category: '按分类',
+                // Pagination
+                prev_page: '← 上一页',
+                next_page: '下一页 →',
+                page_info: '{} 个结果 | 第 {} / {} 页',
+                // Skill cards
+                view_detail: '📄 查看详情',
+                added: '✓ 已加入',
+                add_to_cart: '+ 加入清单',
+                // Detail page
+                detail_files: '📁 文件结构',
+                detail_no_files: '暂无文件信息',
+                detail_in_cart: '✓ 已在清单中',
+                detail_add_cart: '+ 加入清单',
+                detail_download: '📦 单独下载',
+                btn_back: '返回',
+                // Toast
+                toast_success: '操作成功',
+                toast_error: '发生错误',
+                toast_warning: '请注意',
+                toast_info: '提示',
+                // Empty states
+                empty_no_results: '暂无结果',
+                empty_try_other: '尝试其他关键词搜索',
+                empty_no_data: '暂无数据',
+                empty_no_matching: '暂无匹配',
+                empty_no_skills: '该分类下暂无 Skills',
+                empty_no_candidates: '暂无候选 Skills',
+                empty_discover_desc: '点击「🚀 开始发现」从 GitHub 搜索优质 Skills',
+                load_failed: '加载失败',
+                // Messages
+                msg_loading: '正在加载: {}',
+                msg_searching: '正在搜索本地和 GitHub...',
+                msg_search_empty: '请输入搜索关键词',
+                msg_please_select: '请先选择要打包的 Skills',
+                msg_packing: '正在打包 {} 个 Skills...',
+                msg_packing_all: '正在打包全部 Skills...',
+                msg_packing_single: '正在打包: {}...',
+                msg_pack_success: '打包完成！{} 个 Skills，{}',
+                msg_pack_success_single: '打包完成！',
+                msg_pack_fail: '打包失败: {}',
+                msg_added: '已加入清单: {}',
+                msg_already_in: '已在清单中',
+                msg_removed: '已从清单移除: {}',
+                msg_cleared: '清单已清空',
+                msg_ai_thinking: '🤖 AI 正在分析需求...',
+                msg_ai_found: '✅ AI 推荐了 {} 个候选',
+                msg_discovering: '🔍 正在搜索 GitHub...',
+                msg_discovered: '✅ 发现 {} 个新候选',
+                msg_load_candidates: '📋 {} 个待审批候选',
+                msg_input_requirement: '请输入您需要的 Skills 描述',
+                msg_click_approve: '点击「{}」批准，或「{}」拒绝',
+                // Footer
+                footer: 'Skills Manager | <span id="footerTotal">{}</span> Skills | 16+ categories | GitHub',
+                // Discover AI descriptions
+                desc_pm_basics: 'PRD、用户故事、需求分析',
+                desc_pm_advanced: '战略、指标、商业化',
+                desc_customer_discovery: '访谈准备、发现流程',
+                desc_agile_dev: 'Sprint规划、回顾',
+                desc_scrum_team: '14个Scrum仪式',
+                desc_qa_testing: 'E2E、Playwright',
+                desc_architecture: 'DDD、API设计',
+                desc_dev_quality: '整洁代码、调试',
+                desc_tdd_workflow: '红绿重构',
+                desc_indie_hacker: 'MVP、获客、增长',
+                desc_ai_product: 'Prompt、安全',
+                desc_design_system: 'UI/UX组件库',
+                desc_skill_creation: '官方创建工具',
+            },
+            en: {
+                // Hero
+                running: 'Skills Manager is running',
+                hero_title: '🧠 Skills Manager',
+                hero_desc: 'Intelligent Skills search engine — discover, browse, and package your skill toolkit',
+                stats_skills: '📦 <strong id="totalSkills">...</strong> Skills total',
+                stats_categories: '📂 <strong id="totalCategories">...</strong> categories',
+                stats_github: '🌐 GitHub discovery supported',
+                // Search
+                search_placeholder: 'Search Skills (e.g., sprint planning, testing strategy, AI safety, user stories...)',
+                search_btn: '🔍 Search',
+                search_all: '🌐 Global',
+                hint_sprint: '🏃 Sprint',
+                hint_test: '🧪 Testing',
+                hint_prd: '📋 PRD',
+                hint_api: '🌐 API',
+                hint_tdd: '⚡ TDD',
+                hint_design: '🎨 Design',
+                hint_debug: '🔧 Debug',
+                hint_mvp: '💰 MVP',
+                // Nav tabs
+                tab_local: '📋 Local Skills',
+                tab_github: '🐙 GitHub Repos',
+                tab_scenarios: '🎯 By Scenario',
+                tab_categories: '📂 By Category',
+                tab_cart: '📦 Package List',
+                tab_discover: '🔍 Discover Skills',
+                // Section headers
+                sec_local: '📋 Local Skills',
+                tag_local: 'Showing latest Skills',
+                tag_search: 'Found {} Skills',
+                tag_searching: 'Searching: "{}"',
+                tag_local_all: 'All {} Skills',
+                tag_github: 'Discover quality open-source projects',
+                tag_github_result: 'GitHub: {} repos found',
+                github_desc: 'Enter keywords in the search box and click "Global" to search GitHub for quality Skills repos',
+                github_title: 'Search GitHub Repos',
+                // Scenarios
+                sec_scenarios: '🎯 Scenario Recommendations',
+                tag_scenarios: 'Select your use case',
+                btn_back_scenarios: '← Back to scenarios',
+                scenario_pm_basics: 'Product Manager Basics',
+                scenario_pm_advanced: 'Senior PM',
+                scenario_customer_discovery: 'Customer Discovery',
+                scenario_agile_dev: 'Agile Team',
+                scenario_scrum_team: 'Scrum Team',
+                scenario_qa_testing: 'QA & Testing',
+                scenario_architecture: 'Architecture',
+                scenario_dev_quality: 'Dev Quality',
+                scenario_tdd_workflow: 'TDD Workflow',
+                scenario_indie_hacker: 'Indie Hacker',
+                scenario_ai_product: 'AI Product',
+                scenario_design_system: 'Design System',
+                scenario_skill_creation: 'Skill Creation',
+                // Categories
+                sec_categories: '📂 Browse by Category',
+                tag_categories: 'View all Skills by category',
+                btn_back_categories: '← Back to categories',
+                // Cart
+                sec_cart: '📦 Package List',
+                tag_cart: '{} Skills selected',
+                btn_package: '📦 Package Selected',
+                btn_package_all: '📦 Package All Skills',
+                btn_clear_cart: '🗑️ Clear List',
+                cart_empty_title: 'Package list is empty',
+                cart_empty_desc: 'Browse Skills and add interesting ones to the list',
+                // Discover
+                sec_discover: '🔍 Discover New Skills',
+                tag_discover: 'Discover quality Skills from GitHub',
+                discover_keyword: '🔍 Keyword Search',
+                discover_ai: '🤖 AI Recommendation',
+                discover_cat_all: 'All Categories',
+                discover_cat_ai: '🤖 AI Agent',
+                discover_cat_product: '📋 Product Manager',
+                discover_cat_agile: '🏃 Agile',
+                discover_cat_qa: '🧪 QA Testing',
+                discover_cat_arch: '🏗️ Architecture',
+                discover_cat_dev: '⚡ Dev Workflow',
+                discover_min_stars: 'Min Stars',
+                discover_run: '🚀 Start Discovery',
+                discover_list: '📋 Candidate List',
+                ai_title: 'AI Smart Recommendation',
+                ai_placeholder: 'Describe the Skills you need, e.g.:\n• I need a Skill for code review\n• Want to improve team agile efficiency\n• Need best practices for PRD writing',
+                ai_min_stars: 'Min Stars',
+                ai_run: '🚀 AI Discover',
+                stat_total: 'Total Candidates',
+                stat_pending: 'Pending',
+                stat_approved: 'Approved',
+                stat_rejected: 'Rejected',
+                // Sort
+                sort_label: 'Sort: ',
+                sort_default: 'Default',
+                sort_name: 'Name A-Z',
+                sort_category: 'By Category',
+                // Pagination
+                prev_page: '← Prev',
+                next_page: 'Next →',
+                page_info: '{} results | Page {} / {}',
+                // Skill cards
+                view_detail: '📄 View Detail',
+                added: '✓ Added',
+                add_to_cart: '+ Add to List',
+                // Detail page
+                detail_files: '📁 File Structure',
+                detail_no_files: 'No file info',
+                detail_in_cart: '✓ In List',
+                detail_add_cart: '+ Add to List',
+                detail_download: '📦 Download Single',
+                btn_back: 'Back',
+                // Toast
+                toast_success: 'Success',
+                toast_error: 'Error',
+                toast_warning: 'Warning',
+                toast_info: 'Info',
+                // Empty states
+                empty_no_results: 'No Results',
+                empty_try_other: 'Try other keywords',
+                empty_no_data: 'No Data',
+                empty_no_matching: 'No matching',
+                empty_no_skills: 'No Skills in this category',
+                empty_no_candidates: 'No candidate Skills',
+                empty_discover_desc: 'Click "🚀 Start Discovery" to search GitHub for quality Skills',
+                load_failed: 'Load Failed',
+                // Messages
+                msg_loading: 'Loading: {}',
+                msg_searching: 'Searching local and GitHub...',
+                msg_search_empty: 'Please enter search keywords',
+                msg_please_select: 'Please select Skills to package',
+                msg_packing: 'Packaging {} Skills...',
+                msg_packing_all: 'Packaging all Skills...',
+                msg_packing_single: 'Packaging: {}...',
+                msg_pack_success: 'Package complete! {} Skills, {}',
+                msg_pack_success_single: 'Package complete!',
+                msg_pack_fail: 'Package failed: {}',
+                msg_added: 'Added to list: {}',
+                msg_already_in: 'Already in list',
+                msg_removed: 'Removed from list: {}',
+                msg_cleared: 'List cleared',
+                msg_ai_thinking: '🤖 AI is analyzing...',
+                msg_ai_found: '✅ AI recommended {} candidates',
+                msg_discovering: '🔍 Searching GitHub...',
+                msg_discovered: '✅ Found {} new candidates',
+                msg_load_candidates: '📋 {} pending candidates',
+                msg_input_requirement: 'Please describe the Skills you need',
+                msg_click_approve: 'Click "{}" to approve, or "{}" to reject',
+                // Footer
+                footer: 'Skills Manager | {} Skills | 16+ categories | GitHub',
+                // Discover AI descriptions
+                desc_pm_basics: 'PRD, User Stories, Requirements',
+                desc_pm_advanced: 'Strategy, Metrics, Monetization',
+                desc_customer_discovery: 'Interview prep, Discovery process',
+                desc_agile_dev: 'Sprint planning, Retrospective',
+                desc_scrum_team: '14 Scrum ceremonies',
+                desc_qa_testing: 'E2E, Playwright',
+                desc_architecture: 'DDD, API Design',
+                desc_dev_quality: 'Clean code, Debugging',
+                desc_tdd_workflow: 'Red-Green-Refactor',
+                desc_indie_hacker: 'MVP, Acquisition, Growth',
+                desc_ai_product: 'Prompt, Safety',
+                desc_design_system: 'UI/UX Component Library',
+                desc_skill_creation: 'Official creation tools',
+            }
+        };
+
+        function t(key, ...args) {
+            let s = (translations[currentLang] && translations[currentLang][key]) || key;
+            args.forEach((a, i) => { s = s.replace('{}', a); });
+            return s;
+        }
+
+        function applyI18n() {
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.dataset.i18n;
+                const raw = t(key);
+                // Preserve inner HTML for keys with tags (e.g., stats_skills)
+                if (raw.includes('<') && (raw.includes('<strong>') || raw.includes('<'))) {
+                    el.innerHTML = raw;
+                } else {
+                    el.textContent = raw;
+                }
+            });
+            document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+                el.placeholder = t(el.dataset.i18nPlaceholder);
+            });
+            // Update lang menu active state
+            document.querySelectorAll('.lang-option').forEach(opt => {
+                opt.classList.toggle('active', opt.dataset.lang === currentLang);
+            });
+            document.getElementById('langLabel').textContent = currentLang === 'zh' ? '中' : 'EN';
+        }
+
+        function toggleLangMenu() {
+            document.getElementById('langMenu').classList.toggle('show');
+        }
+
+        function setLang(lang) {
+            currentLang = lang;
+            localStorage.setItem('lang', lang);
+            document.getElementById('langMenu').classList.remove('show');
+            applyI18n();
+            // Re-render current view with new language
+            refreshCurrentView();
+        }
+
+        function refreshCurrentView() {
+            const view = currentView;
+            // Always reload stats on lang change to update footer and stats bar
+            loadStats();
+            if (view === 'search') {
+                // Re-render search results with current language
+                if (currentSearchResults.length > 0) {
+                    renderSkillsPage(currentPage);
+                } else {
+                    document.getElementById('searchTag').textContent = t('tag_local_all', allLoadedSkills.length);
+                }
+            }
+            if (view === 'github') {
+                const tag = document.getElementById('githubTag');
+                if (tag) tag.textContent = t('tag_github');
+            }
+            if (view === 'scenarios') loadScenarios();
+            if (view === 'categories') loadCategories();
+            if (view === 'cart') renderCart();
+            if (view === 'discover') { loadDiscoverStats(); switchDiscoverMode(document.querySelector('.discover-tab.active')?.dataset.mode || 'keyword'); }
+            // Update nav tab texts
+            document.querySelectorAll('.nav-tab').forEach(tab => {
+                const key = tab.dataset.tab;
+                const map = { 'search': 'tab_local', 'github': 'tab_github', 'scenarios': 'tab_scenarios', 'categories': 'tab_categories', 'cart': 'tab_cart', 'discover': 'tab_discover' };
+                if (map[key]) tab.innerHTML = t(map[key]) + (key === 'cart' ? ' <span class="count" id="cartCount">' + cart.length + '</span>' : '');
+            });
+            // Update section headers
+            updateSectionHeaders();
+            // Update discover tab texts
+            document.querySelector('[data-mode="keyword"]').innerHTML = t('discover_keyword');
+            document.querySelector('[data-mode="ai"]').innerHTML = t('discover_ai');
+        }
+
+        function updateSectionHeaders() {
+            // Update all section header texts
+            const secLocal = document.querySelector('#searchSection .section-title h2');
+            if (secLocal) secLocal.innerHTML = t('sec_local');
+            const secGithub = document.querySelector('#githubSection .section-title h2');
+            if (secGithub) secGithub.innerHTML = t('sec_github');
+            const secScenarios = document.querySelector('#scenariosSection .section-title h2');
+            if (secScenarios) secScenarios.innerHTML = t('sec_scenarios');
+            const secCategories = document.querySelector('#categoriesSection .section-title h2');
+            if (secCategories) secCategories.innerHTML = t('sec_categories');
+            const secCart = document.querySelector('#cartSection .section-title h2');
+            if (secCart) secCart.innerHTML = t('sec_cart');
+            const secDiscover = document.querySelector('#discoverSection .section-title h2');
+            if (secDiscover) secDiscover.innerHTML = t('sec_discover');
+        }
+
+        // Close lang menu on outside click
+        document.addEventListener('click', function(e) {
+            const menu = document.getElementById('langMenu');
+            const btn = document.getElementById('langToggle');
+            if (menu && !menu.contains(e.target) && !btn.contains(e.target)) {
+                menu.classList.remove('show');
+            }
+        });
+
+        // ========== 全局状态 ==========
+        let cart = [];
+        let allSkillsCache = {};      // name -> skill 映射
+        let currentView = 'search';
+        let prevView = 'search';      // 用于详情页返回
+        let currentSearchResults = [];
+        let currentPage = 1;
+        const PAGE_SIZE = 24;
+        let totalSkillsCount = 0;
+        let allLoadedSkills = [];     // 初始加载的全部 skills
+
+        const langColors = {
+            'Python': '#3572A5', 'JavaScript': '#f1e05a', 'TypeScript': '#3178c6',
+            'HTML': '#e34c26', 'CSS': '#563d7c', 'Java': '#b07219',
+            'Go': '#00ADD8', 'Rust': '#dea584', 'Ruby': '#701516',
+            'PHP': '#4F5D95', 'Shell': '#89e051', 'Vue': '#41b883', 'React': '#61dafb'
+        };
+
+        // ========== 初始化 ==========
+        async function init() {
+            loadCart();
+            setupTabs();
+            applyI18n();  // 应用初始语言
+            await loadStats();
+            await loadInitialSkills();
+        }
+
+        function setupTabs() {
+            document.querySelectorAll('.nav-tab').forEach(tab => {
+                tab.addEventListener('click', () => {
+                    const section = tab.dataset.tab;
+                    showSection(section);
+                    if (section === 'scenarios') loadScenarios();
+                    if (section === 'categories') loadCategories();
+                    if (section === 'cart') renderCart();
+                    if (section === 'discover') loadDiscoverStats();
+                });
+            });
+        }
+
+        // ========== 统计加载 ==========
+        async function loadStats() {
+            try {
+                const res = await fetch('/api/stats');
+                const data = await res.json();
+                totalSkillsCount = data.total;
+                document.getElementById('totalSkills').textContent = data.total;
+                document.getElementById('totalCategories').textContent = data.categories.length;
+                document.getElementById('footerTotal').textContent = data.total;
+            } catch (e) {
+                console.error('Failed to load stats:', e);
+            }
+        }
+
+        // ========== 初始加载全部 Skills ==========
+        async function loadInitialSkills() {
+            showGridLoading('searchResults', 6);
+            try {
+                const res = await fetch('/api/skills/all?page=1&per_page=300');
+                const data = await res.json();
+                allLoadedSkills = data.results || [];
+                // Build cache
+                allLoadedSkills.forEach(s => { allSkillsCache[s.name] = s; });
+                document.getElementById('searchTag').textContent = `全部 ${data.total} 个 Skills`;
+                currentSearchResults = allLoadedSkills;
+                renderSkillsPage(1);
+            } catch (e) {
+                renderEmpty('searchResults', t('load_failed'), t('msg_please_select'));
+            }
+        }
+
+        // ========== 区域切换 ==========
+        function showSection(section) {
+            if (section !== 'detail') prevView = currentView;
+            currentView = section;
+            document.querySelectorAll('.nav-tab').forEach(t => {
+                t.classList.toggle('active', t.dataset.tab === section);
+            });
+            document.querySelectorAll('.content-section').forEach(c => {
+                c.classList.toggle('active', c.id === `${section}Section`);
+            });
+            // Hide nav highlight for detail page
+            if (section === 'detail') {
+                document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+            }
+        }
+
+        function goBack() {
+            showSection(prevView);
+            // Re-activate the corresponding tab
+            const tab = document.querySelector(`[data-tab="${prevView}"]`);
+            if (tab) tab.classList.add('active');
+        }
+
+        // ========== 快捷搜索 ==========
+        function quickSearch(keyword) {
+            document.getElementById('searchInput').value = keyword;
+            searchSkills();
+            showSection('search');
+        }
+
+        // ========== 排序 ==========
+        function onSortChange() {
+            renderSkillsPage(1);
+        }
+
+        function getSortedSkills(skills) {
+            const sort = document.getElementById('sortOrder').value;
+            const copy = [...skills];
+            if (sort === 'name') {
+                copy.sort((a, b) => a.name.localeCompare(b.name));
+            } else if (sort === 'category') {
+                copy.sort((a, b) => (a.category || '').localeCompare(b.category || '') || a.name.localeCompare(b.name));
+            }
+            return copy;
+        }
+
+        // ========== 搜索功能 ==========
+        async function searchSkills() {
+            const query = document.getElementById('searchInput').value.trim();
+            if (!query) {
+                // Reset to all skills
+                document.getElementById('searchTag').textContent = t('tag_local_all', allLoadedSkills.length);
+                document.getElementById('aiRecommendation').innerHTML = '';
+                currentSearchResults = allLoadedSkills;
+                renderSkillsPage(1);
+                showSection('search');
+                return;
+            }
+
+            showGridLoading('searchResults', 6);
+            document.getElementById('searchTag').textContent = t('tag_searching', query);
+            document.getElementById('searchPagination').innerHTML = '';
+
+            try {
+                const [res, aiRes] = await Promise.all([
+                    fetch(`/api/search?q=${encodeURIComponent(query)}&top_k=100`),
+                    fetch(`/api/search/ai?q=${encodeURIComponent(query)}`)
+                ]);
+
+                const data = await res.json();
+                const aiData = await aiRes.json();
+
+                document.getElementById('searchTag').textContent = t('tag_search', data.count);
+                showAIRecommendation(aiData.recommendation);
+
+                currentSearchResults = data.results;
+                renderSkillsPage(1);
+                showSection('search');
+            } catch (e) {
+                showToast(t('msg_packing_fail', e.message), 'error');
+                renderEmpty('searchResults', t('load_failed'), t('msg_search_empty'));
+            }
+        }
+
+        async function searchAll() {
+            const query = document.getElementById('searchInput').value.trim();
+            if (!query) { showToast(t('msg_search_empty'), 'warning'); return; }
+
+            showGridLoading('searchResults', 4);
+            showToast(t('msg_searching'), 'info');
+
+            try {
+                const res = await fetch(`/api/search/all?q=${encodeURIComponent(query)}`);
+                const data = await res.json();
+                if (data.error) { showToast(data.message || t('msg_packing_fail', ''), 'error'); return; }
+
+                showAIRecommendation(data.recommendation);
+
+                const localCount = data.local?.count || 0;
+                const githubCount = data.github?.count || 0;
+                document.getElementById('searchTag').textContent = t('tag_local_all', localCount);
+
+                currentSearchResults = data.local?.results || [];
+                renderSkillsPage(1);
+
+                if (data.github?.repos?.length > 0) {
+                    renderGithubResults(data.github.repos);
+                    document.getElementById('githubTag').textContent = t('tag_github_result', githubCount);
+                    showSection('github');
+                } else {
+                    showSection('search');
+                }
+            } catch (e) {
+                showToast(t('msg_packing_fail', e.message), 'error');
+            }
+        }
+
+        // ========== AI 推荐 ==========
+        function showAIRecommendation(rec) {
+            const container = document.getElementById('aiRecommendation');
+            if (!rec || !rec.recommendation) { container.innerHTML = ''; return; }
+
+            const suggestions = rec.suggestions?.map(s =>
+                `<span class="ai-suggestion" onclick="quickSearch('${s}')">${s}</span>`
+            ).join('') || '';
+
+            container.innerHTML = `
+                <div class="ai-card">
+                    <div class="ai-header">
+                        <div class="ai-avatar">🤖</div>
+                        <div>
+                            <div class="ai-name">${t('ai_title')}</div>
+                            <div class="ai-label">${currentLang === 'zh' ? '基于您的搜索意图' : 'Based on your search intent'}</div>
+                        </div>
+                    </div>
+                    <div class="ai-text">${rec.recommendation}</div>
+                    ${suggestions ? `<div class="ai-suggestions">${suggestions}</div>` : ''}
+                </div>`;
+        }
+
+        // ========== 渲染技能卡片（带分页）==========
+        function renderSkillsPage(page) {
+            currentPage = page;
+            const sorted = getSortedSkills(currentSearchResults);
+            const total = sorted.length;
+            const totalPages = Math.ceil(total / PAGE_SIZE);
+            const start = (page - 1) * PAGE_SIZE;
+            const pageSkills = sorted.slice(start, start + PAGE_SIZE);
+
+            renderSkills('searchResults', pageSkills);
+            renderPagination('searchPagination', page, totalPages, total, renderSkillsPage);
+        }
+
+        function renderSkills(containerId, skills) {
+            const container = document.getElementById(containerId);
+            if (!skills || skills.length === 0) {
+                container.innerHTML = '';
+                renderEmpty(containerId, t('empty_no_results'), t('empty_try_other'));
+                return;
+            }
+
+            container.innerHTML = skills.map((skill, i) => {
+                const inCart = cart.includes(skill.name);
+                const displayName = (currentLang === 'zh' ? skill.name_zh : skill.name_en) || skill.name;
+                return `
+                <div class="skill-card">
+                    <div class="skill-card-header">
+                        <div class="skill-emoji">${skill.category_emoji || '📦'}</div>
+                        <div class="skill-info">
+                            <div class="skill-name" title="${skill.name}">${displayName}</div>
+                            <span class="skill-category">${skill.category_emoji || ''} ${skill.category_name || skill.category || ''}</span>
+                        </div>
+                    </div>
+                    <p class="skill-desc">${(currentLang === 'zh' ? skill.description_zh : skill.description_en) || skill.description || (currentLang === 'zh' ? '暂无描述' : 'No description')}</p>
+                    <div class="skill-actions">
+                        <button class="skill-action secondary" onclick="showSkillDetail('${escHtml(skill.name)}')">
+                            ${t('view_detail')}
+                        </button>
+                        <button class="skill-action ${inCart ? 'danger' : 'primary'}"
+                            id="cart-btn-${escHtml(skill.name).replace(/[^a-z0-9]/gi, '_')}"
+                            onclick="${inCart ? `removeFromCart('${escHtml(skill.name)}')` : `addToCart('${escHtml(skill.name)}')`}">
+                            ${inCart ? t('added') : t('add_to_cart')}
+                        </button>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        // ========== 分页控件 ==========
+        function renderPagination(containerId, currentPage, totalPages, total, callback) {
+            const container = document.getElementById(containerId);
+            if (totalPages <= 1) { container.innerHTML = ''; return; }
+
+            let pages = [];
+            const range = 2;
+            for (let i = Math.max(1, currentPage - range); i <= Math.min(totalPages, currentPage + range); i++) {
+                pages.push(i);
+            }
+
+            container.innerHTML = `
+                <div class="pagination">
+                    ${currentPage > 1 ? `<button class="page-btn" onclick="(${callback.name})(${currentPage - 1})">${t('prev_page')}</button>` : ''}
+                    ${pages[0] > 1 ? `<button class="page-btn" onclick="(${callback.name})(1)">1</button>${pages[0] > 2 ? '<span class="page-info">...</span>' : ''}` : ''}
+                    ${pages.map(p => `<button class="page-btn ${p === currentPage ? 'active' : ''}" onclick="(${callback.name})(${p})">${p}</button>`).join('')}
+                    ${pages[pages.length-1] < totalPages ? `${pages[pages.length-1] < totalPages-1 ? '<span class="page-info">...</span>' : ''}<button class="page-btn" onclick="(${callback.name})(${totalPages})">${totalPages}</button>` : ''}
+                    ${currentPage < totalPages ? `<button class="page-btn" onclick="(${callback.name})(${currentPage + 1})">${t('next_page')}</button>` : ''}
+                    <span class="page-info">${t('page_info', total, currentPage, totalPages)}</span>
+                </div>`;
+        }
+
+        // ========== 渲染 GitHub 结果 ==========
+        function renderGithubResults(repos) {
+            const container = document.getElementById('githubResults');
+            if (!repos || repos.length === 0) {
+                container.innerHTML = '';
+                renderEmpty('githubResults', t('empty_no_data'), t('github_desc'));
+                return;
+            }
+
+            container.innerHTML = repos.map(repo => {
+                const lang = repo.language || '';
+                const langColor = langColors[lang] || '#8b949e';
+                return `
+                    <div class="github-card">
+                        <div class="github-header">
+                            <span class="github-owner">${repo.name.split('/')[0]}</span>
+                            <span class="github-stars">⭐ ${formatStars(repo.stars)}</span>
+                        </div>
+                        <a href="${repo.url}" target="_blank" class="github-name">${repo.name.split('/')[1] || repo.name}</a>
+                        <p class="github-desc">${repo.description || (currentLang === 'zh' ? '暂无描述' : 'No description')}</p>
+                        <div class="github-meta">
+                            ${lang ? `<span class="github-lang"><span class="lang-dot" style="background:${langColor}"></span>${lang}</span>` : ''}
+                            ${repo.updated ? `<span>${currentLang === 'zh' ? '更新于 ' : 'Updated '}${formatDate(repo.updated)}</span>` : ''}
+                        </div>
+                    </div>`;
+            }).join('');
+        }
+
+        // ========== 详情页 ==========
+        async function showSkillDetail(name) {
+            showSection('detail');
+            document.getElementById('skillDetail').innerHTML = `
+                <div class="skeleton-card" style="max-width:800px;">
+                    <div class="skeleton-header">
+                        <div class="skeleton skeleton-emoji"></div>
+                        <div class="skeleton-info">
+                            <div class="skeleton skeleton-title"></div>
+                            <div class="skeleton skeleton-subtitle"></div>
+                        </div>
+                    </div>
+                    <div class="skeleton skeleton-text"></div>
+                    <div class="skeleton skeleton-text"></div>
+                </div>`;
+
+            try {
+                const res = await fetch(`/api/skill/${encodeURIComponent(name)}`);
+                if (!res.ok) throw new Error('Skill not found');
+                const skill = await res.json();
+
+                const files = skill.files?.length > 0
+                    ? skill.files.map(f => `
+                        <li class="file-item">
+                            <span class="file-name">📄 ${f.path}</span>
+                            <span class="file-size">${formatSize(f.size)}</span>
+                        </li>`).join('')
+                    : `<li class="file-item" style="color:var(--text-muted);">${t('detail_no_files')}</li>`;
+
+                const inCart = cart.includes(skill.name);
+                const displayName = (currentLang === 'zh' ? skill.name_zh : skill.name_en) || skill.name;
+                document.getElementById('skillDetail').innerHTML = `
+                    <div class="detail-section">
+                        <div class="detail-header">
+                            <div class="detail-emoji">${skill.emoji || skill.category_emoji || '📦'}</div>
+                            <div class="detail-info">
+                                <h2>${displayName}</h2>
+                                <div class="detail-meta">
+                                    <span>${skill.category_emoji || ''} ${skill.category_name || skill.category || ''}</span>
+                                    <span>📁 ${skill.files?.length || 0} ${currentLang === 'zh' ? '个文件' : 'files'}</span>
+                                    <span style="word-break:break-all;max-width:300px;" title="${skill.path}">📍 ${skill.path ? skill.path.slice(-40) : (currentLang === 'zh' ? '无路径' : 'No path')}</span>
+                                </div>
+                            </div>
+                        </div>
+                        <p class="detail-desc">${(currentLang === 'zh' ? skill.description_zh : skill.description_en) || skill.description || (currentLang === 'zh' ? '暂无描述' : 'No description')}</p>
+                        <div class="detail-files">
+                            <h4>${t('detail_files')}</h4>
+                            <ul class="file-list">${files}</ul>
+                        </div>
+                        <div class="detail-actions">
+                            <button class="btn ${inCart ? 'btn-secondary' : 'btn-primary'}"
+                                id="detail-cart-btn"
+                                onclick="${inCart ? `removeFromCart('${escHtml(skill.name)}');updateDetailBtn('${escHtml(skill.name)}',false)` : `addToCart('${escHtml(skill.name)}');updateDetailBtn('${escHtml(skill.name)}',true)`}">
+                                ${inCart ? t('detail_in_cart') : t('detail_add_cart')}
+                            </button>
+                            <button class="btn btn-secondary" onclick="packageSingle('${escHtml(skill.name)}')">
+                                ${t('detail_download')}
+                            </button>
+                        </div>
+                    </div>`;
+            } catch (e) {
+                showToast(t('msg_packing_fail', e.message), 'error');
+                document.getElementById('skillDetail').innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-icon">😕</div>
+                        <h3 class="empty-title">${t('load_failed')}</h3>
+                        <p class="empty-desc">${e.message}</p>
+                    </div>`;
+            }
+        }
+
+        function updateDetailBtn(name, added) {
+            const btn = document.getElementById('detail-cart-btn');
+            if (!btn) return;
+            if (added) {
+                btn.className = 'btn btn-secondary';
+                btn.onclick = () => { removeFromCart(name); updateDetailBtn(name, false); };
+                btn.textContent = t('detail_in_cart');
+            } else {
+                btn.className = 'btn btn-primary';
+                btn.onclick = () => { addToCart(name); updateDetailBtn(name, true); };
+                btn.textContent = t('detail_add_cart');
+            }
+        }
+
+        // ========== 场景推荐 ==========
+        function loadScenarios() {
+            document.getElementById('scenarioBackBtn').style.display = 'none';
+            document.getElementById('scenarioTag').textContent = t('tag_scenarios');
+            const container = document.getElementById('scenariosList');
+            const scenarios = [
+                {key: "pm_basics", name: t('scenario_pm_basics'), emoji: "📋", desc: t('desc_pm_basics')},
+                {key: "pm_advanced", name: t('scenario_pm_advanced'), emoji: "🎯", desc: t('desc_pm_advanced')},
+                {key: "customer_discovery", name: t('scenario_customer_discovery'), emoji: "🔍", desc: t('desc_customer_discovery')},
+                {key: "agile_dev", name: t('scenario_agile_dev'), emoji: "🏃", desc: t('desc_agile_dev')},
+                {key: "scrum_team", name: t('scenario_scrum_team'), emoji: "🏅", desc: t('desc_scrum_team')},
+                {key: "qa_testing", name: t('scenario_qa_testing'), emoji: "🧪", desc: t('desc_qa_testing')},
+                {key: "architecture", name: t('scenario_architecture'), emoji: "🏗️", desc: t('desc_architecture')},
+                {key: "dev_quality", name: t('scenario_dev_quality'), emoji: "💎", desc: t('desc_dev_quality')},
+                {key: "tdd_workflow", name: t('scenario_tdd_workflow'), emoji: "⚡", desc: t('desc_tdd_workflow')},
+                {key: "indie_hacker", name: t('scenario_indie_hacker'), emoji: "💰", desc: t('desc_indie_hacker')},
+                {key: "ai_product", name: t('scenario_ai_product'), emoji: "🤖", desc: t('desc_ai_product')},
+                {key: "design_system", name: t('scenario_design_system'), emoji: "🎨", desc: t('desc_design_system')},
+                {key: "skill_creation", name: t('scenario_skill_creation'), emoji: "🛠️", desc: t('desc_skill_creation')},
+            ];
+
+            container.innerHTML = `<div class="scenarios-grid">${scenarios.map(s => `
+                <div class="scenario-card" onclick="loadScenario('${s.key}', '${s.name}')">
+                    <span class="scenario-emoji">${s.emoji}</span>
+                    <h3>${s.name}</h3>
+                    <p>${s.desc}</p>
+                </div>`).join('')}</div>`;
+        }
+
+        async function loadScenario(key, name) {
+            document.getElementById('scenarioBackBtn').style.display = 'inline-flex';
+            document.getElementById('scenarioTag').textContent = t('msg_loading', name);
+            const container = document.getElementById('scenariosList');
+            container.innerHTML = `<div class="skills-grid">${getSkeletonCards(4)}</div>`;
+
+            try {
+                const res = await fetch(`/api/scenario/${key}`);
+                const data = await res.json();
+                document.getElementById('scenarioTag').textContent = `${data.name} · ${data.count} ${currentLang === 'zh' ? '个 Skills' : 'Skills'}`;
+
+                if (!data.skills || data.skills.length === 0) {
+                    container.innerHTML = '';
+                    renderEmpty('scenariosList', t('empty_no_matching'), `${name} ${currentLang === 'zh' ? '场景下暂无匹配的 Skills' : ': no matching Skills'}`);
+                    return;
+                }
+                container.innerHTML = `<div class="skills-grid">${renderSkillsHTML(data.skills)}</div>`;
+            } catch (e) {
+                showToast(t('msg_packing_fail', e.message), 'error');
+            }
+        }
+
+        // ========== 分类浏览 ==========
+        async function loadCategories() {
+            document.getElementById('categoryBackBtn').style.display = 'none';
+            document.getElementById('categoriesTag').textContent = t('tag_categories');
+            const container = document.getElementById('categoriesList');
+
+            try {
+                const res = await fetch('/api/stats');
+                const data = await res.json();
+                const maxCount = Math.max(...data.categories.map(c => c.count), 1);
+
+                container.innerHTML = `<div class="categories-grid">${data.categories.map(cat => `
+                    <div class="category-card" onclick="loadCategory('${cat.key}', '${escHtml(cat.display_name || cat.name)}')">
+                        <div class="category-header">
+                            <div class="category-emoji">${cat.emoji}</div>
+                            <div class="category-info">
+                                <h3>${cat.display_name || cat.name}</h3>
+                                <span class="category-count">${cat.count} ${currentLang === 'zh' ? '个 Skills' : 'Skills'}</span>
+                            </div>
+                        </div>
+                        <div class="category-bar">
+                            <div class="category-bar-fill" style="width:${(cat.count / maxCount) * 100}%"></div>
+                        </div>
+                    </div>`).join('')}</div>`;
+            } catch (e) {
+                showToast(t('msg_packing_fail', e.message), 'error');
+            }
+        }
+
+        async function loadCategory(key, name) {
+            document.getElementById('categoryBackBtn').style.display = 'inline-flex';
+            document.getElementById('categoriesTag').textContent = t('msg_loading', name);
+            const container = document.getElementById('categoriesList');
+            container.innerHTML = `<div class="skills-grid">${getSkeletonCards(4)}</div>`;
+
+            try {
+                const res = await fetch(`/api/category/${key}`);
+                const data = await res.json();
+                document.getElementById('categoriesTag').textContent = `${name} · ${data.count} ${currentLang === 'zh' ? '个 Skills' : 'Skills'}`;
+
+                if (!data.skills || data.skills.length === 0) {
+                    container.innerHTML = '';
+                    renderEmpty('categoriesList', t('empty_no_skills'), `${name} ${currentLang === 'zh' ? '分类下暂无 Skills' : ': no Skills in category'}`);
+                    return;
+                }
+                container.innerHTML = `<div class="skills-grid">${renderSkillsHTML(data.skills)}</div>`;
+            } catch (e) {
+                showToast(t('msg_packing_fail', e.message), 'error');
+            }
+        }
+
+        // ========== 渲染 Skills HTML（不依赖 container）==========
+        function renderSkillsHTML(skills) {
+            return skills.map(skill => {
+                const inCart = cart.includes(skill.name);
+                const displayName = (currentLang === 'zh' ? skill.name_zh : skill.name_en) || skill.name;
+                return `
+                <div class="skill-card">
+                    <div class="skill-card-header">
+                        <div class="skill-emoji">${skill.category_emoji || '📦'}</div>
+                        <div class="skill-info">
+                            <div class="skill-name" title="${skill.name}">${displayName}</div>
+                            <span class="skill-category">${skill.category_emoji || ''} ${skill.category_name || skill.category || ''}</span>
+                        </div>
+                    </div>
+                    <p class="skill-desc">${(currentLang === 'zh' ? skill.description_zh : skill.description_en) || skill.description || (currentLang === 'zh' ? '暂无描述' : 'No description')}</p>
+                    <div class="skill-actions">
+                        <button class="skill-action secondary" onclick="showSkillDetail('${escHtml(skill.name)}')">${t('view_detail')}</button>
+                        <button class="skill-action ${inCart ? 'danger' : 'primary'}"
+                            onclick="${inCart ? `removeFromCart('${escHtml(skill.name)}')` : `addToCart('${escHtml(skill.name)}')`}">
+                            ${inCart ? t('added') : t('add_to_cart')}
+                        </button>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        // ========== 打包清单 ==========
+        function addToCart(name) {
+            if (!cart.includes(name)) {
+                cart.push(name);
+                updateCart();
+                showToast(t('msg_added', name), 'success');
+                // Update button state in current view
+                updateAllCartButtons();
+            } else {
+                showToast(t('msg_already_in'), 'info');
+            }
+        }
+
+        function removeFromCart(name) {
+            cart = cart.filter(n => n !== name);
+            updateCart();
+            if (currentView === 'cart') renderCart();
+            showToast(t('msg_removed', name), 'info');
+            updateAllCartButtons();
+        }
+
+        function updateAllCartButtons() {
+            // Refresh cart count badge
+            document.getElementById('cartCount').textContent = cart.length;
+        }
+
+        function updateCart() {
+            document.getElementById('cartCount').textContent = cart.length;
+            document.getElementById('cartTag').textContent = t('tag_cart', cart.length);
+            localStorage.setItem('cart', JSON.stringify(cart));
+        }
+
+        function loadCart() {
+            try {
+                const stored = localStorage.getItem('cart');
+                if (stored) { cart = JSON.parse(stored); updateCart(); }
+            } catch(e) {}
+        }
+
+        function clearCart() {
+            if (cart.length === 0) return;
+            cart = [];
+            updateCart();
+            renderCart();
+            showToast(t('msg_cleared'), 'info');
+        }
+
+        function renderCart() {
+            const container = document.getElementById('cartList');
+            if (cart.length === 0) {
+                container.innerHTML = `
+                    <div class="cart-empty">
+                        <div class="cart-empty-icon">📦</div>
+                        <h3>${t('cart_empty_title')}</h3>
+                        <p>${t('cart_empty_desc')}</p>
+                    </div>`;
+                return;
+            }
+
+            const skills = cart.map(name => allSkillsCache[name] || {name, category_emoji: '📦', category_name: '', description: ''});
+            container.innerHTML = `<div class="skills-grid">${skills.map(s => `
+                <div class="skill-card">
+                    <div class="skill-card-header">
+                        <div class="skill-emoji">${s.category_emoji || '📦'}</div>
+                        <div class="skill-info">
+                            <div class="skill-name">${s.name}</div>
+                            <span class="skill-category">${s.category_name || ''}</span>
+                        </div>
+                    </div>
+                    ${s.description ? `<p class="skill-desc">${s.description}</p>` : ''}
+                    <div class="skill-actions">
+                        <button class="skill-action secondary" onclick="showSkillDetail('${escHtml(s.name)}')">${t('view_detail')}</button>
+                        <button class="skill-action danger" onclick="removeFromCart('${escHtml(s.name)}')">🗑️ ${currentLang === 'zh' ? '移除' : 'Remove'}</button>
+                    </div>
+                </div>`).join('')}</div>`;
+        }
+
+        // ========== 打包功能 ==========
+        async function packageSelected() {
+            if (cart.length === 0) { showToast(t('msg_please_select'), 'warning'); return; }
+            showToast(t('msg_packing', cart.length), 'info');
+            try {
+                const res = await fetch('/api/package', {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({skills: cart})
+                });
+                const data = await res.json();
+                if (data.success) {
+                    window.location.href = `/download/${data.filename}`;
+                    showToast(t('msg_pack_success', data.count, formatSize(data.size)), 'success');
+                }
+            } catch (e) { showToast(t('msg_pack_fail', e.message), 'error'); }
+        }
+
+        async function packageAll() {
+            showToast(t('msg_packing_all'), 'info');
+            try {
+                const res = await fetch('/api/package-all', {method: 'POST'});
+                const data = await res.json();
+                if (data.success) {
+                    window.location.href = `/download/${data.filename}`;
+                    showToast(t('msg_pack_success', data.count, ''), 'success');
+                }
+            } catch (e) { showToast(t('msg_pack_fail', e.message), 'error'); }
+        }
+
+        async function packageSingle(name) {
+            showToast(t('msg_packing_single', name), 'info');
+            try {
+                const res = await fetch('/api/package', {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({skills: [name]})
+                });
+                const data = await res.json();
+                if (data.success) {
+                    window.location.href = `/download/${data.filename}`;
+                    showToast(t('msg_pack_success_single'), 'success');
+                }
+            } catch (e) { showToast(t('msg_pack_fail', e.message), 'error'); }
+        }
+
+        // ========== 骨架屏 ==========
+        function getSkeletonCards(n) {
+            return Array(n).fill(`
+                <div class="skeleton-card">
+                    <div class="skeleton-header">
+                        <div class="skeleton skeleton-emoji"></div>
+                        <div class="skeleton-info">
+                            <div class="skeleton skeleton-title"></div>
+                            <div class="skeleton skeleton-subtitle"></div>
+                        </div>
+                    </div>
+                    <div class="skeleton skeleton-text"></div>
+                    <div class="skeleton skeleton-text"></div>
+                </div>`).join('');
+        }
+
+        function showGridLoading(containerId, n) {
+            document.getElementById(containerId).innerHTML = getSkeletonCards(n);
+        }
+
+        // ========== 空状态 ==========
+        function renderEmpty(containerId, title, desc) {
+            const icons = { searchResults: '🔍', githubResults: '🐙', scenariosList: '🎯', categoriesList: '📂', cartList: '📦' };
+            document.getElementById(containerId).innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-icon">${icons[containerId] || '📭'}</div>
+                    <h3 class="empty-title">${title}</h3>
+                    <p class="empty-desc">${desc}</p>
+                </div>`;
+        }
+
+        // ========== Toast 通知 ==========
+        function showToast(message, type = 'info', title = null) {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            const icons = { success: '✅', error: '❌', warning: '⚠️', info: '💡' };
+            const defaultTitles = { success: t('toast_success'), error: t('toast_error'), warning: t('toast_warning'), info: t('toast_info') };
+            toast.innerHTML = `
+                <span class="toast-icon">${icons[type]}</span>
+                <div class="toast-content">
+                    <div class="toast-title">${title || defaultTitles[type]}</div>
+                    <div class="toast-message">${message}</div>
+                </div>
+                <button class="toast-close" onclick="this.parentElement.remove()">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+                </button>`;
+            container.appendChild(toast);
+            setTimeout(() => { toast.classList.add('removing'); setTimeout(() => toast.remove(), 300); }, 3500);
+        }
+
+        // ========== 工具函数 ==========
+        function escHtml(str) {
+            return String(str).replace(/'/g, "\\'").replace(/"/g, '&quot;');
+        }
+
+        function formatSize(bytes) {
+            if (!bytes) return '0 B';
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+            return (bytes / 1048576).toFixed(1) + ' MB';
+        }
+
+        function formatStars(stars) {
+            return stars >= 1000 ? (stars / 1000).toFixed(1) + 'k' : stars;
+        }
+
+        function formatDate(dateStr) {
+            if (!dateStr) return '';
+            const date = new Date(dateStr);
+            const days = Math.floor((Date.now() - date) / 86400000);
+            if (days === 0) return currentLang === 'zh' ? '今天' : 'Today';
+            if (days === 1) return currentLang === 'zh' ? '昨天' : 'Yesterday';
+            if (days < 7) return currentLang === 'zh' ? `${days} 天前` : `${days}d ago`;
+            if (days < 30) return currentLang === 'zh' ? `${Math.floor(days / 7)} 周前` : `${Math.floor(days / 7)}w ago`;
+            if (days < 365) return currentLang === 'zh' ? `${Math.floor(days / 30)} 个月前` : `${Math.floor(days / 30)}mo ago`;
+            return currentLang === 'zh' ? `${Math.floor(days / 365)} 年前` : `${Math.floor(days / 365)}y ago`;
+        }
+
+        // ========== 发现新 Skills ==========
+        async function loadDiscoverStats() {
+            try {
+                const res = await fetch('/api/discover/stats');
+                const data = await res.json();
+                document.getElementById('discoverStats').innerHTML = `
+                    <div class="stats-row">
+                        <div class="stat-badge stat-total">
+                            <span class="stat-icon">📦</span>
+                            <div><div class="stat-num">${data.total || 0}</div><div class="stat-text">${t('stat_total')}</div></div>
+                        </div>
+                        <div class="stat-badge stat-pending">
+                            <span class="stat-icon">⏳</span>
+                            <div><div class="stat-num">${data.by_status?.pending || 0}</div><div class="stat-text">${t('stat_pending')}</div></div>
+                        </div>
+                        <div class="stat-badge stat-approved">
+                            <span class="stat-icon">✅</span>
+                            <div><div class="stat-num">${data.by_status?.approved || 0}</div><div class="stat-text">${t('stat_approved')}</div></div>
+                        </div>
+                        <div class="stat-badge stat-rejected">
+                            <span class="stat-icon">❌</span>
+                            <div><div class="stat-num">${data.by_status?.rejected || 0}</div><div class="stat-text">${t('stat_rejected')}</div></div>
+                        </div>
+                    </div>`;
+            } catch (e) {
+                document.getElementById('discoverStats').innerHTML = '';
+            }
+        }
+
+        function switchDiscoverMode(mode) {
+            document.querySelectorAll('.discover-tab').forEach(t => t.classList.remove('active'));
+            document.querySelector(`[data-mode="${mode}"]`).classList.add('active');
+            document.getElementById('keywordPanel').style.display = mode === 'keyword' ? 'block' : 'none';
+            document.getElementById('aiPanel').style.display = mode === 'ai' ? 'block' : 'none';
+            // Update discover tab texts
+            if (mode === 'ai') {
+                document.querySelector('[data-mode="ai"]').innerHTML = t('discover_ai');
+                document.querySelector('[data-mode="keyword"]').innerHTML = t('discover_keyword');
+            } else {
+                document.querySelector('[data-mode="keyword"]').innerHTML = t('discover_keyword');
+                document.querySelector('[data-mode="ai"]').innerHTML = t('discover_ai');
+            }
+        }
+
+        async function runAIDiscovery() {
+            const requirement = document.getElementById('aiRequirement').value.trim();
+            const minStars = parseInt(document.getElementById('aiMinStars').value) || 50;
+            if (!requirement) { showToast(t('msg_input_requirement'), 'warning'); return; }
+            showToast(t('msg_ai_thinking'), 'info');
+            try {
+                const res = await fetch('/api/discover/ai', {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({requirement, min_stars: minStars})
+                });
+                const data = await res.json();
+                if (data.success) {
+                    showToast(t('msg_ai_found', data.found), 'success');
+                    renderDiscoverResults(data.candidates);
+                    loadDiscoverStats();
+                } else {
+                    showToast(t('msg_packing_fail', data.error || (currentLang === 'zh' ? '未知错误' : 'Unknown error')), 'error');
+                }
+            } catch (e) { showToast(t('msg_packing_fail', e.message), 'error'); }
+        }
+
+        async function runDiscovery() {
+            const category = document.getElementById('discoverCategory').value;
+            const minStars = parseInt(document.getElementById('minStars').value) || 50;
+            const body = {min_stars: minStars};
+            if (category) body.categories = [category];
+            showToast(t('msg_discovering'), 'info');
+            try {
+                const res = await fetch('/api/discover/run', {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(body)
+                });
+                const data = await res.json();
+                if (data.success) {
+                    showToast(t('msg_discovered', data.found), 'success');
+                    renderDiscoverResults(data.candidates);
+                    loadDiscoverStats();
+                } else {
+                    showToast(t('msg_packing_fail', data.error || (currentLang === 'zh' ? '未知错误' : 'Unknown error')), 'error');
+                }
+            } catch (e) { showToast(t('msg_packing_fail', e.message), 'error'); }
+        }
+
+        async function loadCandidates() {
+            try {
+                const res = await fetch('/api/discover/candidates');
+                const data = await res.json();
+                renderDiscoverResults(data.candidates);
+                showToast(t('msg_load_candidates', data.count), 'info');
+            } catch (e) { showToast(t('msg_packing_fail', e.message), 'error'); }
+        }
+
+        function renderDiscoverResults(candidates) {
+            const container = document.getElementById('discoverResults');
+            if (!candidates || candidates.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-discover">
+                        <div class="empty-icon" style="font-size:3rem;margin-bottom:14px;opacity:0.5;">🔍</div>
+                        <div class="empty-title">${t('empty_no_candidates')}</div>
+                        <div class="empty-desc" style="color:var(--text-secondary);font-size:0.92rem;">${t('empty_discover_desc')}</div>
+                    </div>`;
+                return;
+            }
+            container.innerHTML = candidates.map(c => `
+                <div class="candidate-card">
+                    <div class="candidate-main">
+                        <div class="candidate-info">
+                            <a href="${c.url || '#'}" target="_blank" class="candidate-name">${c.full_name || c.name}</a>
+                            <p class="candidate-desc">${c.description || (currentLang === 'zh' ? '暂无描述' : 'No description')}</p>
+                            <div class="candidate-tags">
+                                <span class="tag tag-stars">⭐ ${c.stars || 0}</span>
+                                ${c.language ? `<span class="tag tag-lang">${c.language}</span>` : ''}
+                                <span class="tag tag-score">📊 ${c.quality_score || 0}${currentLang === 'zh' ? '分' : 'pts'}</span>
+                            </div>
+                        </div>
+                        <div class="candidate-actions">
+                            <button class="btn-approve" onclick="approveCandidate('${escHtml(c.full_name || c.name)}')">✅ ${currentLang === 'zh' ? '批准' : 'Approve'}</button>
+                            <button class="btn-reject" onclick="rejectCandidate('${escHtml(c.full_name || c.name)}')">🗑️ ${currentLang === 'zh' ? '拒绝' : 'Reject'}</button>
+                        </div>
+                    </div>
+                </div>`).join('');
+        }
+
+        async function approveCandidate(fullName) {
+            try {
+                const res = await fetch('/api/discover/approve', {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({full_name: fullName})
+                });
+                const data = await res.json();
+                if (data.success) { showToast(`✅ ${currentLang === 'zh' ? '已批准' : 'Approved'}: ${fullName}`, 'success'); loadCandidates(); loadDiscoverStats(); }
+                else showToast(`${currentLang === 'zh' ? '批准失败' : 'Approve failed'}: ${data.error || ''}`, 'error');
+            } catch (e) { showToast(`${currentLang === 'zh' ? '批准失败' : 'Approve failed'}: ${e.message}`, 'error'); }
+        }
+
+        async function rejectCandidate(fullName) {
+            try {
+                const res = await fetch('/api/discover/reject', {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({full_name: fullName, reason: 'manual'})
+                });
+                const data = await res.json();
+                if (data.success) { showToast(`${currentLang === 'zh' ? '已拒绝' : 'Rejected'}: ${fullName}`, 'info'); loadCandidates(); loadDiscoverStats(); }
+                else showToast(`${currentLang === 'zh' ? '拒绝失败' : 'Reject failed'}: ${data.error || ''}`, 'error');
+            } catch (e) { showToast(`${currentLang === 'zh' ? '拒绝失败' : 'Reject failed'}: ${e.message}`, 'error'); }
+        }
+
+        // ========== 启动 ==========
+        init();
+    </script>
+</body>
+</html>
