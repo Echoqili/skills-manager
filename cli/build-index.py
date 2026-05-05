@@ -11,16 +11,20 @@ from typing import Dict, List, Any
 import datetime
 
 BASE_DIR = Path(__file__).parent.parent
-SKILL_INDEX_FILE = BASE_DIR / "SKILLS_INDEX.md"
-SKILLS_JSON_FILE = BASE_DIR / "skills-index.json"
+SKILL_INDEX_FILE = BASE_DIR / "data" / "SKILLS_INDEX.md"
+SKILLS_JSON_FILE = BASE_DIR / "data" / "skills-index.json"
 
 # 技能源配置 - 所有 skills 项目
-# learning-open-source 是主项目，all-skills 在项目内
+# learning-open-source 是主项目，all-skills 在 data 目录下
 # 其他技能源在同级目录下
 SOURCE_CONFIGS = {
     "learning-open-source": {
-        "path": "./all-skills",
+        "path": "./data/all-skills",
         "description": "已整合的开源技能集合",
+    },
+    "user-imports": {
+        "path": "./data/all-skills/user-imports",
+        "description": "用户导入的技能",
     },
     "skills": {
         "path": "../skills/skills",

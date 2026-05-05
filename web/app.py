@@ -63,6 +63,7 @@ CATEGORIES_EMOJI = {
     "ui-ux": "🎨",
     "gitnexus": "🔗",
     "testing": "🧪",
+    "user-imports": "👤",
     "other": "📦",
 }
 
@@ -87,6 +88,7 @@ CATEGORIES_NAME = {
     "ui-ux": "UI/UX设计",
     "gitnexus": "GitNexus",
     "testing": "测试工具包",
+    "user-imports": "用户导入",
     "other": "其他",
 }
 
@@ -710,6 +712,207 @@ def api_discover_clone():
         })
     except subprocess.TimeoutExpired:
         return jsonify({"success": False, "error": "Clone timeout"}), 500
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route('/api/import/user', methods=['POST'])
+def api_import_user_skill():
+    """导入用户自定义的 Skill"""
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "No data provided"}), 400
+
+    name = data.get('name', '').strip()
+    description = data.get('description', '').strip()
+    content = data.get('content', '').strip()
+    category = data.get('category', 'user-imports')
+
+    if not name:
+        return jsonify({"error": "Skill name is required"}), 400
+    if not content:
+        return jsonify({"error": "Skill content is required"}), 400
+
+    skill_name = name.lower().replace(' ', '-').replace('_', '-')
+    skill_dir = SKILLS_ROOT / "user-imports" / skill_name
+    skill_file = skill_dir / "SKILL.md"
+
+    if skill_dir.exists():
+        return jsonify({"error": f"Skill '{skill_name}' already exists"}), 409
+
+    try:
+        skill_dir.mkdir(parents=True, exist_ok=True)
+        skill_content = f"""---
+name: {skill_name}
+description: {description}
+source: user-imports
+---
+
+{content}
+"""
+        skill_file.write_text(skill_content, encoding='utf-8')
+        return jsonify({
+            "success": True,
+            "message": f"Skill '{skill_name}' imported successfully",
+            "path": str(skill_dir.relative_to(PROJECT_ROOT)),
+            "name": skill_name
+        })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route('/api/import/validate', methods=['POST'])
+def api_validate_skill():
+    """验证 Skill 内容是否有效"""
+    data = request.get_json()
+    if not data:
+        return jsonify({"valid": False, "error": "No data provided"}), 400
+
+    content = data.get('content', '').strip()
+    if not content:
+        return jsonify({"valid": False, "error": "Content is required"}), 400
+
+    errors = []
+    warnings = []
+
+    if not content.startswith('---'):
+        errors.append("Missing frontmatter (should start with '---')")
+
+    if '---' in content:
+        parts = content.split('---')
+        if len(parts) >= 2:
+            frontmatter = parts[1]
+            if 'name:' not in frontmatter:
+                errors.append("Missing 'name:' in frontmatter")
+            if 'description:' not in frontmatter:
+                warnings.append("Missing 'description:' in frontmatter (recommended)")
+
+    has_headers = any(h.startswith('#') for h in content.split('\n'))
+    if not has_headers:
+        warnings.append("No headers found (recommended to have at least one # header)")
+
+    is_valid = len(errors) == 0
+
+    return jsonify({
+        "valid": is_valid,
+        "errors": errors,
+        "warnings": warnings
+    })
+
+
+@app.route('/api/import/github', methods=['POST'])
+def api_import_from_github():
+    """从 GitHub URL 导入 Skill"""
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "No data provided"}), 400
+
+    github_url = data.get('url', '').strip()
+    if not github_url:
+        return jsonify({"error": "GitHub URL is required"}), 400
+
+    if 'github.com' not in github_url:
+        return jsonify({"error": "Invalid GitHub URL"}), 400
+
+    try:
+        from urllib.parse import urlparse
+        parsed = urlparse(github_url)
+        path_parts = [p for p in parsed.path.split('/') if p]
+        if len(path_parts) < 2:
+            return jsonify({"error": "Invalid GitHub URL format"}), 400
+
+        owner, repo = path_parts[0], path_parts[1]
+        raw_url = f"https://raw.githubusercontent.com/{owner}/{repo}/main/SKILL.md"
+
+        response = requests.get(raw_url, timeout=30)
+        if response.status_code == 404:
+            response = requests.get(raw_url.replace('main', 'master'), timeout=30)
+
+        if response.status_code != 200:
+            return jsonify({"error": "SKILL.md not found in repository"}), 404
+
+        content = response.text
+        name_match = None
+        for line in content.split('\n'):
+            if line.strip().startswith('name:'):
+                name_match = line.split('name:')[1].strip().strip('"').strip("'")
+                break
+
+        if not name_match:
+            return jsonify({"error": "Could not parse skill name from SKILL.md"}), 400
+
+        skill_name = name_match.lower().replace(' ', '-').replace('_', '-')
+        skill_dir = SKILLS_ROOT / "user-imports" / skill_name
+        skill_file = skill_dir / "SKILL.md"
+
+        if skill_dir.exists():
+            return jsonify({"error": f"Skill '{skill_name}' already exists"}), 409
+
+        skill_dir.mkdir(parents=True, exist_ok=True)
+        skill_file.write_text(content, encoding='utf-8')
+
+        return jsonify({
+            "success": True,
+            "message": f"Skill '{skill_name}' imported from GitHub",
+            "path": str(skill_dir.relative_to(PROJECT_ROOT)),
+            "name": skill_name
+        })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route('/api/import/list-user', methods=['GET'])
+def api_list_user_skills():
+    """列出用户导入的 Skills"""
+    user_imports_dir = SKILLS_ROOT / "user-imports"
+    if not user_imports_dir.exists():
+        return jsonify({"skills": []})
+
+    skills = []
+    for item in user_imports_dir.iterdir():
+        if item.is_dir():
+            skill_file = item / "SKILL.md"
+            if skill_file.exists():
+                try:
+                    content = skill_file.read_text(encoding='utf-8')
+                    desc = ""
+                    for line in content.split('\n'):
+                        if line.strip().startswith('description:'):
+                            desc = line.split('description:')[1].strip().strip('"').strip("'")
+                            break
+                    skills.append({
+                        "name": item.name,
+                        "description": desc,
+                        "path": str(item.relative_to(PROJECT_ROOT))
+                    })
+                except Exception:
+                    pass
+
+    return jsonify({"skills": skills})
+
+
+@app.route('/api/import/delete', methods=['POST'])
+def api_delete_user_skill():
+    """删除用户导入的 Skill"""
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "No data provided"}), 400
+
+    skill_name = data.get('name', '').strip()
+    if not skill_name:
+        return jsonify({"error": "Skill name is required"}), 400
+
+    skill_dir = SKILLS_ROOT / "user-imports" / skill_name
+    if not skill_dir.exists():
+        return jsonify({"error": "Skill not found"}), 404
+
+    try:
+        import shutil
+        shutil.rmtree(skill_dir)
+        return jsonify({
+            "success": True,
+            "message": f"Skill '{skill_name}' deleted"
+        })
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 

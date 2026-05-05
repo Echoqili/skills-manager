@@ -8,35 +8,38 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        /* ========== 核心变量 & 主题 ========== */
+        /* ========== 核心变量 & 主题 (SkillStore 风格) ========== */
         :root {
             --primary: #6366f1;
             --primary-dark: #4f46e5;
             --primary-light: #818cf8;
             --accent: #f472b6;
             --accent-secondary: #38bdf8;
-            --bg-main: #0f172a;
-            --bg-card: rgba(30, 41, 59, 0.85);
-            --bg-secondary: rgba(15, 23, 42, 0.9);
-            --bg-glass: rgba(255, 255, 255, 0.05);
-            --bg-glass-hover: rgba(255, 255, 255, 0.1);
-            --text: #f1f5f9;
+            --bg-main: #0a0a0f;
+            --bg-card: rgba(20, 20, 30, 0.95);
+            --bg-secondary: rgba(15, 15, 25, 0.98);
+            --bg-glass: rgba(255, 255, 255, 0.03);
+            --bg-glass-hover: rgba(255, 255, 255, 0.08);
+            --text: #f8fafc;
             --text-secondary: #94a3b8;
             --text-muted: #64748b;
-            --border: rgba(255, 255, 255, 0.1);
-            --border-glow: rgba(99, 102, 241, 0.3);
+            --border: rgba(255, 255, 255, 0.08);
+            --border-glow: rgba(99, 102, 241, 0.4);
             --success: #10b981;
             --warning: #f59e0b;
             --error: #ef4444;
             --gradient-primary: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a855f7 100%);
             --gradient-accent: linear-gradient(135deg, #f472b6 0%, #818cf8 100%);
-            --gradient-bg: linear-gradient(180deg, #0f172a 0%, #1e1b4b 50%, #0f172a 100%);
-            --shadow-card: 0 4px 24px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.05);
-            --shadow-glow: 0 0 40px rgba(99, 102, 241, 0.15);
-            --radius-sm: 8px;
-            --radius-md: 12px;
-            --radius-lg: 16px;
-            --radius-xl: 24px;
+            --gradient-bg: linear-gradient(180deg, #0a0a0f 0%, #1a1a2e 30%, #16162a 70%, #0a0a0f 100%);
+            --gradient-card: linear-gradient(145deg, rgba(30, 30, 45, 0.9) 0%, rgba(20, 20, 35, 0.95) 100%);
+            --shadow-card: 0 8px 32px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.03);
+            --shadow-glow: 0 0 60px rgba(99, 102, 241, 0.12);
+            --shadow-hover: 0 20px 40px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(99, 102, 241, 0.2);
+            --radius-sm: 10px;
+            --radius-md: 14px;
+            --radius-lg: 18px;
+            --radius-xl: 28px;
+            --radius-full: 100px;
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -769,6 +772,9 @@
             <button class="nav-tab" data-tab="discover">
                 <span data-i18n="tab_discover">🔍 发现新 Skills</span>
             </button>
+            <button class="nav-tab" data-tab="import">
+                <span data-i18n="tab_import">👤 导入 Skill</span>
+            </button>
         </nav>
 
         <main>
@@ -902,6 +908,57 @@
                 </div>
                 <div id="discoverStats"></div>
                 <div id="discoverResults" class="repo-list"></div>
+            </section>
+
+            <!-- 用户导入 -->
+            <section id="importSection" class="content-section">
+                <div class="section-header">
+                    <div class="section-title">
+                        <h2 data-i18n="sec_import">👤 导入我的 Skill</h2>
+                        <span class="tag" data-i18n="tag_import">创建和管理您的自定义 Skills</span>
+                    </div>
+                </div>
+                <div class="discover-controls">
+                    <div class="discover-tabs">
+                        <button class="discover-tab active" data-mode="manual" onclick="switchImportMode('manual')" data-i18n="import_manual">✍️ 手动创建</button>
+                        <button class="discover-tab" data-mode="github" onclick="switchImportMode('github')" data-i18n="import_github">🐙 从 GitHub</button>
+                        <button class="discover-tab" data-mode="list" onclick="switchImportMode('list')" data-i18n="import_list">📋 我的 Skills</button>
+                    </div>
+                </div>
+                <div id="manualPanel" class="discover-panel">
+                    <div style="max-width:700px;">
+                        <div style="margin-bottom:16px;">
+                            <label style="display:block;margin-bottom:6px;color:var(--text-secondary);font-size:0.88rem;" data-i18n="import_name_label">Skill 名称（英文）</label>
+                            <input type="text" id="importName" class="select-input" style="width:100%;" placeholder="my-custom-skill">
+                        </div>
+                        <div style="margin-bottom:16px;">
+                            <label style="display:block;margin-bottom:6px;color:var(--text-secondary);font-size:0.88rem;" data-i18n="import_desc_label">描述</label>
+                            <input type="text" id="importDesc" class="select-input" style="width:100%;" placeholder="这个 Skill 做什么">
+                        </div>
+                        <div style="margin-bottom:16px;">
+                            <label style="display:block;margin-bottom:6px;color:var(--text-secondary);font-size:0.88rem;" data-i18n="import_content_label">Skill 内容（Markdown）</label>
+                            <textarea id="importContent" class="ai-textarea" style="min-height:200px;" placeholder="# My Custom Skill&#10;&#10;描述这个 Skill 的使用方法..."></textarea>
+                        </div>
+                        <div style="display:flex;gap:10px;margin-bottom:16px;">
+                            <button class="btn btn-secondary" onclick="validateImport()" data-i18n="import_validate">🔍 验证</button>
+                            <button class="btn btn-primary" onclick="submitImport()" data-i18n="import_submit">✅ 导入</button>
+                        </div>
+                        <div id="importValidation" style="display:none;padding:12px;border-radius:8px;font-size:0.88rem;"></div>
+                    </div>
+                </div>
+                <div id="githubPanel" class="discover-panel" style="display:none;">
+                    <div style="max-width:700px;">
+                        <div style="margin-bottom:16px;">
+                            <label style="display:block;margin-bottom:6px;color:var(--text-secondary);font-size:0.88rem;" data-i18n="import_github_label">GitHub 仓库 URL</label>
+                            <input type="text" id="importGithubUrl" class="select-input" style="width:100%;" placeholder="https://github.com/username/repo">
+                        </div>
+                        <div style="margin-bottom:16px;color:var(--text-muted);font-size:0.82rem;" data-i18n="import_github_hint">从仓库的 main 或 master 分支导入 SKILL.md 文件</div>
+                        <button class="btn btn-primary" onclick="importFromGithub()" data-i18n="import_github_btn">🐙 导入</button>
+                    </div>
+                </div>
+                <div id="listPanel" class="discover-panel" style="display:none;">
+                    <div id="userSkillsList"></div>
+                </div>
             </section>
 
             <!-- 详情页 -->
@@ -2224,6 +2281,153 @@
                 if (data.success) { showToast(`${currentLang === 'zh' ? '已拒绝' : 'Rejected'}: ${fullName}`, 'info'); loadCandidates(); loadDiscoverStats(); }
                 else showToast(`${currentLang === 'zh' ? '拒绝失败' : 'Reject failed'}: ${data.error || ''}`, 'error');
             } catch (e) { showToast(`${currentLang === 'zh' ? '拒绝失败' : 'Reject failed'}: ${e.message}`, 'error'); }
+        }
+
+        // ========== 用户导入功能 ==========
+        function switchImportMode(mode) {
+            document.querySelectorAll('#importSection .discover-tab').forEach(t => t.classList.remove('active'));
+            document.querySelector(`#importSection [data-mode="${mode}"]`).classList.add('active');
+            document.getElementById('manualPanel').style.display = mode === 'manual' ? 'block' : 'none';
+            document.getElementById('githubPanel').style.display = mode === 'github' ? 'block' : 'none';
+            document.getElementById('listPanel').style.display = mode === 'list' ? 'block' : 'none';
+            if (mode === 'list') loadUserSkills();
+        }
+
+        async function validateImport() {
+            const content = document.getElementById('importContent').value.trim();
+            if (!content) {
+                showToast(currentLang === 'zh' ? '请输入 Skill 内容' : 'Please enter Skill content', 'warning');
+                return;
+            }
+            try {
+                const res = await fetch('/api/import/validate', {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({content})
+                });
+                const data = await res.json();
+                const validationDiv = document.getElementById('importValidation');
+                validationDiv.style.display = 'block';
+                if (data.valid) {
+                    validationDiv.style.background = 'rgba(16,185,129,0.1)';
+                    validationDiv.style.border = '1px solid rgba(16,185,129,0.3)';
+                    validationDiv.innerHTML = `<span style="color:#10b981;">✅ ${currentLang === 'zh' ? '验证通过' : 'Validation passed'}</span>`;
+                } else {
+                    validationDiv.style.background = 'rgba(239,68,68,0.1)';
+                    validationDiv.style.border = '1px solid rgba(239,68,68,0.3)';
+                    validationDiv.innerHTML = `<span style="color:#ef4444;">❌ ${currentLang === 'zh' ? '验证失败' : 'Validation failed'}</span><br>${data.errors?.map(e => `<span style="color:#ef4444;">• ${e}</span><br>`).join('') || ''}${data.warnings?.map(w => `<span style="color:#f59e0b;">⚠ ${w}</span><br>`).join('') || ''}`;
+                }
+            } catch (e) {
+                showToast(`${currentLang === 'zh' ? '验证失败' : 'Validation failed'}: ${e.message}`, 'error');
+            }
+        }
+
+        async function submitImport() {
+            const name = document.getElementById('importName').value.trim();
+            const description = document.getElementById('importDesc').value.trim();
+            const content = document.getElementById('importContent').value.trim();
+            if (!name) {
+                showToast(currentLang === 'zh' ? '请输入 Skill 名称' : 'Please enter Skill name', 'warning');
+                return;
+            }
+            if (!content) {
+                showToast(currentLang === 'zh' ? '请输入 Skill 内容' : 'Please enter Skill content', 'warning');
+                return;
+            }
+            try {
+                const res = await fetch('/api/import/user', {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({name, description, content})
+                });
+                const data = await res.json();
+                if (data.success) {
+                    showToast(`${currentLang === 'zh' ? '导入成功' : 'Imported successfully'}: ${data.name}`, 'success');
+                    document.getElementById('importName').value = '';
+                    document.getElementById('importDesc').value = '';
+                    document.getElementById('importContent').value = '';
+                    document.getElementById('importValidation').style.display = 'none';
+                } else {
+                    showToast(`${currentLang === 'zh' ? '导入失败' : 'Import failed'}: ${data.error || ''}`, 'error');
+                }
+            } catch (e) {
+                showToast(`${currentLang === 'zh' ? '导入失败' : 'Import failed'}: ${e.message}`, 'error');
+            }
+        }
+
+        async function importFromGithub() {
+            const url = document.getElementById('importGithubUrl').value.trim();
+            if (!url) {
+                showToast(currentLang === 'zh' ? '请输入 GitHub URL' : 'Please enter GitHub URL', 'warning');
+                return;
+            }
+            showToast(currentLang === 'zh' ? '正在导入...' : 'Importing...', 'info');
+            try {
+                const res = await fetch('/api/import/github', {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({url})
+                });
+                const data = await res.json();
+                if (data.success) {
+                    showToast(`${currentLang === 'zh' ? '导入成功' : 'Imported successfully'}: ${data.name}`, 'success');
+                    document.getElementById('importGithubUrl').value = '';
+                } else {
+                    showToast(`${currentLang === 'zh' ? '导入失败' : 'Import failed'}: ${data.error || ''}`, 'error');
+                }
+            } catch (e) {
+                showToast(`${currentLang === 'zh' ? '导入失败' : 'Import failed'}: ${e.message}`, 'error');
+            }
+        }
+
+        async function loadUserSkills() {
+            try {
+                const res = await fetch('/api/import/list-user');
+                const data = await res.json();
+                const container = document.getElementById('userSkillsList');
+                if (!data.skills || data.skills.length === 0) {
+                    container.innerHTML = `
+                        <div class="empty-state">
+                            <div class="empty-icon">👤</div>
+                            <h3 class="empty-title">${currentLang === 'zh' ? '暂无导入的 Skills' : 'No imported Skills'}</h3>
+                            <p class="empty-desc">${currentLang === 'zh' ? '使用上方表单导入您的自定义 Skills' : 'Import your custom Skills using the form above'}</p>
+                        </div>`;
+                } else {
+                    container.innerHTML = `<div class="skills-grid">${data.skills.map(s => `
+                        <div class="skill-card">
+                            <div class="skill-card-header">
+                                <div class="skill-emoji">👤</div>
+                                <div class="skill-info">
+                                    <div class="skill-name">${s.name}</div>
+                                    <span class="skill-category">👤 ${currentLang === 'zh' ? '用户导入' : 'User Import'}</span>
+                                </div>
+                            </div>
+                            <p class="skill-desc">${s.description || (currentLang === 'zh' ? '暂无描述' : 'No description')}</p>
+                            <div class="skill-actions">
+                                <button class="skill-action secondary" onclick="showSkillDetail('${escHtml(s.name)}')">${currentLang === 'zh' ? '📄 查看详情' : '📄 View'}</button>
+                                <button class="skill-action danger" onclick="deleteUserSkill('${escHtml(s.name)}')">🗑️ ${currentLang === 'zh' ? '删除' : 'Delete'}</button>
+                            </div>
+                        </div>`).join('')}</div>`;
+                }
+            } catch (e) {
+                showToast(`${currentLang === 'zh' ? '加载失败' : 'Load failed'}: ${e.message}`, 'error');
+            }
+        }
+
+        async function deleteUserSkill(name) {
+            if (!confirm((currentLang === 'zh' ? '确定删除 ' : 'Delete ') + name + '?')) return;
+            try {
+                const res = await fetch('/api/import/delete', {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({name})
+                });
+                const data = await res.json();
+                if (data.success) {
+                    showToast(`${currentLang === 'zh' ? '已删除' : 'Deleted'}: ${name}`, 'success');
+                    loadUserSkills();
+                } else {
+                    showToast(`${currentLang === 'zh' ? '删除失败' : 'Delete failed'}: ${data.error || ''}`, 'error');
+                }
+            } catch (e) {
+                showToast(`${currentLang === 'zh' ? '删除失败' : 'Delete failed'}: ${e.message}`, 'error');
+            }
         }
 
         // ========== 启动 ==========
