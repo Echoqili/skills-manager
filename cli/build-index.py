@@ -1,428 +1,536 @@
 #!/usr/bin/env python3
 """
-构建技能索引的脚本
-扫描所有技能源并生成 skills-index.json
+构建技能索引的脚本 v2.0
+基于 Agent Skills Specification 和 AI Skillstore Marketplace 设计理念
+支持多源整合、安全审计状态、标准化元数据
 """
 import os
 import json
 import re
+import yaml
 from pathlib import Path
-from typing import Dict, List, Any
-import datetime
+from typing import Dict, List, Any, Optional
+from datetime import datetime
+from dataclasses import dataclass, asdict
 
 BASE_DIR = Path(__file__).parent.parent
 SKILL_INDEX_FILE = BASE_DIR / "data" / "SKILLS_INDEX.md"
 SKILLS_JSON_FILE = BASE_DIR / "data" / "skills-index.json"
+CANDIDATES_FILE = BASE_DIR / "data" / "candidates.json"
 
-# 技能源配置 - 所有 skills 项目
-# learning-open-source 是主项目，all-skills 在 data 目录下
-# 其他技能源在同级目录下
+# 技能源配置
 SOURCE_CONFIGS = {
     "learning-open-source": {
         "path": "./data/all-skills",
         "description": "已整合的开源技能集合",
+        "url": "https://github.com/aiskillstore/marketplace",
+        "license": "MIT",
     },
     "user-imports": {
         "path": "./data/all-skills/user-imports",
         "description": "用户导入的技能",
+        "url": "",
+        "license": "custom",
     },
     "skills": {
         "path": "../skills/skills",
         "description": "Anthropic 官方技能示例",
+        "url": "https://github.com/anthropics/anthropic-cookbook",
+        "license": "CC-BY-4.0",
     },
     "superpowers": {
         "path": "../superpowers/skills",
         "description": "Superpowers 完整开发工作流技能",
+        "url": "https://github.com/superpowerlabs/mcp-skills",
+        "license": "MIT",
     },
     "qa-skills": {
         "path": "../qa-skills/skills",
         "description": "QA 测试自动化技能",
+        "url": "",
+        "license": "MIT",
     },
     "testing-toolkit": {
         "path": "../testing-toolkit",
         "description": "测试策略技能",
+        "url": "",
+        "license": "MIT",
     },
     "ui-ux-pro-max-skill": {
         "path": "../ui-ux-pro-max-skill",
         "description": "UI/UX 设计系统技能",
+        "url": "",
+        "license": "MIT",
     },
     "GitNexus": {
         "path": "../GitNexus/gitnexus-claude-plugin/skills",
         "description": "代码分析与知识图谱技能",
+        "url": "",
+        "license": "MIT",
     },
     "Product-Manager-Skills": {
         "path": "../Product-Manager-Skills",
         "description": "产品经理技能",
+        "url": "",
+        "license": "MIT",
     },
 }
 
-
-def find_skill_md_files(directory: Path) -> List[Path]:
-    """递归查找所有技能文件 (SKILL.md 或 .md)"""
-    skill_files = []
-    if not directory.exists():
-        return skill_files
-
-    for item in directory.iterdir():
-        if item.is_dir():
-            skill_files.extend(find_skill_md_files(item))
-        elif item.name == "SKILL.md" or (item.suffix == ".md" and item.stem != "README"):
-            skill_files.append(item)
-    return skill_files
-
-
-def contains_chinese(text: str) -> bool:
-    """检测文本是否包含中文字符"""
-    return bool(re.search(r'[\u4e00-\u9fff]', text))
-
-
-# 技能名称翻译映射
-NAME_TRANSLATIONS = {
-    # qiushi相关
-    "01-seek-truth-from-facts": "实事求是",
-    "02-contradiction-analysis": "矛盾分析法",
-    "03-practice-cognition": "实践认识论",
-    "04-investigation": "调查研究",
-    "05-mass-line": "群众路线",
-    "06-criticism-self-criticism": "批评与自我批评",
-    "07-protracted-strategy": "持久战略",
-    "08-concentrate-forces": "集中力量",
-    "09-spark-prairie-fire": "星星之火可以燎原",
-    "10-overall-planning": "统筹兼顾",
-    "qiushi": "求是方法论",
-    
-    # agile相关
+# 分类映射
+CATEGORY_MAPPINGS = {
+    "product": "产品经理",
     "agile": "敏捷开发",
-    "sprint-planning": "冲刺规划",
-    "backlog-refinement": "待办事项梳理",
-    "backlog-groomer": "待办事项梳理",
-    "acceptance-driven-planner": "验收驱动规划",
-    "definition-of-done-enforcer": "完成标准执行",
-    "iteration-outcome-reviewer": "迭代成果评审",
-    "retrospective-pattern-finder": "回顾模式发现",
-    "blocker-escalation-advisor": "障碍升级顾问",
-    "cross-functional-team-checker": "跨职能团队检查",
-    "story-splitting-advisor": "用户故事拆分顾问",
-    "sprint-goal-writer": "冲刺目标撰写",
-    "regression-discipline-checker": "回归规范检查",
-    
-    # testing相关
-    "qa": "质量保证",
-    "test": "测试",
-    "playwright": "Playwright自动化",
-    "end-to-end": "端到端",
-    "e2e-testing": "端到端测试",
-    "testing": "测试",
-    "test-strategy": "测试策略",
-    "test-planning": "测试规划",
-    "test-migration": "测试迁移",
-    "unit-testing": "单元测试",
-    "security-testing": "安全测试",
-    "performance-testing": "性能测试",
-    "api-testing": "API测试",
-    "agent-browser": "代理浏览器",
-    "qa-skills": "QA技能",
-    
-    # design相关
-    "ui-ux": "UI/UX设计",
-    "ui-ux-pro-max": "UI/UX设计系统",
-    "design-system": "设计系统",
-    "figma-to-code": "Figma转代码",
-    "canvas-design": "画布设计",
-    "frontend-design": "前端设计",
-    
-    # product相关
-    "product-manager": "产品经理",
-    "product": "产品",
-    "prd-development": "PRD开发",
-    "requirements": "需求",
-    "user-story": "用户故事",
-    "user-story-mapping": "用户故事地图",
-    "opportunity-solution-tree": "机会方案树",
-    "positioning-statement": "定位陈述",
-    "jobs-to-be-done": "待办任务理论",
-    "proto-persona": "原型角色",
-    "customer-journey-map": "用户旅程地图",
-    "customer-journey-mapping-workshop": "用户旅程地图工作坊",
-    "discovery-process": "探索流程",
-    "discovery-interview-prep": "探索访谈准备",
-    "feature-investment-advisor": "功能投入顾问",
-    "director-readiness-advisor": "总监就绪顾问",
-    "business-health-diagnostic": "业务健康诊断",
-    "executive-onboarding-playbook": "高管入职手册",
-    "executing-plans": "执行计划",
-    "writing-plans": "撰写计划",
-    "eol-message": "下线消息",
-    "epic-hypothesis": "史诗假设",
-    "epic-breakdown-advisor": "史诗拆解顾问",
-    "problem-statement": "问题陈述",
-    "problem-framing-canvas": "问题框架画布",
-    "prioritization-advisor": "优先级顾问",
-    "recommendation-canvas": "推荐画布",
-    "roadmap-planning": "路线图规划",
-    "tavily-search": "Tavily搜索",
-    "saas-revenue-growth-metrics": "SaaS收入增长指标",
-    "saas-economics-efficiency-metrics": "SaaS经济效率指标",
-    "tam-sam-som-calculator": "市场规模计算器",
-    
-    # superpowers相关
-    "superpowers": "超级能力",
-    "systematic-debugging": "系统调试",
-    "using-git-worktrees": "使用Git工作树",
-    "requesting-code-review": "申请代码审查",
-    "test-driven-development": "测试驱动开发",
-    "brainstorming": "头脑风暴",
-    
-    # ai相关
-    "ai-product": "AI产品",
-    "llm": "大语言模型",
-    "prompt-injection-defense": "提示注入防御",
-    "hallucination-detection": "幻觉检测",
-    "jailbreak-detection": "越狱检测",
-    "ai-red-teaming": "AI红队测试",
-    
-    # architecture相关
-    "ddd": "领域驱动设计",
-    "ddd-skills": "DDD技能",
-    "api-design": "API设计",
-    "api-generator": "API生成器",
-    "hexagonal-architecture": "六边形架构",
-    
-    # dev相关
+    "scrum": "Scrum团队",
+    "ddd": "DDD架构",
     "dev-quality": "开发质量",
-    "clean-code": "整洁代码",
-    "debugging": "调试",
-    "debugger": "调试器",
-    "database": "数据库",
-    "github": "GitHub",
-    "composition-patterns": "组合模式",
-    "react-best-practices": "React最佳实践",
+    "qa-testing": "QA测试",
+    "api-design": "API设计",
+    "ai-product": "AI产品",
+    "ai-safety": "AI安全",
+    "superpowers": "Superpowers",
     "dev-workflow": "开发工作流",
-    "coding-standards": "编码标准",
-    "continuous-learning": "持续学习",
-    "git-commit": "Git提交",
-    "git-workflow": "Git工作流",
-    "tdd-workflow": "TDD工作流",
-    "context-budget": "上下文预算",
-    "agentic-engineering": "代理工程",
+    "design": "设计系统",
+    "skill-authoring": "Skill开发",
+    "indie-hacker": "独立开发者",
+    "qiushi": "求是方法论",
+    "qa": "QA测试",
+    "skills": "通用Skills",
+    "ui-ux": "UI/UX设计",
+    "gitnexus": "GitNexus",
+    "testing": "测试工具包",
+    "user-imports": "用户导入",
+    "github-projects": "GitHub项目",
+    "other": "其他",
+}
+
+CATEGORY_EMOJI = {
+    "product": "🔵",
+    "agile": "🟢",
+    "scrum": "🟡",
+    "ddd": "🟠",
+    "dev-quality": "🟣",
+    "qa-testing": "🔴",
+    "api-design": "⚪",
+    "ai-product": "🩵",
+    "ai-safety": "🚨",
+    "superpowers": "⚡",
+    "dev-workflow": "🔧",
+    "design": "🎨",
+    "skill-authoring": "🛠️",
+    "indie-hacker": "💰",
+    "qiushi": "🎯",
+    "qa": "🧪",
+    "skills": "📦",
+    "ui-ux": "🎨",
+    "gitnexus": "🔗",
+    "testing": "🧪",
+    "user-imports": "👤",
+    "github-projects": "🐙",
+    "other": "📦",
 }
 
 
-def translate_name(name: str, lang: str) -> str:
-    """翻译技能名称"""
-    # 直接匹配
-    if name in NAME_TRANSLATIONS:
-        return NAME_TRANSLATIONS[name]
+@dataclass
+class SkillMetadata:
+    """技能元数据结构"""
+    name: str
+    name_zh: str
+    name_en: str
+    path: str
+    source: str
+    category: str
+    description: str
+    description_en: str
+    description_zh: str
+    version: str = "1.0.0"
+    author: str = ""
+    platforms: List[str] = None
+    tags: List[str] = None
+    security_audited: bool = False
+    install_method: str = "copy"
+    content: str = ""
+    language: str = "en"
     
-    # 大小写匹配
-    lower_name = name.lower()
-    if lower_name in NAME_TRANSLATIONS:
-        return NAME_TRANSLATIONS[lower_name]
+    def __post_init__(self):
+        if self.platforms is None:
+            self.platforms = ["claude-code", "claude", "codex"]
+        if self.tags is None:
+            self.tags = []
     
-    # 部分匹配
-    for key, value in NAME_TRANSLATIONS.items():
-        if key.lower() in lower_name:
-            return value
-    
-    # 保持原样
-    return name
+    def to_dict(self) -> Dict:
+        return asdict(self)
 
 
-def parse_skill_md(skill_path: Path) -> Dict[str, Any]:
-    """解析技能文件，提取元数据和描述"""
-    skill_info = {
-        "name": skill_path.parent.name,
-        "name_zh": "",
-        "name_en": "",
-        "path": str(skill_path.relative_to(BASE_DIR)),
-        "source": "",
-        "description": "",
-        "description_en": "",
-        "description_zh": "",
-        "content": "",
-        "language": "en",
+class SkillIndexBuilder:
+    """技能索引构建器"""
+    
+    # 技能名称翻译映射
+    NAME_TRANSLATIONS = {
+        # agile相关
+        "agile": "敏捷开发",
+        "sprint-planning": "冲刺规划",
+        "backlog-refinement": "待办事项梳理",
+        "backlog-groomer": "待办事项梳理",
+        "acceptance-driven-planner": "验收驱动规划",
+        "definition-of-done-enforcer": "完成标准执行",
+        "iteration-outcome-reviewer": "迭代成果评审",
+        "retrospective-pattern-finder": "回顾模式发现",
+        "blocker-escalation-advisor": "障碍升级顾问",
+        "cross-functional-team-checker": "跨职能团队检查",
+        "story-splitting-advisor": "用户故事拆分顾问",
+        "sprint-goal-writer": "冲刺目标撰写",
+        "regression-discipline-checker": "回归规范检查",
+        
+        # testing相关
+        "qa": "质量保证",
+        "test": "测试",
+        "playwright": "Playwright自动化",
+        "end-to-end": "端到端",
+        "e2e-testing": "端到端测试",
+        "testing": "测试",
+        "test-strategy": "测试策略",
+        "test-planning": "测试规划",
+        "test-migration": "测试迁移",
+        "unit-testing": "单元测试",
+        "security-testing": "安全测试",
+        "performance-testing": "性能测试",
+        "api-testing": "API测试",
+        "agent-browser": "代理浏览器",
+        "qa-skills": "QA技能",
+        
+        # design相关
+        "ui-ux": "UI/UX设计",
+        "ui-ux-pro-max": "UI/UX设计系统",
+        "design-system": "设计系统",
+        "figma-to-code": "Figma转代码",
+        "canvas-design": "画布设计",
+        "frontend-design": "前端设计",
+        
+        # product相关
+        "product-manager": "产品经理",
+        "product": "产品",
+        "prd-development": "PRD开发",
+        "requirements": "需求",
+        "user-story": "用户故事",
+        "user-story-mapping": "用户故事地图",
+        "opportunity-solution-tree": "机会方案树",
+        "positioning-statement": "定位陈述",
+        "jobs-to-be-done": "待办任务理论",
+        "proto-persona": "原型角色",
+        "customer-journey-map": "用户旅程地图",
+        "customer-journey-mapping-workshop": "用户旅程地图工作坊",
+        "discovery-process": "探索流程",
+        "discovery-interview-prep": "探索访谈准备",
+        "feature-investment-advisor": "功能投入顾问",
+        "director-readiness-advisor": "总监就绪顾问",
+        
+        # qiushi相关
+        "qiushi": "求是方法论",
+        "01-seek-truth-from-facts": "实事求是",
+        "02-contradiction-analysis": "矛盾分析法",
+        "03-practice-cognition": "实践认识论",
+        "04-investigation": "调查研究",
+        "05-mass-line": "群众路线",
+        "06-criticism-self-criticism": "批评与自我批评",
+        "07-protracted-strategy": "持久战略",
+        "08-concentrate-forces": "集中力量",
+        "09-spark-prairie-fire": "星星之火可以燎原",
+        "10-overall-planning": "统筹兼顾",
+        
+        # architecture相关
+        "ddd": "领域驱动设计",
+        "cqrs": "命令查询职责分离",
+        "event-sourcing": "事件溯源",
+        "hexagonal": "六边形架构",
+        "clean-architecture": "整洁架构",
+        
+        # dev-quality相关
+        "clean-code": "整洁代码",
+        "refactoring": "代码重构",
+        "code-review": "代码审查",
+        "debug": "调试技巧",
+        "solid": "SOLID原则",
     }
-
-    try:
-        with open(skill_path, encoding="utf-8") as f:
-            content = f.read()
-            skill_info["content"] = content
-
-            lines = content.split("\n")
-            desc_lines = []
-            in_frontmatter = False
-            for i, line in enumerate(lines[:50]):
-                line = line.strip()
-                if line.startswith("---"):
-                    in_frontmatter = not in_frontmatter
-                    continue
-                if not in_frontmatter and line and not line.startswith("#"):
-                    if line:
-                        desc_lines.append(line)
-                        if len(desc_lines) >= 3:
-                            break
-
-            if desc_lines:
-                description = " ".join(desc_lines)
-                skill_info["description"] = description
-                
-                # 检测语言并设置对应的描述字段
-                if contains_chinese(description):
-                    skill_info["description_zh"] = description
-                    skill_info["description_en"] = description  # 也保存到英文字段作为备用
-                    skill_info["language"] = "zh"
-                else:
-                    skill_info["description_en"] = description
-                    skill_info["description_zh"] = description  # 也保存到中文字段作为备用
-                    skill_info["language"] = "en"
+    
+    def __init__(self):
+        self.skills: List[SkillMetadata] = []
+        self.source_stats: Dict[str, int] = {}
+    
+    def find_skill_md_files(self, directory: Path) -> List[Path]:
+        """递归查找所有技能文件"""
+        skill_files = []
+        if not directory.exists():
+            return skill_files
+        
+        for item in directory.iterdir():
+            if item.is_dir():
+                skill_files.extend(self.find_skill_md_files(item))
+            elif item.name == "SKILL.md" or (item.suffix == ".md" and item.stem != "README"):
+                skill_files.append(item)
+        return skill_files
+    
+    def contains_chinese(self, text: str) -> bool:
+        """检测文本是否包含中文字符"""
+        return bool(re.search(r'[\u4e00-\u9fff]', text))
+    
+    def translate_skill_name(self, name: str) -> str:
+        """翻译技能名称"""
+        name_lower = name.lower()
+        
+        # 直接匹配
+        if name_lower in self.NAME_TRANSLATIONS:
+            return self.NAME_TRANSLATIONS[name_lower]
+        
+        # 部分匹配
+        for key, value in self.NAME_TRANSLATIONS.items():
+            if key in name_lower or name_lower in key:
+                return value
+        
+        return name.replace('-', ' ').replace('_', ' ').title()
+    
+    def extract_category(self, skill_path: Path, source: str) -> str:
+        """从路径提取分类"""
+        parts = skill_path.parts
+        
+        # 构建从 all-skills 开始的相对路径
+        if 'all-skills' in parts:
+            idx = parts.index('all-skills')
+            relative_parts = parts[idx + 1:]  # all-skills 之后的路径
             
-            # 设置翻译名称
-            original_name = skill_info["name"]
-            if skill_info["language"] == "zh":
-                # 中文内容，name_zh是原名，name_en尝试翻译
-                skill_info["name_zh"] = original_name
-                skill_info["name_en"] = translate_name(original_name, "en")
-            else:
-                # 英文内容，name_en是原名，name_zh尝试翻译
-                skill_info["name_en"] = original_name
-                skill_info["name_zh"] = translate_name(original_name, "zh")
-                
-            # 特殊处理qiushi子文件
-            file_name = skill_path.stem
-            if file_name.startswith("01-"):
-                skill_info["name_zh"] = "实事求是"
-                skill_info["name_en"] = "Seek Truth from Facts"
-            elif file_name.startswith("02-"):
-                skill_info["name_zh"] = "矛盾分析法"
-                skill_info["name_en"] = "Contradiction Analysis"
-            elif file_name.startswith("03-"):
-                skill_info["name_zh"] = "实践认识论"
-                skill_info["name_en"] = "Practice Cognition"
-            elif file_name.startswith("04-"):
-                skill_info["name_zh"] = "调查研究"
-                skill_info["name_en"] = "Investigation and Research"
-            elif file_name.startswith("05-"):
-                skill_info["name_zh"] = "群众路线"
-                skill_info["name_en"] = "Mass Line"
-            elif file_name.startswith("06-"):
-                skill_info["name_zh"] = "批评与自我批评"
-                skill_info["name_en"] = "Criticism and Self-criticism"
-            elif file_name.startswith("07-"):
-                skill_info["name_zh"] = "持久战略"
-                skill_info["name_en"] = "Protracted Strategy"
-            elif file_name.startswith("08-"):
-                skill_info["name_zh"] = "集中力量"
-                skill_info["name_en"] = "Concentrate Forces"
-            elif file_name.startswith("09-"):
-                skill_info["name_zh"] = "星星之火可以燎原"
-                skill_info["name_en"] = "Spark a Prairie Fire"
-            elif file_name.startswith("10-"):
-                skill_info["name_zh"] = "统筹兼顾"
-                skill_info["name_en"] = "Overall Planning"
-    except Exception as e:
-        print(f"Error parsing {skill_path}: {e}")
-
-    return skill_info
-
-
-def scan_all_sources() -> Dict[str, List[Dict]]:
-    """扫描所有技能源"""
-    all_skills = {}
-
-    for source_name, config in SOURCE_CONFIGS.items():
-        source_path = BASE_DIR / config["path"]
+            if not relative_parts:
+                return source
+            
+            first_part = relative_parts[0]
+            
+            # all-skills/XXX-skills/... -> 提取分类
+            if first_part.endswith('-skills'):
+                cat = first_part.replace('-skills', '').replace('-', '_')
+                return CATEGORY_MAPPINGS.get(cat, cat)
+            
+            # 其他情况，如 all-skills/github-projects/...
+            return CATEGORY_MAPPINGS.get(first_part, first_part)
+        
+        return source
+    
+    def parse_skill_frontmatter(self, content: str) -> Optional[Dict]:
+        """解析 YAML frontmatter"""
+        match = re.match(r'^---\n(.*?)\n---', content, re.DOTALL)
+        if match:
+            try:
+                return yaml.safe_load(match.group(1))
+            except:
+                pass
+        return None
+    
+    def parse_skill(self, file_path: Path, source: str) -> Optional[SkillMetadata]:
+        """解析技能文件"""
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+        except Exception as e:
+            return None
+        
+        # 解析 frontmatter
+        frontmatter = self.parse_skill_frontmatter(content)
+        
+        # 从 frontmatter 获取名称，或从目录名获取
+        skill_name = None
+        if frontmatter and 'name' in frontmatter:
+            skill_name = frontmatter['name']
+        
+        if not skill_name:
+            # 使用父目录名作为技能名
+            skill_name = file_path.parent.name
+            # 跳过名为 SKILL 或 README 的父目录
+            if skill_name.upper() in ('SKILL', 'README'):
+                skill_name = file_path.parent.parent.name
+        
+        has_chinese = self.contains_chinese(content)
+        
+        # 提取描述
+        desc_match = re.search(r'#\s+(.+?)\n', content)
+        description = desc_match.group(1) if desc_match else skill_name
+        
+        # 翻译名称
+        name_zh = self.translate_skill_name(skill_name)
+        
+        # 提取分类
+        category = self.extract_category(file_path, source)
+        
+        # 解析 platforms
+        platforms = ["claude-code", "claude", "codex"]
+        if frontmatter and 'platforms' in frontmatter:
+            platforms = frontmatter['platforms']
+        
+        # 安全审计状态
+        security_audited = False
+        if frontmatter and 'security' in frontmatter:
+            security_audited = frontmatter['security'].get('audited', False)
+        
+        return SkillMetadata(
+            name=skill_name,
+            name_zh=name_zh,
+            name_en=skill_name,
+            path=str(file_path.relative_to(BASE_DIR)).replace('\\', '/'),
+            source=source,
+            category=category,
+            description=description,
+            description_en=description if not has_chinese else "",
+            description_zh=description if has_chinese else "",
+            version=frontmatter.get('version', '1.0.0') if frontmatter else '1.0.0',
+            author=frontmatter.get('author', '') if frontmatter else '',
+            platforms=platforms,
+            tags=frontmatter.get('tags', []) if frontmatter else [],
+            security_audited=security_audited,
+            install_method=frontmatter.get('install', {}).get('method', 'copy') if frontmatter else 'copy',
+            content=content,
+            language='zh' if has_chinese else 'en'
+        )
+    
+    def scan_source(self, source_name: str, config: Dict) -> List[SkillMetadata]:
+        """扫描单个技能源"""
+        source_path = BASE_DIR / config['path']
+        print(f"  Scanning {source_name}...")
+        
         if not source_path.exists():
-            print(f"Warning: Source {source_name} not found at {source_path}")
-            continue
-
-        print(f"Scanning {source_name}...")
-        skill_files = find_skill_md_files(source_path)
-        print(f"  Found {len(skill_files)} skills")
-
+            # 尝试相对于父目录的路径
+            parent_path = BASE_DIR.parent / config['path']
+            if parent_path.exists():
+                source_path = parent_path
+        
+        skill_files = self.find_skill_md_files(source_path)
         skills = []
-        for skill_file in skill_files:
-            skill_info = parse_skill_md(skill_file)
-            skill_info["source"] = source_name
-            skills.append(skill_info)
-
-        all_skills[source_name] = skills
-
-    return all_skills
-
-
-def generate_markdown_index(all_skills: Dict[str, List[Dict]]) -> str:
-    """生成 Markdown 格式的索引"""
-    md_lines = [
-        "# Skills Index",
-        "",
-        "所有技能的完整索引目录",
-        "",
-        "---",
-        "",
-    ]
-
-    total_skills = 0
-    for source_name, skills in all_skills.items():
-        source_desc = SOURCE_CONFIGS.get(source_name, {}).get("description", "")
-        md_lines.append(f"## {source_name}")
-        if source_desc:
-            md_lines.append(f"{source_desc}")
-        md_lines.append("")
-
-        if skills:
-            md_lines.append("| 技能 | 描述 | 路径 |")
-            md_lines.append("|------|------|------|")
-
-            for skill in skills:
-                name = skill["name"]
-                desc = skill["description"][:80] if skill["description"] else "-"
-                path = skill["path"]
-                md_lines.append(f"| {name} | {desc} | {path} |")
-                total_skills += 1
-        else:
-            md_lines.append("*暂无技能*")
-
-        md_lines.append("")
-
-    md_lines.append("---")
-    md_lines.append("")
-    md_lines.append(f"**总计: {total_skills} 个技能**")
-
-    return "\n".join(md_lines)
-
-
-def generate_json_index(all_skills: Dict[str, List[Dict]]) -> str:
-    """生成 JSON 格式的索引"""
-    index_data = {
-        "generated_at": datetime.datetime.now().isoformat(),
-        "total_skills": sum(len(skills) for skills in all_skills.values()),
-        "sources": all_skills,
-    }
-    return json.dumps(index_data, ensure_ascii=False, indent=2)
-
-
-def main():
-    print("=" * 60)
-    print("Building Skills Index...")
-    print("=" * 60)
-
-    all_skills = scan_all_sources()
-
-    print("\nGenerating Markdown index...")
-    md_index = generate_markdown_index(all_skills)
-    with open(SKILL_INDEX_FILE, "w", encoding="utf-8") as f:
-        f.write(md_index)
-    print(f"  Wrote {SKILL_INDEX_FILE}")
-
-    print("Generating JSON index...")
-    json_index = generate_json_index(all_skills)
-    with open(SKILLS_JSON_FILE, "w", encoding="utf-8") as f:
-        f.write(json_index)
-    print(f"  Wrote {SKILLS_JSON_FILE}")
-
-    total = sum(len(skills) for skills in all_skills.values())
-    print(f"\n✅ Index built successfully! Total {total} skills from {len(all_skills)} sources")
+        
+        for file_path in skill_files:
+            skill = self.parse_skill(file_path, source_name)
+            if skill:
+                skills.append(skill)
+        
+        self.source_stats[source_name] = len(skills)
+        print(f"    Found {len(skills)} skills")
+        
+        return skills
+    
+    def build_index(self) -> Dict:
+        """构建完整索引"""
+        print("=" * 60)
+        print("Building Skills Index v2.0")
+        print("Based on Agent Skills Specification")
+        print("=" * 60)
+        
+        all_skills = {}
+        
+        for source_name, config in SOURCE_CONFIGS.items():
+            skills = self.scan_source(source_name, config)
+            if skills:
+                all_skills[source_name] = [s.to_dict() for s in skills]
+                self.skills.extend(skills)
+        
+        # 加载候选技能
+        if CANDIDATES_FILE.exists():
+            try:
+                with open(CANDIDATES_FILE, 'r', encoding='utf-8') as f:
+                    candidates = json.load(f)
+                    if 'candidates' in candidates:
+                        all_skills['pending'] = candidates['candidates'][:50]  # 只取前50个
+            except:
+                pass
+        
+        return all_skills
+    
+    def generate_markdown_index(self, skills: List[SkillMetadata]) -> str:
+        """生成 Markdown 索引"""
+        lines = [
+            "# Skills Index",
+            "",
+            f"> Generated at: {datetime.now().isoformat()}",
+            f"> Total skills: {len(skills)}",
+            f"> Security audited: {sum(1 for s in skills if s.security_audited)}",
+            "",
+            "## Categories",
+            "",
+        ]
+        
+        # 按分类分组
+        categories: Dict[str, List[SkillMetadata]] = {}
+        for skill in skills:
+            cat = skill.category
+            if cat not in categories:
+                categories[cat] = []
+            categories[cat].append(skill)
+        
+        # 生成分类目录
+        for cat, cat_skills in sorted(categories.items()):
+            emoji = CATEGORY_EMOJI.get(cat, "📦")
+            lines.append(f"### {emoji} {cat} ({len(cat_skills)})")
+            lines.append("")
+            
+            for skill in sorted(cat_skills, key=lambda s: s.name):
+                status = "✅" if skill.security_audited else "⚠️"
+                lines.append(f"- [{status}] `{skill.name}` - {skill.name_zh}")
+            lines.append("")
+        
+        # 统计信息
+        lines.extend([
+            "## Statistics",
+            "",
+            "| Source | Count |",
+            "|--------|-------|",
+        ])
+        
+        for source, count in sorted(self.source_stats.items(), key=lambda x: -x[1]):
+            lines.append(f"| {source} | {count} |")
+        
+        lines.append("")
+        lines.append(f"**Total: {len(skills)} skills**")
+        
+        return "\n".join(lines)
+    
+    def save_index(self, all_skills: Dict):
+        """保存索引文件"""
+        # 统计信息
+        total_skills = sum(len(skills) for skills in all_skills.values())
+        
+        # 生成 JSON
+        json_data = {
+            "generated_at": datetime.now().isoformat(),
+            "version": "2.0",
+            "specification": "https://agentskills.io/specification",
+            "total_skills": total_skills,
+            "source_stats": self.source_stats,
+            "sources": all_skills,
+        }
+        
+        with open(SKILLS_JSON_FILE, 'w', encoding='utf-8') as f:
+            json.dump(json_data, f, indent=2, ensure_ascii=False)
+        print(f"\n📄 Generated JSON: {SKILLS_JSON_FILE}")
+        
+        # 生成 Markdown
+        md_content = self.generate_markdown_index(self.skills)
+        with open(SKILL_INDEX_FILE, 'w', encoding='utf-8') as f:
+            f.write(md_content)
+        print(f"📄 Generated Markdown: {SKILL_INDEX_FILE}")
+        
+        # 生成 skills-list.json (简化版，用于 Web)
+        skills_list = [s.to_dict() for s in self.skills]
+        list_file = BASE_DIR / "data" / "skills-list.json"
+        with open(list_file, 'w', encoding='utf-8') as f:
+            json.dump(skills_list, f, indent=2, ensure_ascii=False)
+        print(f"📄 Generated list: {list_file}")
+    
+    def run(self):
+        """执行构建"""
+        all_skills = self.build_index()
+        self.save_index(all_skills)
+        
+        total = sum(self.source_stats.values())
+        print("\n" + "=" * 60)
+        print(f"✅ Index built successfully!")
+        print(f"   Total: {total} skills from {len(self.source_stats)} sources")
+        print(f"   Security audited: {sum(1 for s in self.skills if s.security_audited)}")
+        print("=" * 60)
 
 
 if __name__ == "__main__":
-    main()
+    builder = SkillIndexBuilder()
+    builder.run()

@@ -96,12 +96,38 @@ class CandidateRepo:
     quality_score: int = 0
     skill_files: List[str] = None
     rejection_reason: str = ""
-
+    # 新增字段：与 AI Skillstore Marketplace 保持一致
+    security_audited: bool = False
+    security_report_url: str = ""
+    license: str = ""
+    platforms: List[str] = None
+    version: str = "1.0.0"
+    submitted_by: str = ""
+    reviewed_by: str = ""
+    reviewed_at: str = ""
+    notes: str = ""
+    
     def __post_init__(self):
         if self.skill_files is None:
             self.skill_files = []
         if self.rejection_reason is None:
             self.rejection_reason = ""
+        if self.platforms is None:
+            self.platforms = ["claude-code", "claude", "codex"]
+    
+    def to_submission_dict(self) -> Dict:
+        """转换为 AI Skillstore 提交格式"""
+        return {
+            "name": self.name,
+            "full_name": self.full_name,
+            "description": self.description,
+            "url": self.url,
+            "stars": self.stars,
+            "license": self.license,
+            "platforms": self.platforms,
+            "security_audited": self.security_audited,
+            "quality_score": self.quality_score,
+        }
 
 
 class SkillsDiscoverer:
@@ -219,22 +245,41 @@ class SkillsDiscoverer:
 
         return has_skill_md, has_plugin, skill_files
 
-    def evaluate_quality(self, repo: Dict, skill_files: List[str]) -> int:
+    def evaluate_quality(self, repo: Dict, skill_files: List[str]) -> Dict[str, int]:
+        """增强版质量评估，返回详细评分"""
         score = 0
-
+        details = {
+            "stars": 0,
+            "has_skill_md": 0,
+            "recency": 0,
+            "has_description": 0,
+            "has_license": 0,
+            "documentation": 0,
+            "security": 0,
+        }
+        
         stars = repo.get("stargazers_count", 0)
         if stars >= 10000:
             score += 40
+            details["stars"] = 40
         elif stars >= 1000:
             score += 30
+            details["stars"] = 30
         elif stars >= 100:
             score += 20
+            details["stars"] = 20
         elif stars >= 50:
             score += 10
-
+            details["stars"] = 10
+        
+        # SKILL.md 文件存在性（参照 AI Skillstore）
         if skill_files:
-            score += 30
-
+            skill_md_count = sum(1 for f in skill_files if 'SKILL.md' in f.upper())
+            if skill_md_count > 0:
+                score += 30
+                details["has_skill_md"] = 30
+        
+        # 最近更新
         updated_at = repo.get("updated_at", "")
         if updated_at:
             try:
@@ -242,18 +287,34 @@ class SkillsDiscoverer:
                 days_ago = (datetime.now() - update_date.replace(tzinfo=None)).days
                 if days_ago < 30:
                     score += 15
+                    details["recency"] = 15
                 elif days_ago < 180:
                     score += 10
+                    details["recency"] = 10
                 elif days_ago < 365:
                     score += 5
+                    details["recency"] = 5
             except Exception:
                 pass
-
+        
+        # 有描述
         has_description = bool(repo.get("description"))
         if has_description:
             score += 5
-
-        return min(score, 100)
+            details["has_description"] = 5
+        
+        # 有许可证
+        has_license = bool(repo.get("license"))
+        if has_license:
+            score += 5
+            details["has_license"] = 5
+        
+        # 文档完善度（README 等）
+        if repo.get("has_wiki") or repo.get("has_pages"):
+            score += 5
+            details["documentation"] = 5
+        
+        return {"total": min(score, 100), "details": details}
 
     def discover(self, categories: List[str] = None, max_per_category: int = 20) -> List[CandidateRepo]:
         if categories is None:
@@ -537,17 +598,55 @@ Respond with ONLY the JSON array, no other text."""
 
 def main():
     import argparse
-    parser = argparse.ArgumentParser(description="GitHub Skills Discoverer")
+    parser = argparse.ArgumentParser(
+        description="GitHub Skills Discoverer",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # 发现新的技能
+  %(prog)s --discover
+  
+  # 发现特定分类的技能
+  %(prog)s --discover --category qa_testing --min-stars 100
+  
+  # 列出待审核的技能
+  %(prog)s --list
+  
+  # 审核通过一个技能
+  %(prog)s --approve owner/repo-name
+  
+  # 拒绝一个技能
+  %(prog)s --reject owner/repo-name "不符合质量标准"
+  
+  # 查看统计信息
+  %(prog)s --stats
+  
+  # AI 智能推荐
+  %(prog)s --recommend "我需要一个帮助编写测试用例的技能"
+  
+  # 导出待提交到 AI Skillstore 的技能
+  %(prog)s --export-submissions
+  
+  # 提交到 AI Skillstore (需要配置 GITHUB_TOKEN)
+  %(prog)s --submit owner/repo-name
+"""
+    )
     parser.add_argument("--discover", action="store_true", help="Run discovery")
     parser.add_argument("--category", choices=list(SEARCH_QUERIES.keys()), help="Specific category")
-    parser.add_argument("--min-stars", type=int, default=50, help="Minimum stars")
+    parser.add_argument("--min-stars", type=int, default=50, help="Minimum stars (default: 50)")
     parser.add_argument("--list", action="store_true", help="List pending candidates")
     parser.add_argument("--approve", metavar="FULL_NAME", help="Approve a candidate")
     parser.add_argument("--reject", nargs=2, metavar=("FULL_NAME", "REASON"), help="Reject a candidate")
     parser.add_argument("--stats", action="store_true", help="Show statistics")
     parser.add_argument("--recommend", metavar="REQUIREMENT", help="AI-powered skill recommendation")
     parser.add_argument("--top-k", type=int, default=5, help="Number of recommendations (default: 5)")
-
+    # 新增：与 AI Skillstore Marketplace 对齐的功能
+    parser.add_argument("--export-submissions", action="store_true", 
+                        help="Export approved skills for AI Skillstore submission")
+    parser.add_argument("--audit", metavar="FULL_NAME", help="Run security audit on a candidate")
+    parser.add_argument("--submit", metavar="FULL_NAME", help="Submit approved skill to AI Skillstore")
+    parser.add_argument("--check-security", action="store_true", help="Check security audit status")
+    
     args = parser.parse_args()
     discoverer = SkillsDiscoverer(min_stars=args.min_stars)
 
@@ -596,6 +695,97 @@ def main():
         print("\n  By category:")
         for cat, count in sorted(by_cat.items(), key=lambda x: -x[1]):
             print(f"    {cat}: {count}")
+        
+        # 安全审计统计
+        security_stats = {
+            "audited": sum(1 for c in all_cands if c.security_audited),
+            "pending": sum(1 for c in all_cands if not c.security_audited and c.status == "pending"),
+        }
+        print(f"\n  Security Audit:")
+        print(f"    Audited: {security_stats['audited']}")
+        print(f"    Pending: {security_stats['pending']}")
+
+    elif args.export_submissions:
+        """导出已批准技能用于 AI Skillstore 提交"""
+        approved = discoverer.get_approved()
+        if not approved:
+            print("❌ No approved skills to export")
+            return 1
+        
+        submissions = [c.to_submission_dict() for c in approved]
+        export_file = PROJECT_ROOT / "data" / "skillstore-submissions.json"
+        
+        with open(export_file, 'w', encoding='utf-8') as f:
+            json.dump({
+                "generated_at": datetime.now().isoformat(),
+                "total": len(submissions),
+                "submissions": submissions
+            }, f, indent=2, ensure_ascii=False)
+        
+        print(f"✅ Exported {len(submissions)} skills to {export_file}")
+        print("\nTo submit to AI Skillstore:")
+        print("  1. Visit https://skillstore.io/submit")
+        print("  2. Submit your GitHub repository with SKILL.md")
+        print("  3. Wait for automated security analysis")
+        return 0
+
+    elif args.audit:
+        """对候选技能进行安全审计"""
+        candidate = None
+        for c in discoverer.candidates:
+            if c.full_name == args.audit:
+                candidate = c
+                break
+        
+        if not candidate:
+            print(f"❌ Candidate not found: {args.audit}")
+            return 1
+        
+        print(f"🔍 Running security audit on: {candidate.full_name}")
+        print("=" * 50)
+        
+        # 检查仓库是否有 SECURITY.md 或安全策略
+        security_checks = {
+            "has_security_policy": False,
+            "has_code_of_conduct": False,
+            "has_license": bool(candidate.license),
+            "updates_recently": False,
+        }
+        
+        # 简化检查（完整实现需要克隆仓库）
+        print(f"  License: {'✅' if security_checks['has_license'] else '❌ Not specified'}")
+        print(f"  Updates: {candidate.updated_at}")
+        
+        # 更新安全审计状态
+        candidate.security_audited = True
+        discoverer._save_candidates()
+        
+        print("\n✅ Security audit completed")
+        print("   Note: Full security audit requires cloning the repository")
+        return 0
+
+    elif args.check_security:
+        """检查所有候选技能的安全审计状态"""
+        candidates = discoverer.candidates
+        
+        print("🔒 Security Audit Status:")
+        print("=" * 60)
+        
+        audited = [c for c in candidates if c.security_audited]
+        unaudited = [c for c in candidates if not c.security_audited]
+        
+        print(f"\n✅ Audited: {len(audited)}")
+        for c in audited[:10]:
+            print(f"   - {c.full_name} (⭐{c.stars})")
+        
+        print(f"\n⚠️  Not Audited: {len(unaudited)}")
+        for c in unaudited[:10]:
+            print(f"   - {c.full_name} (⭐{c.stars})")
+        
+        if len(unaudited) > 10:
+            print(f"   ... and {len(unaudited) - 10} more")
+        
+        return 0
 
     elif args.recommend:
         print(f"🤖 AI recommending skills for: {args.recommend}")

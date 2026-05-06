@@ -28,9 +28,9 @@ app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024
 
 PROJECT_ROOT = Path(__file__).parent.parent
-SKILLS_ROOT = PROJECT_ROOT / "all-skills"
-INDEX_PATH = PROJECT_ROOT / "skills-index.json"
-CANDIDATES_FILE = PROJECT_ROOT / "candidates.json"
+SKILLS_ROOT = PROJECT_ROOT / "data" / "all-skills"
+INDEX_PATH = PROJECT_ROOT / "data" / "skills-index.json"
+CANDIDATES_FILE = PROJECT_ROOT / "data" / "candidates.json"
 
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "")
 
@@ -802,7 +802,7 @@ def api_validate_skill():
 
 @app.route('/api/import/github', methods=['POST'])
 def api_import_from_github():
-    """从 GitHub URL 导入 Skill"""
+    """从 GitHub URL 导入 Skill，支持子目录路径"""
     data = request.get_json()
     if not data:
         return jsonify({"error": "No data provided"}), 400
@@ -818,18 +818,52 @@ def api_import_from_github():
         from urllib.parse import urlparse
         parsed = urlparse(github_url)
         path_parts = [p for p in parsed.path.split('/') if p]
+
         if len(path_parts) < 2:
             return jsonify({"error": "Invalid GitHub URL format"}), 400
 
         owner, repo = path_parts[0], path_parts[1]
-        raw_url = f"https://raw.githubusercontent.com/{owner}/{repo}/main/SKILL.md"
 
+        # 解析路径：支持 /tree/branch/path 或 /blob/branch/path 格式
+        branch = "main"
+        file_path = "SKILL.md"
+
+        if len(path_parts) > 2:
+            # 检测是否是 tree 或 blob 路径
+            if path_parts[2] in ('tree', 'blob'):
+                if len(path_parts) > 3:
+                    branch = path_parts[3]
+                    if len(path_parts) > 4:
+                        file_path = '/'.join(path_parts[4:])
+            else:
+                # 直接是路径，如 /owner/repo/skills/mcp-builder
+                file_path = '/'.join(path_parts[2:]) + "/SKILL.md" if not path_parts[2].endswith('.md') else '/'.join(path_parts[2:])
+
+        # 如果没有指定文件路径，默认尝试 SKILL.md
+        if not file_path:
+            file_path = "SKILL.md"
+
+        raw_url = f"https://raw.githubusercontent.com/{owner}/{repo}/{branch}/{file_path}"
         response = requests.get(raw_url, timeout=30)
-        if response.status_code == 404:
-            response = requests.get(raw_url.replace('main', 'master'), timeout=30)
+
+        # 如果文件路径不是以 .md 结尾，尝试添加 SKILL.md
+        if response.status_code == 404 and not file_path.endswith('.md'):
+            raw_url = f"https://raw.githubusercontent.com/{owner}/{repo}/{branch}/{file_path}/SKILL.md"
+            response = requests.get(raw_url, timeout=30)
+
+        # 尝试 master 分支
+        if response.status_code == 404 and branch == "main":
+            raw_url = f"https://raw.githubusercontent.com/{owner}/{repo}/master/{file_path}"
+            response = requests.get(raw_url, timeout=30)
+            if response.status_code == 404 and not file_path.endswith('.md'):
+                raw_url = f"https://raw.githubusercontent.com/{owner}/{repo}/master/{file_path}/SKILL.md"
+                response = requests.get(raw_url, timeout=30)
 
         if response.status_code != 200:
-            return jsonify({"error": "SKILL.md not found in repository"}), 404
+            return jsonify({
+                "error": "SKILL.md not found",
+                "suggestion": "Please provide a full path like: https://github.com/owner/repo/tree/main/path/to/SKILL.md"
+            }), 404
 
         content = response.text
         name_match = None
@@ -855,7 +889,82 @@ def api_import_from_github():
             "success": True,
             "message": f"Skill '{skill_name}' imported from GitHub",
             "path": str(skill_dir.relative_to(PROJECT_ROOT)),
-            "name": skill_name
+            "name": skill_name,
+            "source_url": raw_url
+        })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route('/api/import/github/browse', methods=['POST'])
+def api_browse_github_skills():
+    """浏览 GitHub 仓库中的 SKILL.md 文件"""
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "No data provided"}), 400
+
+    github_url = data.get('url', '').strip()
+    if not github_url:
+        return jsonify({"error": "GitHub URL is required"}), 400
+
+    if 'github.com' not in github_url:
+        return jsonify({"error": "Invalid GitHub URL"}), 400
+
+    try:
+        from urllib.parse import urlparse
+        parsed = urlparse(github_url)
+        path_parts = [p for p in parsed.path.split('/') if p]
+
+        if len(path_parts) < 2:
+            return jsonify({"error": "Invalid GitHub URL format"}), 400
+
+        owner, repo = path_parts[0], path_parts[1]
+        branch = "main"
+        search_path = ""
+
+        # 解析 tree/blob 路径
+        if len(path_parts) > 2 and path_parts[2] in ('tree', 'blob'):
+            if len(path_parts) > 3:
+                branch = path_parts[3]
+            if len(path_parts) > 4:
+                search_path = '/'.join(path_parts[4:])
+
+        # 使用 GitHub API 搜索 SKILL.md 文件
+        api_url = f"https://api.github.com/search/code?q=SKILL.md+repo:{owner}/{repo}"
+        if search_path:
+            api_url += f"+path:{search_path}"
+        else:
+            api_url += "+path:/"
+
+        headers = {"Accept": "application/vnd.github.v3+json"}
+        if GITHUB_TOKEN:
+            headers["Authorization"] = f"token {GITHUB_TOKEN}"
+
+        response = requests.get(api_url, headers=headers, timeout=30)
+
+        if response.status_code != 200:
+            return jsonify({
+                "skills": [],
+                "warning": "Could not search repository using GitHub API"
+            })
+
+        data = response.json()
+        skills = []
+
+        for item in data.get('items', []):
+            file_path = item.get('path', '')
+            skills.append({
+                "path": file_path,
+                "name": file_path.split('/')[-2] if '/' in file_path else file_path.replace('.md', ''),
+                "url": f"https://github.com/{owner}/{repo}/tree/{branch}/{file_path}",
+                "download_url": item.get('download_url', '')
+            })
+
+        return jsonify({
+            "owner": owner,
+            "repo": repo,
+            "branch": branch,
+            "skills": skills[:20]
         })
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
@@ -915,6 +1024,113 @@ def api_delete_user_skill():
         })
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+
+
+# ========== 版本发布功能 (从 GitHub 获取) ==========
+GITHUB_REPO = "Echoqili/skills-manager"
+RELEASES_CACHE = None
+RELEASES_CACHE_TIME = 0
+RELEASES_CACHE_TTL = 3600
+
+def get_github_releases():
+    """从 GitHub API 获取真实的 releases 数据"""
+    global RELEASES_CACHE, RELEASES_CACHE_TIME
+    
+    import time
+    current_time = time.time()
+    
+    if RELEASES_CACHE is not None and (current_time - RELEASES_CACHE_TIME) < RELEASES_CACHE_TTL:
+        return RELEASES_CACHE
+    
+    try:
+        url = f"https://api.github.com/repos/{GITHUB_REPO}/releases"
+        headers = {"Accept": "application/vnd.github.v3+json"}
+        response = requests.get(url, headers=headers, timeout=10)
+        
+        if response.status_code == 200:
+            releases = response.json()
+            RELEASES_CACHE = releases
+            RELEASES_CACHE_TIME = current_time
+            return releases
+        else:
+            print(f"GitHub API returned {response.status_code}")
+            return []
+    except Exception as e:
+        print(f"Failed to fetch GitHub releases: {e}")
+        return []
+
+
+@app.route('/api/releases')
+def api_releases():
+    """获取版本发布历史"""
+    releases = get_github_releases()
+    
+    if not releases:
+        return jsonify({
+            "total_releases": 0,
+            "latest_version": None,
+            "latest_count": 0,
+            "releases": [],
+            "error": "No releases found or failed to fetch from GitHub"
+        })
+    
+    formatted_releases = []
+    for rel in releases:
+        assets = rel.get("assets", []) or []
+        asset_download_count = sum(a.get("download_count", 0) for a in assets)
+        
+        formatted_releases.append({
+            "version": rel.get("tag_name", rel.get("name", "")),
+            "name": rel.get("name", ""),
+            "date": rel.get("published_at", "")[:10] if rel.get("published_at") else "",
+            "description": rel.get("body", "") or rel.get("description", ""),
+            "html_url": rel.get("html_url", ""),
+            "tag_name": rel.get("tag_name", ""),
+            "prerelease": rel.get("prerelease", False),
+            "draft": rel.get("draft", False),
+            "author": rel.get("author", {}).get("login", "") if rel.get("author") else "",
+            "assets_count": len(assets),
+            "download_count": asset_download_count
+        })
+    
+    return jsonify({
+        "total_releases": len(formatted_releases),
+        "latest_version": formatted_releases[0]["version"] if formatted_releases else None,
+        "latest_count": formatted_releases[0]["assets_count"] if formatted_releases else 0,
+        "releases": formatted_releases
+    })
+
+
+@app.route('/api/releases/<version>')
+def api_release_detail(version):
+    """获取特定版本详情"""
+    releases = get_github_releases()
+    
+    release = None
+    for rel in releases:
+        if rel.get("tag_name") == version or rel.get("name") == version:
+            release = rel
+            break
+    
+    if not release:
+        return jsonify({"error": "Release not found"}), 404
+    
+    assets = release.get("assets", []) or []
+    
+    return jsonify({
+        "version": release.get("tag_name", ""),
+        "name": release.get("name", ""),
+        "date": release.get("published_at", "")[:10] if release.get("published_at") else "",
+        "description": release.get("body", "") or release.get("description", ""),
+        "html_url": release.get("html_url", ""),
+        "tag_name": release.get("tag_name", ""),
+        "prerelease": release.get("prerelease", False),
+        "draft": release.get("draft", False),
+        "author": release.get("author", {}).get("login", "") if release.get("author") else "",
+        "assets": [{"name": a.get("name", ""), "download_count": a.get("download_count", 0), "browser_download_url": a.get("browser_download_url", "")} for a in assets],
+        "assets_count": len(assets),
+        "download_count": sum(a.get("download_count", 0) for a in assets)
+    })
 
 
 if __name__ == '__main__':

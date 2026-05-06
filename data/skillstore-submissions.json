@@ -1,0 +1,21 @@
+{
+  "generated_at": "2026-05-06T23:24:30.572816",
+  "total": 1,
+  "submissions": [
+    {
+      "name": "test-skill",
+      "full_name": "example/test-skill",
+      "description": "A helpful test skill for demonstration",
+      "url": "https://github.com/example/test-skill",
+      "stars": 120,
+      "license": "MIT",
+      "platforms": [
+        "claude-code",
+        "claude",
+        "codex"
+      ],
+      "security_audited": true,
+      "quality_score": 85
+    }
+  ]
+}

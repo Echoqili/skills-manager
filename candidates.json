@@ -1,0 +1,94 @@
+{
+  "candidates": [
+    {
+      "name": "test-skill",
+      "full_name": "example/test-skill",
+      "description": "A helpful test skill for demonstration",
+      "stars": 120,
+      "url": "https://github.com/example/test-skill",
+      "language": "Python",
+      "updated_at": "2026-05-01",
+      "category": "qa_testing",
+      "discovered_at": "2026-05-06",
+      "status": "approved",
+      "quality_score": 85,
+      "skill_files": [
+        "SKILL.md",
+        "README.md"
+      ],
+      "rejection_reason": "",
+      "security_audited": true,
+      "security_report_url": "",
+      "license": "MIT",
+      "platforms": [
+        "claude-code",
+        "claude",
+        "codex"
+      ],
+      "version": "1.0.0",
+      "submitted_by": "system",
+      "reviewed_by": "admin",
+      "reviewed_at": "2026-05-06",
+      "notes": "Approved for submission"
+    },
+    {
+      "name": "api-doc-generator",
+      "full_name": "team/api-doc-generator",
+      "description": "Automatically generate API documentation from code",
+      "stars": 250,
+      "url": "https://github.com/team/api-doc-generator",
+      "language": "TypeScript",
+      "updated_at": "2026-04-28",
+      "category": "dev_workflow",
+      "discovered_at": "2026-05-06",
+      "status": "pending",
+      "quality_score": 92,
+      "skill_files": [
+        "SKILL.md"
+      ],
+      "rejection_reason": "",
+      "security_audited": true,
+      "security_report_url": "",
+      "license": "Apache-2.0",
+      "platforms": [
+        "claude-code"
+      ],
+      "version": "1.0.0",
+      "submitted_by": "",
+      "reviewed_by": "",
+      "reviewed_at": "",
+      "notes": ""
+    },
+    {
+      "name": "code-review-assistant",
+      "full_name": "agency/code-review-assistant",
+      "description": "AI-powered code review assistance",
+      "stars": 180,
+      "url": "https://github.com/agency/code-review-assistant",
+      "language": "Python",
+      "updated_at": "2026-05-03",
+      "category": "ai_agent",
+      "discovered_at": "2026-05-06",
+      "status": "pending",
+      "quality_score": 88,
+      "skill_files": [
+        "SKILL.md",
+        "prompts/review.md"
+      ],
+      "rejection_reason": "",
+      "security_audited": true,
+      "security_report_url": "",
+      "license": "MIT",
+      "platforms": [
+        "claude",
+        "codex"
+      ],
+      "version": "1.0.0",
+      "submitted_by": "",
+      "reviewed_by": "",
+      "reviewed_at": "",
+      "notes": ""
+    }
+  ],
+  "last_updated": "2026-05-06T23:25:06.947647"
+}
