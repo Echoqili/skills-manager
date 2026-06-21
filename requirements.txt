@@ -1,0 +1,7 @@
+# Web 服务核心依赖
+flask>=3.0
+gunicorn>=21.2
+requests>=2.31
+pyyaml>=6.0
+feedparser>=6.0
+python-dotenv>=1.0
