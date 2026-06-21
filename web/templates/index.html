@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>🧠 Skills Manager - 智能 Skills 导航</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🧠%3C/text%3E%3C/svg%3E">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -921,6 +922,17 @@
         .toast.warning .toast-icon { color: var(--warning); }
         .toast.info { border-left: 3px solid var(--primary); }
         .toast.info .toast-icon { color: var(--primary); }
+
+        /* ========== 确认对话框 ========== */
+        .confirm-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 10000; display: none; align-items: center; justify-content: center; backdrop-filter: blur(4px); animation: fadeIn 0.2s ease-out; }
+        .confirm-overlay.show { display: flex; }
+        .confirm-dialog { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 28px; max-width: 420px; width: 90%; box-shadow: var(--shadow-hover); animation: slideIn 0.25s ease-out; }
+        .confirm-title { font-size: 1.15rem; font-weight: 700; margin-bottom: 14px; }
+        .confirm-message { color: var(--text-secondary); font-size: 0.95rem; line-height: 1.6; margin-bottom: 24px; }
+        .confirm-actions { display: flex; gap: 12px; justify-content: flex-end; }
+        .confirm-actions .btn { padding: 10px 20px; font-size: 0.88rem; }
+        .confirm-actions .btn-danger { background: var(--error); color: white; }
+        .confirm-actions .btn-danger:hover { background: #dc2626; }
 
         /* ========== 空状态 ========== */
         .empty-state { text-align: center; padding: 70px 20px; animation: fadeIn 0.5s ease-out; }
@@ -2151,12 +2163,79 @@
                 detail_in_cart: '✓ 已在清单中',
                 detail_add_cart: '+ 加入清单',
                 detail_download: '📦 单独下载',
+                detail_install_cmd: '🚀 安装命令',
+                detail_install_hint: '复制命令并在终端中运行，技能将安装到 ~/.claude/skills/ 目录',
+                detail_files_count: '{} 个文件',
+                detail_no_path: '无路径',
+                detail_no_desc: '暂无描述',
+                detail_downloads: '次下载',
+                detail_based_on: '基于您的搜索意图',
+                updated_at: '更新于 ',
+                skill_count: '{} 个 Skills',
+                hot: '热门',
+                trending_up: '趋势上升',
+                remove: '移除',
+                delete: '删除',
+                deleted: '已删除',
+                delete_failed: '删除失败',
+                view: '查看详情',
+                user_import: '用户导入',
+                unknown_error: '未知错误',
+                points: '分',
+                approve: '批准',
+                reject: '拒绝',
+                approved: '已批准',
+                rejected: '已拒绝',
+                approve_failed: '批准失败',
+                reject_failed: '拒绝失败',
+                no_releases: '暂无发布版本',
+                no_releases_desc: '在 GitHub 上创建 Release 来展示您的 Skills 更新历史',
+                create_release: '前往 GitHub 创建 Release',
+                no_releases_tag: '暂无版本',
+                releases_count: '{} 个版本',
+                latest: '最新',
+                prerelease: '预发布',
+                draft: '草稿',
+                assets: '个附件',
+                downloads_label: '下载',
+                view_details: '查看详情',
+                view_all_releases: '在 GitHub 上查看全部版本',
+                enter_skill_content: '请输入 Skill 内容',
+                validation_passed: '验证通过',
+                validation_failed: '验证失败',
+                enter_skill_name: '请输入 Skill 名称',
+                imported_successfully: '导入成功',
+                import_failed: '导入失败',
+                enter_github_url: '请输入 GitHub URL',
+                importing: '正在导入...',
+                browse: '浏览',
+                browsing: '正在浏览...',
+                searching: '正在搜索...',
+                found_skills: '找到以下 Skills',
+                select: '选择',
+                no_skillmd_found: '未找到 SKILL.md 文件，请确保仓库包含 SKILL.md 文件',
+                browse_failed: '浏览失败',
+                no_imported_skills: '暂无导入的 Skills',
+                no_imported_skills_desc: '使用上方表单导入您的自定义 Skills',
+                today: '今天',
+                yesterday: '昨天',
+                days_ago: '{} 天前',
+                weeks_ago: '{} 周前',
+                months_ago: '{} 个月前',
+                years_ago: '{} 年前',
+                scenario_no_matching: '{} 场景下暂无匹配的 Skills',
+                category_no_skills: '{} 分类下暂无 Skills',
                 btn_back: '返回',
                 // Toast
                 toast_success: '操作成功',
                 toast_error: '发生错误',
                 toast_warning: '请注意',
                 toast_info: '提示',
+                // Confirm dialog
+                confirm_title: '确认删除',
+                confirm_delete: '确定要删除 Skill "{}" 吗？此操作不可撤销。',
+                btn_cancel: '取消',
+                btn_confirm: '确认删除',
                 // Empty states
                 empty_no_results: '暂无结果',
                 empty_try_other: '尝试其他关键词搜索',
@@ -2385,12 +2464,79 @@
                 detail_in_cart: '✓ In List',
                 detail_add_cart: '+ Add to List',
                 detail_download: '📦 Download Single',
+                detail_install_cmd: '🚀 Install Command',
+                detail_install_hint: 'Copy and run in terminal. Skill will be installed to ~/.claude/skills/',
+                detail_files_count: '{} files',
+                detail_no_path: 'No path',
+                detail_no_desc: 'No description',
+                detail_downloads: 'downloads',
+                detail_based_on: 'Based on your search intent',
+                updated_at: 'Updated ',
+                skill_count: '{} Skills',
+                hot: 'Hot',
+                trending_up: 'Trending Up',
+                remove: 'Remove',
+                delete: 'Delete',
+                deleted: 'Deleted',
+                delete_failed: 'Delete failed',
+                view: 'View',
+                user_import: 'User Import',
+                unknown_error: 'Unknown error',
+                points: 'pts',
+                approve: 'Approve',
+                reject: 'Reject',
+                approved: 'Approved',
+                rejected: 'Rejected',
+                approve_failed: 'Approve failed',
+                reject_failed: 'Reject failed',
+                no_releases: 'No Releases Yet',
+                no_releases_desc: 'Create releases on GitHub to show your Skills update history',
+                create_release: 'Go to GitHub to create Release',
+                no_releases_tag: 'No releases',
+                releases_count: '{} releases',
+                latest: 'Latest',
+                prerelease: 'Pre-release',
+                draft: 'Draft',
+                assets: ' assets',
+                downloads_label: 'downloads',
+                view_details: 'View Details',
+                view_all_releases: 'View all releases on GitHub',
+                enter_skill_content: 'Please enter Skill content',
+                validation_passed: 'Validation passed',
+                validation_failed: 'Validation failed',
+                enter_skill_name: 'Please enter Skill name',
+                imported_successfully: 'Imported successfully',
+                import_failed: 'Import failed',
+                enter_github_url: 'Please enter GitHub URL',
+                importing: 'Importing...',
+                browse: 'Browse',
+                browsing: 'Browsing...',
+                searching: 'Searching...',
+                found_skills: 'Found Skills',
+                select: 'Select',
+                no_skillmd_found: 'No SKILL.md files found. Make sure the repo contains a SKILL.md file',
+                browse_failed: 'Browse failed',
+                no_imported_skills: 'No imported Skills',
+                no_imported_skills_desc: 'Import your custom Skills using the form above',
+                today: 'Today',
+                yesterday: 'Yesterday',
+                days_ago: '{}d ago',
+                weeks_ago: '{}w ago',
+                months_ago: '{}mo ago',
+                years_ago: '{}y ago',
+                scenario_no_matching: '{}: no matching Skills',
+                category_no_skills: '{}: no Skills in category',
                 btn_back: 'Back',
                 // Toast
                 toast_success: 'Success',
                 toast_error: 'Error',
                 toast_warning: 'Warning',
                 toast_info: 'Info',
+                // Confirm dialog
+                confirm_title: 'Confirm Delete',
+                confirm_delete: 'Are you sure you want to delete Skill "{}"? This action cannot be undone.',
+                btn_cancel: 'Cancel',
+                btn_confirm: 'Delete',
                 // Empty states
                 empty_no_results: 'No Results',
                 empty_try_other: 'Try other keywords',
@@ -2504,6 +2650,7 @@
             if (view === 'releases') loadReleases();
             if (view === 'update') loadUpdateStatus();
             if (view === 'ai') loadAiConfig();
+            if (view === 'detail' && currentDetailSkillName) showSkillDetail(currentDetailSkillName);
             // Update nav tab texts
             document.querySelectorAll('.nav-tab').forEach(tab => {
                 const key = tab.dataset.tab;
@@ -2513,8 +2660,10 @@
             // Update section headers
             updateSectionHeaders();
             // Update discover tab texts
-            document.querySelector('[data-mode="keyword"]').innerHTML = t('discover_keyword');
-            document.querySelector('[data-mode="ai"]').innerHTML = t('discover_ai');
+            const keywordTab = document.querySelector('[data-mode="keyword"]');
+            const aiTab = document.querySelector('[data-mode="ai"]');
+            if (keywordTab) keywordTab.innerHTML = t('discover_keyword');
+            if (aiTab) aiTab.innerHTML = t('discover_ai');
         }
 
         function updateSectionHeaders() {
@@ -2560,6 +2709,7 @@
         const PAGE_SIZE = 24;
         let totalSkillsCount = 0;
         let allLoadedSkills = [];     // 初始加载的全部 skills
+        let currentDetailSkillName = null; // 当前详情页显示的 skill
 
         const langColors = {
             'Python': '#3572A5', 'JavaScript': '#f1e05a', 'TypeScript': '#3178c6',
@@ -2599,9 +2749,12 @@
                 const res = await fetch('/api/stats');
                 const data = await res.json();
                 totalSkillsCount = data.total;
-                document.getElementById('totalSkills').textContent = data.total;
-                document.getElementById('totalCategories').textContent = data.categories.length;
-                document.getElementById('footerTotal').textContent = data.total;
+                const totalSkillsEl = document.getElementById('totalSkills');
+                const totalCategoriesEl = document.getElementById('totalCategories');
+                const footerTotalEl = document.getElementById('footerTotal');
+                if (totalSkillsEl) totalSkillsEl.textContent = data.total;
+                if (totalCategoriesEl) totalCategoriesEl.textContent = data.categories.length;
+                if (footerTotalEl) footerTotalEl.textContent = data.total;
             } catch (e) {
                 console.error('Failed to load stats:', e);
             }
@@ -2626,7 +2779,10 @@
 
         // ========== 区域切换 ==========
         function showSection(section) {
-            if (section !== 'detail') prevView = currentView;
+            if (section !== 'detail') {
+                prevView = currentView;
+                if (currentView === 'detail') currentDetailSkillName = null;
+            }
             currentView = section;
             document.querySelectorAll('.nav-tab').forEach(t => {
                 t.classList.toggle('active', t.dataset.tab === section);
@@ -2756,7 +2912,7 @@
                         <div class="ai-avatar">🤖</div>
                         <div>
                             <div class="ai-name">${t('ai_title')}</div>
-                            <div class="ai-label">${currentLang === 'zh' ? '基于您的搜索意图' : 'Based on your search intent'}</div>
+                            <div class="ai-label">${t('detail_based_on')}</div>
                         </div>
                     </div>
                     <div class="ai-text">${rec.recommendation}</div>
@@ -2800,7 +2956,7 @@
                             <span class="skill-category">${skill.category_emoji || ''} ${skill.category_name || skill.category || ''}</span>
                         </div>
                     </div>
-                    <p class="skill-desc">${(currentLang === 'zh' ? skill.description_zh : skill.description_en) || skill.description || (currentLang === 'zh' ? '暂无描述' : 'No description')}</p>
+                    <p class="skill-desc">${(currentLang === 'zh' ? skill.description_zh : skill.description_en) || skill.description || t('detail_no_desc')}</p>
                     <div class="skill-stats">
                         <span class="skill-stat">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -2870,10 +3026,10 @@
                             <span class="github-stars">⭐ ${formatStars(repo.stars)}</span>
                         </div>
                         <a href="${repo.url}" target="_blank" class="github-name">${repo.name.split('/')[1] || repo.name}</a>
-                        <p class="github-desc">${repo.description || (currentLang === 'zh' ? '暂无描述' : 'No description')}</p>
+                        <p class="github-desc">${repo.description || t('detail_no_desc')}</p>
                         <div class="github-meta">
                             ${lang ? `<span class="github-lang"><span class="lang-dot" style="background:${langColor}"></span>${lang}</span>` : ''}
-                            ${repo.updated ? `<span>${currentLang === 'zh' ? '更新于 ' : 'Updated '}${formatDate(repo.updated)}</span>` : ''}
+                            ${repo.updated ? `<span>${t('updated_at')}${formatDate(repo.updated)}</span>` : ''}
                         </div>
                     </div>`;
             }).join('');
@@ -2881,6 +3037,7 @@
 
         // ========== 详情页 (SkillStore 风格) ==========
         async function showSkillDetail(name) {
+            currentDetailSkillName = name;
             showSection('detail');
             document.getElementById('skillDetail').innerHTML = `
                 <div class="skeleton-card" style="max-width:900px;">
@@ -2924,8 +3081,8 @@
                                 <h2>${displayName}</h2>
                                 <div class="detail-meta">
                                     <span>${skill.category_emoji || ''} ${skill.category_name || skill.category || ''}</span>
-                                    <span>📁 ${skill.files?.length || 0} ${currentLang === 'zh' ? '个文件' : 'files'}</span>
-                                    <span style="word-break:break-all;max-width:300px;" title="${skill.path}">📍 ${skill.path ? skill.path.slice(-40) : (currentLang === 'zh' ? '无路径' : 'No path')}</span>
+                                    <span>📁 ${t('detail_files_count', skill.files?.length || 0)}</span>
+                                    <span style="word-break:break-all;max-width:300px;" title="${skill.path}">📍 ${skill.path ? skill.path.slice(-40) : t('detail_no_path')}</span>
                                 </div>
                             </div>
                         </div>
@@ -2934,7 +3091,7 @@
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                     <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
                                 </svg>
-                                <span>${formatDownloads(downloads)} ${currentLang === 'zh' ? '次下载' : 'downloads'}</span>
+                                <span>${formatDownloads(downloads)} ${t('detail_downloads')}</span>
                             </div>
                             <div class="detail-stat">
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -2943,9 +3100,9 @@
                                 <span>${rating} (${ratingCount})</span>
                             </div>
                         </div>
-                        <p class="detail-desc">${(currentLang === 'zh' ? skill.description_zh : skill.description_en) || skill.description || (currentLang === 'zh' ? '暂无描述' : 'No description')}</p>
+                        <p class="detail-desc">${(currentLang === 'zh' ? skill.description_zh : skill.description_en) || skill.description || t('detail_no_desc')}</p>
                         <div class="detail-install">
-                            <h4>${currentLang === 'zh' ? '🚀 安装命令' : '🚀 Install Command'}</h4>
+                            <h4>${t('detail_install_cmd')}</h4>
                             <div class="install-cmd">
                                 <code>${installCmd}</code>
                                 <button class="copy-btn" onclick="copyToClipboard('${installCmd}', this)">
@@ -2955,7 +3112,7 @@
                                     </svg>
                                 </button>
                             </div>
-                            <p class="install-hint">${currentLang === 'zh' ? '复制命令并在终端中运行，技能将安装到 ~/.claude/skills/ 目录' : 'Copy and run in terminal. Skill will be installed to ~/.claude/skills/'}</p>
+                            <p class="install-hint">${t('detail_install_hint')}</p>
                         </div>
                         <div class="detail-files">
                             <h4>${t('detail_files')}</h4>
@@ -3035,11 +3192,11 @@
             try {
                 const res = await fetch(`/api/scenario/${key}`);
                 const data = await res.json();
-                document.getElementById('scenarioTag').textContent = `${data.name} · ${data.count} ${currentLang === 'zh' ? '个 Skills' : 'Skills'}`;
+                document.getElementById('scenarioTag').textContent = `${data.name} · ${t('skill_count', data.count)}`;
 
                 if (!data.skills || data.skills.length === 0) {
                     container.innerHTML = '';
-                    renderEmpty('scenariosList', t('empty_no_matching'), `${name} ${currentLang === 'zh' ? '场景下暂无匹配的 Skills' : ': no matching Skills'}`);
+                    renderEmpty('scenariosList', t('empty_no_matching'), t('scenario_no_matching', name));
                     return;
                 }
                 container.innerHTML = `<div class="skills-grid">${renderSkillsHTML(data.skills)}</div>`;
@@ -3070,15 +3227,15 @@
                             <div class="category-info">
                                 <div style="display:flex;align-items:center;gap:8px;">
                                     <h3>${cat.display_name || cat.name}</h3>
-                                    ${isTrending ? `<span class="category-badge">🔥 ${currentLang === 'zh' ? '热门' : 'Hot'}</span>` : ''}
+                                    ${isTrending ? `<span class="category-badge">🔥 ${t('hot')}</span>` : ''}
                                 </div>
-                                <span class="category-count">${cat.count} ${currentLang === 'zh' ? '个 Skills' : 'Skills'}</span>
+                                <span class="category-count">${t('skill_count', cat.count)}</span>
                             </div>
                         </div>
                         <div class="category-bar">
                             <div class="category-bar-fill" style="width:${(cat.count / maxCount) * 100}%"></div>
                         </div>
-                        ${isTrending ? `<div class="category-trending">📈 ${currentLang === 'zh' ? '趋势上升' : 'Trending Up'}</div>` : ''}
+                        ${isTrending ? `<div class="category-trending">📈 ${t('trending_up')}</div>` : ''}
                     </div>`;
                 }).join('')}</div>`;
             } catch (e) {
@@ -3095,11 +3252,11 @@
             try {
                 const res = await fetch(`/api/category/${key}`);
                 const data = await res.json();
-                document.getElementById('categoriesTag').textContent = `${name} · ${data.count} ${currentLang === 'zh' ? '个 Skills' : 'Skills'}`;
+                document.getElementById('categoriesTag').textContent = `${name} · ${t('skill_count', data.count)}`;
 
                 if (!data.skills || data.skills.length === 0) {
                     container.innerHTML = '';
-                    renderEmpty('categoriesList', t('empty_no_skills'), `${name} ${currentLang === 'zh' ? '分类下暂无 Skills' : ': no Skills in category'}`);
+                    renderEmpty('categoriesList', t('empty_no_skills'), t('category_no_skills', name));
                     return;
                 }
                 container.innerHTML = `<div class="skills-grid">${renderSkillsHTML(data.skills)}</div>`;
@@ -3125,7 +3282,7 @@
                             <span class="skill-category">${skill.category_emoji || ''} ${skill.category_name || skill.category || ''}</span>
                         </div>
                     </div>
-                    <p class="skill-desc">${(currentLang === 'zh' ? skill.description_zh : skill.description_en) || skill.description || (currentLang === 'zh' ? '暂无描述' : 'No description')}</p>
+                    <p class="skill-desc">${(currentLang === 'zh' ? skill.description_zh : skill.description_en) || skill.description || t('detail_no_desc')}</p>
                     <div class="skill-stats">
                         <span class="skill-stat">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -3223,7 +3380,7 @@
                     ${s.description ? `<p class="skill-desc">${s.description}</p>` : ''}
                     <div class="skill-actions">
                         <button class="skill-action secondary" onclick="showSkillDetail('${escHtml(s.name)}')">${t('view_detail')}</button>
-                        <button class="skill-action danger" onclick="removeFromCart('${escHtml(s.name)}')">🗑️ ${currentLang === 'zh' ? '移除' : 'Remove'}</button>
+                        <button class="skill-action danger" onclick="removeFromCart('${escHtml(s.name)}')">🗑️ ${t('remove')}</button>
                     </div>
                 </div>`).join('')}</div>`;
         }
@@ -3725,6 +3882,36 @@
             setTimeout(() => { toast.classList.add('removing'); setTimeout(() => toast.remove(), 300); }, 3500);
         }
 
+        // ========== 自定义确认对话框 ==========
+        let confirmResolve = null;
+        function showConfirm(message, titleKey = 'confirm_title') {
+            return new Promise((resolve) => {
+                confirmResolve = resolve;
+                const overlay = document.getElementById('confirmOverlay');
+                const titleEl = document.getElementById('confirmTitle');
+                const msgEl = document.getElementById('confirmMessage');
+                const okBtn = document.getElementById('confirmOk');
+                const cancelBtn = document.getElementById('confirmCancel');
+                titleEl.textContent = t(titleKey);
+                msgEl.textContent = message;
+                okBtn.textContent = t('btn_confirm');
+                cancelBtn.textContent = t('btn_cancel');
+                overlay.classList.add('show');
+            });
+        }
+        function closeConfirm(result) {
+            document.getElementById('confirmOverlay').classList.remove('show');
+            if (confirmResolve) {
+                confirmResolve(result);
+                confirmResolve = null;
+            }
+        }
+        document.getElementById('confirmOk').addEventListener('click', () => closeConfirm(true));
+        document.getElementById('confirmCancel').addEventListener('click', () => closeConfirm(false));
+        document.getElementById('confirmOverlay').addEventListener('click', (e) => {
+            if (e.target.id === 'confirmOverlay') closeConfirm(false);
+        });
+
         // ========== 工具函数 ==========
         function escHtml(str) {
             return String(str).replace(/'/g, "\\'").replace(/"/g, '&quot;');
@@ -3761,12 +3948,12 @@
             if (!dateStr) return '';
             const date = new Date(dateStr);
             const days = Math.floor((Date.now() - date) / 86400000);
-            if (days === 0) return currentLang === 'zh' ? '今天' : 'Today';
-            if (days === 1) return currentLang === 'zh' ? '昨天' : 'Yesterday';
-            if (days < 7) return currentLang === 'zh' ? `${days} 天前` : `${days}d ago`;
-            if (days < 30) return currentLang === 'zh' ? `${Math.floor(days / 7)} 周前` : `${Math.floor(days / 7)}w ago`;
-            if (days < 365) return currentLang === 'zh' ? `${Math.floor(days / 30)} 个月前` : `${Math.floor(days / 30)}mo ago`;
-            return currentLang === 'zh' ? `${Math.floor(days / 365)} 年前` : `${Math.floor(days / 365)}y ago`;
+            if (days === 0) return t('today');
+            if (days === 1) return t('yesterday');
+            if (days < 7) return t('days_ago', days);
+            if (days < 30) return t('weeks_ago', Math.floor(days / 7));
+            if (days < 365) return t('months_ago', Math.floor(days / 30));
+            return t('years_ago', Math.floor(days / 365));
         }
 
         // ========== 发现新 Skills ==========
@@ -3829,7 +4016,7 @@
                     renderDiscoverResults(data.candidates);
                     loadDiscoverStats();
                 } else {
-                    showToast(t('msg_packing_fail', data.error || (currentLang === 'zh' ? '未知错误' : 'Unknown error')), 'error');
+                    showToast(t('msg_packing_fail', data.error || (t('unknown_error'))), 'error');
                 }
             } catch (e) { showToast(t('msg_packing_fail', e.message), 'error'); }
         }
@@ -3851,7 +4038,7 @@
                     renderDiscoverResults(data.candidates);
                     loadDiscoverStats();
                 } else {
-                    showToast(t('msg_packing_fail', data.error || (currentLang === 'zh' ? '未知错误' : 'Unknown error')), 'error');
+                    showToast(t('msg_packing_fail', data.error || (t('unknown_error'))), 'error');
                 }
             } catch (e) { showToast(t('msg_packing_fail', e.message), 'error'); }
         }
@@ -3881,16 +4068,16 @@
                     <div class="candidate-main">
                         <div class="candidate-info">
                             <a href="${c.url || '#'}" target="_blank" class="candidate-name">${c.full_name || c.name}</a>
-                            <p class="candidate-desc">${c.description || (currentLang === 'zh' ? '暂无描述' : 'No description')}</p>
+                            <p class="candidate-desc">${c.description || t('detail_no_desc')}</p>
                             <div class="candidate-tags">
                                 <span class="tag tag-stars">⭐ ${c.stars || 0}</span>
                                 ${c.language ? `<span class="tag tag-lang">${c.language}</span>` : ''}
-                                <span class="tag tag-score">📊 ${c.quality_score || 0}${currentLang === 'zh' ? '分' : 'pts'}</span>
+                                <span class="tag tag-score">📊 ${c.quality_score || 0}${t('points')}</span>
                             </div>
                         </div>
                         <div class="candidate-actions">
-                            <button class="btn-approve" onclick="approveCandidate('${escHtml(c.full_name || c.name)}')">✅ ${currentLang === 'zh' ? '批准' : 'Approve'}</button>
-                            <button class="btn-reject" onclick="rejectCandidate('${escHtml(c.full_name || c.name)}')">🗑️ ${currentLang === 'zh' ? '拒绝' : 'Reject'}</button>
+                            <button class="btn-approve" onclick="approveCandidate('${escHtml(c.full_name || c.name)}')">✅ ${t('approve')}</button>
+                            <button class="btn-reject" onclick="rejectCandidate('${escHtml(c.full_name || c.name)}')">🗑️ ${t('reject')}</button>
                         </div>
                     </div>
                 </div>`).join('');
@@ -3903,9 +4090,9 @@
                     body: JSON.stringify({full_name: fullName})
                 });
                 const data = await res.json();
-                if (data.success) { showToast(`✅ ${currentLang === 'zh' ? '已批准' : 'Approved'}: ${fullName}`, 'success'); loadCandidates(); loadDiscoverStats(); }
-                else showToast(`${currentLang === 'zh' ? '批准失败' : 'Approve failed'}: ${data.error || ''}`, 'error');
-            } catch (e) { showToast(`${currentLang === 'zh' ? '批准失败' : 'Approve failed'}: ${e.message}`, 'error'); }
+                if (data.success) { showToast(`✅ ${t('approved')}: ${fullName}`, 'success'); loadCandidates(); loadDiscoverStats(); }
+                else showToast(`${t('approve_failed')}: ${data.error || ''}`, 'error');
+            } catch (e) { showToast(`${t('approve_failed')}: ${e.message}`, 'error'); }
         }
 
         async function rejectCandidate(fullName) {
@@ -3915,9 +4102,9 @@
                     body: JSON.stringify({full_name: fullName, reason: 'manual'})
                 });
                 const data = await res.json();
-                if (data.success) { showToast(`${currentLang === 'zh' ? '已拒绝' : 'Rejected'}: ${fullName}`, 'info'); loadCandidates(); loadDiscoverStats(); }
-                else showToast(`${currentLang === 'zh' ? '拒绝失败' : 'Reject failed'}: ${data.error || ''}`, 'error');
-            } catch (e) { showToast(`${currentLang === 'zh' ? '拒绝失败' : 'Reject failed'}: ${e.message}`, 'error'); }
+                if (data.success) { showToast(`${t('rejected')}: ${fullName}`, 'info'); loadCandidates(); loadDiscoverStats(); }
+                else showToast(`${t('reject_failed')}: ${data.error || ''}`, 'error');
+            } catch (e) { showToast(`${t('reject_failed')}: ${e.message}`, 'error'); }
         }
 
         // ========== 版本发布页面 (GitHub 真实数据) ==========
@@ -3932,25 +4119,25 @@
                 if (!data.releases || data.releases.length === 0) {
                     container.innerHTML = `<div class="empty-state">
                         <div class="empty-icon">📦</div>
-                        <h3 class="empty-title">${currentLang === 'zh' ? '暂无发布版本' : 'No Releases Yet'}</h3>
-                        <p class="empty-desc">${currentLang === 'zh' ? '在 GitHub 上创建 Release 来展示您的 Skills 更新历史' : 'Create releases on GitHub to show your Skills update history'}</p>
+                        <h3 class="empty-title">${t('no_releases')}</h3>
+                        <p class="empty-desc">${t('no_releases_desc')}</p>
                         <a href="https://github.com/Echoqili/skills-manager/releases" target="_blank" class="btn btn-primary" style="margin-top:16px;">
-                            ${currentLang === 'zh' ? '前往 GitHub 创建 Release' : 'Go to GitHub to create Release'}
+                            ${t('create_release')}
                         </a>
                     </div>`;
-                    document.getElementById('releasesTag').textContent = currentLang === 'zh' ? '暂无版本' : 'No releases';
+                    document.getElementById('releasesTag').textContent = t('no_releases_tag');
                     return;
                 }
                 
-                document.getElementById('releasesTag').textContent = `${data.total_releases} ${currentLang === 'zh' ? '个版本' : 'releases'} | ${currentLang === 'zh' ? '最新' : 'Latest'}: ${data.latest_version}`;
+                document.getElementById('releasesTag').textContent = `${t('releases_count', data.total_releases)} | ${t('latest')}: ${data.latest_version}`;
                 
                 container.innerHTML = `<div class="releases-container">${data.releases.map((release, index) => `
                     <a href="${release.html_url}" target="_blank" class="release-card ${index === 0 ? 'featured' : ''} ${release.prerelease ? 'prerelease' : ''}">
                         <div class="release-header">
                             <div class="release-version">
                                 <span class="version-badge">${release.version}</span>
-                                ${release.prerelease ? `<span class="release-badge prerelease">${currentLang === 'zh' ? '预发布' : 'Pre-release'}</span>` : ''}
-                                ${release.draft ? `<span class="release-badge draft">${currentLang === 'zh' ? '草稿' : 'Draft'}</span>` : ''}
+                                ${release.prerelease ? `<span class="release-badge prerelease">${t('prerelease')}</span>` : ''}
+                                ${release.draft ? `<span class="release-badge draft">${t('draft')}</span>` : ''}
                                 <span class="release-date">
                                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                         <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
@@ -3975,26 +4162,26 @@
                                         <polyline points="7 10 12 15 17 10"/>
                                         <line x1="12" y1="15" x2="12" y2="3"/>
                                     </svg>
-                                    ${release.assets_count} ${currentLang === 'zh' ? '个附件' : 'assets'}
+                                    ${release.assets_count}${t('assets')}
                                 </span>` : ''}
                                 ${release.download_count > 0 ? `<span class="release-stat stat-downloads">
                                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                         <polyline points="23 4 23 10 17 10"/>
                                         <path d="M20.49 15a1.923 1.923 0 0 1-1.414.586l-5.657-.557a6 6 0 1 1 11.314 0z"/>
                                     </svg>
-                                    ${formatDownloads(release.download_count)} ${currentLang === 'zh' ? '下载' : 'downloads'}
+                                    ${formatDownloads(release.download_count)} ${t('downloads_label')}
                                 </span>` : ''}
                             </div>
                         </div>
                         ${release.name ? `<h4 class="release-name">${release.name}</h4>` : ''}
-                        <p class="release-desc">${release.description || (currentLang === 'zh' ? '暂无描述' : 'No description')}</p>
+                        <p class="release-desc">${release.description || t('detail_no_desc')}</p>
                         <div class="release-link">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
                                 <polyline points="15 3 21 3 21 9"/>
                                 <line x1="10" y1="14" x2="21" y2="3"/>
                             </svg>
-                            ${currentLang === 'zh' ? '查看详情' : 'View Details'}
+                            ${t('view_details')}
                         </div>
                     </a>`).join('')}</div>
                     <div class="releases-footer">
@@ -4002,7 +4189,7 @@
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
                                 <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
                             </svg>
-                            ${currentLang === 'zh' ? '在 GitHub 上查看全部版本' : 'View all releases on GitHub'}
+                            ${t('view_all_releases')}
                         </a>
                     </div>`;
             } catch (e) {
@@ -4027,7 +4214,7 @@
         async function validateImport() {
             const content = document.getElementById('importContent').value.trim();
             if (!content) {
-                showToast(currentLang === 'zh' ? '请输入 Skill 内容' : 'Please enter Skill content', 'warning');
+                showToast(t('enter_skill_content'), 'warning');
                 return;
             }
             try {
@@ -4041,14 +4228,14 @@
                 if (data.valid) {
                     validationDiv.style.background = 'rgba(16,185,129,0.1)';
                     validationDiv.style.border = '1px solid rgba(16,185,129,0.3)';
-                    validationDiv.innerHTML = `<span style="color:#10b981;">✅ ${currentLang === 'zh' ? '验证通过' : 'Validation passed'}</span>`;
+                    validationDiv.innerHTML = `<span style="color:#10b981;">✅ ${t('validation_passed')}</span>`;
                 } else {
                     validationDiv.style.background = 'rgba(239,68,68,0.1)';
                     validationDiv.style.border = '1px solid rgba(239,68,68,0.3)';
-                    validationDiv.innerHTML = `<span style="color:#ef4444;">❌ ${currentLang === 'zh' ? '验证失败' : 'Validation failed'}</span><br>${data.errors?.map(e => `<span style="color:#ef4444;">• ${e}</span><br>`).join('') || ''}${data.warnings?.map(w => `<span style="color:#f59e0b;">⚠ ${w}</span><br>`).join('') || ''}`;
+                    validationDiv.innerHTML = `<span style="color:#ef4444;">❌ ${t('validation_failed')}</span><br>${data.errors?.map(e => `<span style="color:#ef4444;">• ${e}</span><br>`).join('') || ''}${data.warnings?.map(w => `<span style="color:#f59e0b;">⚠ ${w}</span><br>`).join('') || ''}`;
                 }
             } catch (e) {
-                showToast(`${currentLang === 'zh' ? '验证失败' : 'Validation failed'}: ${e.message}`, 'error');
+                showToast(`${t('validation_failed')}: ${e.message}`, 'error');
             }
         }
 
@@ -4057,11 +4244,11 @@
             const description = document.getElementById('importDesc').value.trim();
             const content = document.getElementById('importContent').value.trim();
             if (!name) {
-                showToast(currentLang === 'zh' ? '请输入 Skill 名称' : 'Please enter Skill name', 'warning');
+                showToast(t('enter_skill_name'), 'warning');
                 return;
             }
             if (!content) {
-                showToast(currentLang === 'zh' ? '请输入 Skill 内容' : 'Please enter Skill content', 'warning');
+                showToast(t('enter_skill_content'), 'warning');
                 return;
             }
             try {
@@ -4071,26 +4258,26 @@
                 });
                 const data = await res.json();
                 if (data.success) {
-                    showToast(`${currentLang === 'zh' ? '导入成功' : 'Imported successfully'}: ${data.name}`, 'success');
+                    showToast(`${t('imported_successfully')}: ${data.name}`, 'success');
                     document.getElementById('importName').value = '';
                     document.getElementById('importDesc').value = '';
                     document.getElementById('importContent').value = '';
                     document.getElementById('importValidation').style.display = 'none';
                 } else {
-                    showToast(`${currentLang === 'zh' ? '导入失败' : 'Import failed'}: ${data.error || ''}`, 'error');
+                    showToast(`${t('import_failed')}: ${data.error || ''}`, 'error');
                 }
             } catch (e) {
-                showToast(`${currentLang === 'zh' ? '导入失败' : 'Import failed'}: ${e.message}`, 'error');
+                showToast(`${t('import_failed')}: ${e.message}`, 'error');
             }
         }
 
         async function importFromGithub() {
             const url = document.getElementById('importGithubUrl').value.trim();
             if (!url) {
-                showToast(currentLang === 'zh' ? '请输入 GitHub URL' : 'Please enter GitHub URL', 'warning');
+                showToast(t('enter_github_url'), 'warning');
                 return;
             }
-            showToast(currentLang === 'zh' ? '正在导入...' : 'Importing...', 'info');
+            showToast(t('importing'), 'info');
             try {
                 const res = await fetch('/api/import/github', {
                     method: 'POST', headers: {'Content-Type': 'application/json'},
@@ -4098,28 +4285,28 @@
                 });
                 const data = await res.json();
                 if (data.success) {
-                    showToast(`${currentLang === 'zh' ? '导入成功' : 'Imported successfully'}: ${data.name}`, 'success');
+                    showToast(`${t('imported_successfully')}: ${data.name}`, 'success');
                     document.getElementById('importGithubUrl').value = '';
                     document.getElementById('browseResults').style.display = 'none';
                 } else {
                     const msg = data.suggestion ? `${data.error}<br><small>${data.suggestion}</small>` : data.error;
-                    showToast(`${currentLang === 'zh' ? '导入失败' : 'Import failed'}`, 'error');
+                    showToast(`${t('import_failed')}`, 'error');
                     alert(currentLang === 'zh' ? msg.replace(/<br>/g, '\n') : data.error);
                 }
             } catch (e) {
-                showToast(`${currentLang === 'zh' ? '导入失败' : 'Import failed'}: ${e.message}`, 'error');
+                showToast(`${t('import_failed')}: ${e.message}`, 'error');
             }
         }
 
         async function browseGithubSkills() {
             const url = document.getElementById('importGithubUrl').value.trim();
             if (!url) {
-                showToast(currentLang === 'zh' ? '请输入 GitHub URL' : 'Please enter GitHub URL', 'warning');
+                showToast(t('enter_github_url'), 'warning');
                 return;
             }
-            showToast(currentLang === 'zh' ? '正在浏览...' : 'Browsing...', 'info');
+            showToast(t('browsing'), 'info');
             const container = document.getElementById('browseResults');
-            container.innerHTML = '<div style="color:var(--text-muted);">⏳ ' + (currentLang === 'zh' ? '正在搜索...' : 'Searching...') + '</div>';
+            container.innerHTML = '<div style="color:var(--text-muted);">⏳ ' + t('searching') + '</div>';
             container.style.display = 'block';
             try {
                 const res = await fetch('/api/import/github/browse', {
@@ -4129,20 +4316,20 @@
                 const data = await res.json();
                 if (data.skills && data.skills.length > 0) {
                     container.innerHTML = `
-                        <div style="margin-bottom:12px;font-weight:600;">${currentLang === 'zh' ? '找到以下 Skills' : 'Found Skills'}:</div>
+                        <div style="margin-bottom:12px;font-weight:600;">${t('found_skills')}:</div>
                         <div style="display:flex;flex-direction:column;gap:8px;">
                             ${data.skills.map(s => `
                                 <div style="display:flex;align-items:center;gap:10px;padding:10px;background:var(--bg-card);border-radius:8px;">
                                     <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">📄 ${escHtml(s.path)}</span>
-                                    <button class="btn btn-secondary" style="padding:6px 12px;font-size:0.82rem;" onclick="selectGithubSkill('https://github.com/${data.owner}/${data.repo}/tree/${data.branch}/${s.path}')">${currentLang === 'zh' ? '选择' : 'Select'}</button>
+                                    <button class="btn btn-secondary" style="padding:6px 12px;font-size:0.82rem;" onclick="selectGithubSkill('https://github.com/${data.owner}/${data.repo}/tree/${data.branch}/${s.path}')">${t('select')}</button>
                                 </div>
                             `).join('')}
                         </div>`;
                 } else {
-                    container.innerHTML = `<div style="color:var(--text-muted);">${currentLang === 'zh' ? '未找到 SKILL.md 文件，请确保仓库包含 SKILL.md 文件' : 'No SKILL.md files found'}</div>`;
+                    container.innerHTML = `<div style="color:var(--text-muted);">${t('no_skillmd_found')}</div>`;
                 }
             } catch (e) {
-                container.innerHTML = `<div style="color:var(--text-error);">${currentLang === 'zh' ? '浏览失败' : 'Browse failed'}: ${escHtml(e.message)}</div>`;
+                container.innerHTML = `<div style="color:var(--text-error);">${t('browse_failed')}: ${escHtml(e.message)}</div>`;
             }
         }
 
@@ -4160,8 +4347,8 @@
                     container.innerHTML = `
                         <div class="empty-state">
                             <div class="empty-icon">👤</div>
-                            <h3 class="empty-title">${currentLang === 'zh' ? '暂无导入的 Skills' : 'No imported Skills'}</h3>
-                            <p class="empty-desc">${currentLang === 'zh' ? '使用上方表单导入您的自定义 Skills' : 'Import your custom Skills using the form above'}</p>
+                            <h3 class="empty-title">${t('no_imported_skills')}</h3>
+                            <p class="empty-desc">${t('no_imported_skills_desc')}</p>
                         </div>`;
                 } else {
                     container.innerHTML = `<div class="skills-grid">${data.skills.map(s => `
@@ -4170,23 +4357,24 @@
                                 <div class="skill-emoji">👤</div>
                                 <div class="skill-info">
                                     <div class="skill-name">${s.name}</div>
-                                    <span class="skill-category">👤 ${currentLang === 'zh' ? '用户导入' : 'User Import'}</span>
+                                    <span class="skill-category">👤 ${t('user_import')}</span>
                                 </div>
                             </div>
-                            <p class="skill-desc">${s.description || (currentLang === 'zh' ? '暂无描述' : 'No description')}</p>
+                            <p class="skill-desc">${s.description || t('detail_no_desc')}</p>
                             <div class="skill-actions">
-                                <button class="skill-action secondary" onclick="showSkillDetail('${escHtml(s.name)}')">${currentLang === 'zh' ? '📄 查看详情' : '📄 View'}</button>
-                                <button class="skill-action danger" onclick="deleteUserSkill('${escHtml(s.name)}')">🗑️ ${currentLang === 'zh' ? '删除' : 'Delete'}</button>
+                                <button class="skill-action secondary" onclick="showSkillDetail('${escHtml(s.name)}')">📄 ${t('view')}</button>
+                                <button class="skill-action danger" onclick="deleteUserSkill('${escHtml(s.name)}')">🗑️ ${t('delete')}</button>
                             </div>
                         </div>`).join('')}</div>`;
                 }
             } catch (e) {
-                showToast(`${currentLang === 'zh' ? '加载失败' : 'Load failed'}: ${e.message}`, 'error');
+                showToast(`${t('load_failed')}: ${e.message}`, 'error');
             }
         }
 
         async function deleteUserSkill(name) {
-            if (!confirm((currentLang === 'zh' ? '确定删除 ' : 'Delete ') + name + '?')) return;
+            const confirmed = await showConfirm(t('confirm_delete', name));
+            if (!confirmed) return;
             try {
                 const res = await fetch('/api/import/delete', {
                     method: 'POST', headers: {'Content-Type': 'application/json'},
@@ -4194,18 +4382,30 @@
                 });
                 const data = await res.json();
                 if (data.success) {
-                    showToast(`${currentLang === 'zh' ? '已删除' : 'Deleted'}: ${name}`, 'success');
+                    showToast(`${t('deleted')}: ${name}`, 'success');
                     loadUserSkills();
                 } else {
-                    showToast(`${currentLang === 'zh' ? '删除失败' : 'Delete failed'}: ${data.error || ''}`, 'error');
+                    showToast(`${t('delete_failed')}: ${data.error || ''}`, 'error');
                 }
             } catch (e) {
-                showToast(`${currentLang === 'zh' ? '删除失败' : 'Delete failed'}: ${e.message}`, 'error');
+                showToast(`${t('delete_failed')}: ${e.message}`, 'error');
             }
         }
 
         // ========== 启动 ==========
         init();
     </script>
+
+    <!-- 自定义确认对话框 -->
+    <div class="confirm-overlay" id="confirmOverlay">
+        <div class="confirm-dialog">
+            <div class="confirm-title" id="confirmTitle" data-i18n="confirm_title">确认操作</div>
+            <div class="confirm-message" id="confirmMessage">确定要执行此操作吗？</div>
+            <div class="confirm-actions">
+                <button class="btn btn-secondary" id="confirmCancel" data-i18n="btn_cancel">取消</button>
+                <button class="btn btn-danger" id="confirmOk" data-i18n="btn_confirm">确认</button>
+            </div>
+        </div>
+    </div>
 </body>
 </html>
