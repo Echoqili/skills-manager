@@ -15,5 +15,21 @@
   "devDependencies": {
     "electron": "^33.0.0",
     "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "extraResources": [
+      {
+        "from": "../web",
+        "to": "web"
+      },
+      {
+        "from": "../cli",
+        "to": "cli"
+      },
+      {
+        "from": "../data",
+        "to": "data"
+      }
+    ]
   }
 }

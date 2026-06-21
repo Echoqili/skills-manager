@@ -5,6 +5,7 @@
 支持多源整合、安全审计状态、标准化元数据
 """
 import os
+import sys
 import json
 import re
 import yaml
@@ -12,6 +13,17 @@ from pathlib import Path
 from typing import Dict, List, Any, Optional
 from datetime import datetime
 from dataclasses import dataclass, asdict
+
+
+def configure_console_encoding():
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            pass
+
+
+configure_console_encoding()
 
 BASE_DIR = Path(__file__).parent.parent
 SKILL_INDEX_FILE = BASE_DIR / "data" / "SKILLS_INDEX.md"
@@ -489,7 +501,12 @@ class SkillIndexBuilder:
     def save_index(self, all_skills: Dict):
         """保存索引文件"""
         # 统计信息
-        total_skills = sum(len(skills) for skills in all_skills.values())
+        all_skills = {
+            source: skills
+            for source, skills in all_skills.items()
+            if source != "pending"
+        }
+        total_skills = len(self.skills)
         
         # 生成 JSON
         json_data = {

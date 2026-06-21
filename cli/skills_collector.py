@@ -24,9 +24,33 @@ PROJECT_ROOT = Path(__file__).parent.parent
 CANDIDATES_FILE = PROJECT_ROOT / "candidates.json"
 
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "")
+
+# AI 配置：优先使用环境变量，其次从 ai-config.json 读取
+import json as _sc_json
+_AI_CONFIG_FILE = PROJECT_ROOT / "data" / "ai-config.json"
+
+def _sc_load_ai():
+    env_key = os.environ.get("ZHIPU_API_KEY", "")
+    if env_key:
+        return (
+            os.environ.get("ZHIPU_API_URL", "https://ark.cn-beijing.volces.com/api/coding/v3/chat/completions"),
+            env_key,
+            os.environ.get("ZHIPU_MODEL", "kimi-k2.6"),
+        )
+    if _AI_CONFIG_FILE.exists():
+        try:
+            cfg = _sc_json.loads(_AI_CONFIG_FILE.read_text(encoding="utf-8"))
+            if cfg.get("api_key"):
+                base = cfg.get("base_url", "").rstrip("/")
+                url = f"{base}/chat/completions" if base else ""
+                return url, cfg["api_key"], cfg.get("model", "gpt-3.5-turbo")
+        except Exception:
+            pass
+    return "", "", ""
+
 ZHIPU_API_KEY = os.environ.get("ZHIPU_API_KEY", "")
-ZHIPU_API_URL = os.environ.get("ZHIPU_API_URL", "https://ark.cn-beijing.volces.com/api/coding/v3/chat/completions")
-ZHIPU_MODEL = os.environ.get("ZHIPU_MODEL", "kimi-k2.6")
+ZHIPU_API_URL = ""
+ZHIPU_MODEL = ""
 
 # GitHub 代理列表（国内可用）
 GITHUB_PROXIES = [
@@ -513,18 +537,20 @@ class MultiSourceCollector:
 
 def classify_with_ai(candidates: List[SkillCandidate], top_k: int = 20) -> List[Dict]:
     """AI 分类"""
-    if not ZHIPU_API_KEY:
-        print("⚠️ ZHIPU_API_KEY 未配置，跳过 AI 分类")
+    # 每次调用动态读取配置，确保 Web 端修改后立即生效
+    url, key, model = _sc_load_ai()
+    if not key:
+        print("⚠️ AI API Key 未配置（可通过 AI 设置页面或 ZHIPU_API_KEY 环境变量配置）")
         return []
-    
+
     print(f"\n🤖 AI 分类 Top {top_k} 候选...")
-    
+
     top_candidates = candidates[:top_k]
     candidate_list = "\n".join([
         f"- {c.full_name} ({c.stars}⭐): {c.description[:80]}"
         for c in top_candidates
     ])
-    
+
     prompt = f"""分析以下 GitHub 仓库，判断哪些是 Claude/Cursor/AI 相关的 Skills 或 Rules 项目。
 
 候选仓库：
@@ -537,13 +563,13 @@ def classify_with_ai(candidates: List[SkillCandidate], top_k: int = 20) -> List[
 
     try:
         resp = requests.post(
-            ZHIPU_API_URL,
+            url,
             headers={
-                "Authorization": f"Bearer {ZHIPU_API_KEY}",
+                "Authorization": f"Bearer {key}",
                 "Content-Type": "application/json"
             },
             json={
-                "model": ZHIPU_MODEL,
+                "model": model,
                 "messages": [{"role": "user", "content": prompt}],
                 "temperature": 0.3,
                 "max_tokens": 4000,

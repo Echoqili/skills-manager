@@ -17,7 +17,7 @@ from functools import lru_cache
 
 from flask import Flask, render_template, request, jsonify, send_file, Response
 
-sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
+sys.path.insert(0, str(Path(__file__).parent.parent / "cli"))
 try:
     from github_skills_discoverer import SkillsDiscoverer
     HAS_DISCOVERER = True
@@ -28,18 +28,183 @@ app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024
 
 PROJECT_ROOT = Path(__file__).parent.parent
+CLI_DIR = PROJECT_ROOT / "cli"
 SKILLS_ROOT = PROJECT_ROOT / "data" / "all-skills"
 INDEX_PATH = PROJECT_ROOT / "data" / "skills-index.json"
 CANDIDATES_FILE = PROJECT_ROOT / "data" / "candidates.json"
+AI_CONFIG_FILE = PROJECT_ROOT / "data" / "ai-config.json"
+
+
+# ========== AI 配置管理 ==========
+
+DEFAULT_AI_CONFIG = {
+    "provider": "openai",
+    "api_key": "",
+    "base_url": "https://api.openai.com/v1",
+    "model": "gpt-3.5-turbo",
+    "temperature": 0.7,
+    "max_tokens": 1024,
+    "enabled": False,
+}
+
+
+def load_ai_config():
+    """加载 AI 配置"""
+    if AI_CONFIG_FILE.exists():
+        try:
+            config = json.loads(AI_CONFIG_FILE.read_text(encoding="utf-8"))
+            merged = dict(DEFAULT_AI_CONFIG)
+            merged.update(config)
+            return merged
+        except Exception:
+            pass
+    return dict(DEFAULT_AI_CONFIG)
+
+
+def save_ai_config(config):
+    """保存 AI 配置 (api_key 传 ******** 时不覆盖)"""
+    current = load_ai_config()
+    if config.get("api_key") == "********":
+        config["api_key"] = current.get("api_key", "")
+    AI_CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
+    AI_CONFIG_FILE.write_text(json.dumps(config, ensure_ascii=False, indent=2), encoding="utf-8")
+    return config
+
+
+def mask_api_key(key: str) -> str:
+    if not key:
+        return ""
+    if len(key) <= 8:
+        return "********"
+    return key[:4] + "****" + key[-4:]
+
+
+def call_ai_api(messages, config=None, stream=False):
+    """调用 AI API (OpenAI 兼容接口)"""
+    if config is None:
+        config = load_ai_config()
+    if not config.get("enabled") or not config.get("api_key"):
+        return None
+
+    provider = config.get("provider", "openai")
+    base_url = config.get("base_url", "https://api.openai.com/v1").rstrip("/")
+    model = config.get("model", "gpt-3.5-turbo")
+    temperature = config.get("temperature", 0.7)
+    max_tokens = config.get("max_tokens", 1024)
+
+    headers = {
+        "Authorization": f"Bearer {config['api_key']}",
+        "Content-Type": "application/json",
+    }
+    payload = {
+        "model": model,
+        "messages": messages,
+        "temperature": temperature,
+        "max_tokens": max_tokens,
+        "stream": stream,
+    }
+
+    try:
+        resp = requests.post(
+            f"{base_url}/chat/completions",
+            headers=headers, json=payload, timeout=60,
+        )
+        if resp.status_code == 200:
+            data = resp.json()
+            return data["choices"][0]["message"]["content"]
+        error_msg = resp.json().get("error", {}).get("message", str(resp.status_code))
+        return {"error": f"API 错误 ({resp.status_code}): {error_msg}"}
+    except requests.exceptions.ConnectionError:
+        return {"error": f"无法连接到 {base_url}，请检查地址是否正确"}
+    except requests.exceptions.Timeout:
+        return {"error": "API 请求超时，请检查网络或增大超时时间"}
+    except Exception as e:
+        return {"error": f"请求失败: {str(e)}"}
+
+
+def get_ai_recommendation(query: str, local_results: list):
+    """获取 AI 推荐 - 优先使用真实 AI，失败则降级为规则匹配"""
+    config = load_ai_config()
+
+    if config.get("enabled") and config.get("api_key"):
+        skills_context = ""
+        if local_results:
+            skills_context = "本地已有这些相关 Skills:\n" + "\n".join(
+                f"- {s.get('name', '')}: {s.get('description', '')[:100]}"
+                for s in local_results[:10]
+            )
+
+        prompt = f"""用户输入需求: "{query}"
+
+{skills_context}
+
+请分析用户需求，返回 JSON 格式推荐结果（不要包含其他内容）:
+{{
+  "recommendation": "一句话说明推荐理由",
+  "category": "推荐分类名称",
+  "emoji": "一个对应的emoji",
+  "suggestions": ["推荐的skill名称1", "推荐的skill名称2"]
+}}"""
+
+        result = call_ai_api([
+            {"role": "system", "content": "你是 AI Agent Skills 推荐专家。只返回 JSON，不要包含其他内容。"},
+            {"role": "user", "content": prompt},
+        ], config=config)
+
+        if result and isinstance(result, str):
+            import re as _re
+            json_match = _re.search(r'\{.*\}', result, _re.DOTALL)
+            if json_match:
+                try:
+                    parsed = json.loads(json_match.group())
+                    if "recommendation" in parsed:
+                        return {
+                            "recommendation": f"🤖 {parsed['recommendation']}",
+                            "category": parsed.get("category", ""),
+                            "emoji": parsed.get("emoji", "🤖"),
+                            "suggestions": parsed.get("suggestions", []),
+                            "source": "ai",
+                        }
+                except Exception:
+                    pass
+
+    # 降级: 规则匹配
+    if not query:
+        return {"recommendation": "请输入关键词，我会为您推荐合适的 Skills", "suggestions": []}
+    query_lower = query.lower()
+    recommendations = {
+        "sprint": {"name": "Sprint 规划与管理", "emoji": "🏃", "skills": ["sprint-planning", "backlog-refinement", "retrospective"], "reason": "您似乎在关注 Sprint 相关的工作流程"},
+        "test": {"name": "测试与质量保障", "emoji": "🧪", "skills": ["playwright-automation", "e2e-testing", "unit-testing"], "reason": "您似乎需要测试相关的技能"},
+        "prd": {"name": "产品需求文档", "emoji": "📋", "skills": ["prd-development", "user-story", "product-requirements"], "reason": "您似乎在准备 PRD 或产品需求文档"},
+        "api": {"name": "API 设计", "emoji": "🌐", "skills": ["api-generator", "rest-api-design"], "reason": "您似乎在关注 API 设计与开发"},
+        "ddd": {"name": "领域驱动设计", "emoji": "🏗️", "skills": ["ddd-skills", "hexagonal-architecture"], "reason": "您似乎在关注 DDD 架构设计"},
+        "安全": {"name": "AI 安全", "emoji": "🚨", "skills": ["prompt-injection-defense", "jailbreak-detection", "hallucination-detection"], "reason": "您似乎在关注 AI 安全问题"},
+        "ai": {"name": "AI 产品开发", "emoji": "🤖", "skills": ["ai-product", "prompt-injection-defense", "hallucination-detection"], "reason": "您似乎在开发 AI 相关产品"},
+        "tdd": {"name": "测试驱动开发", "emoji": "⚡", "skills": ["tdd-workflow", "test-driven-development"], "reason": "您似乎在实践 TDD 开发流程"},
+        "mvp": {"name": "快速 MVP 开发", "emoji": "💰", "skills": ["validate-idea", "mvp"], "reason": "您似乎在准备独立开发或创业"},
+        "求是": {"name": "求是方法论", "emoji": "🎯", "skills": ["实事求是", "矛盾分析法", "调查研究"], "reason": "您似乎在关注求是方法论"},
+        "design": {"name": "设计系统", "emoji": "🎨", "skills": ["design-system", "ui-ux-pro-max"], "reason": "您似乎在关注设计与用户体验"},
+        "scrum": {"name": "Scrum 团队", "emoji": "🎯", "skills": ["sprint-planning", "retrospective", "backlog-refinement"], "reason": "您似乎在运作 Scrum 团队"},
+        "debug": {"name": "系统调试", "emoji": "🔧", "skills": ["systematic-debugging", "debugger"], "reason": "您似乎在寻找调试工具"},
+    }
+    matched = [rec for key, rec in recommendations.items() if key in query_lower]
+    if matched:
+        best_match = matched[0]
+        return {"recommendation": f"🤖 {best_match['reason']}", "category": best_match["name"], "emoji": best_match["emoji"], "suggestions": best_match["skills"], "source": "rule"}
+    if local_results:
+        top_result = local_results[0]
+        return {"recommendation": f"🤖 根据您的搜索 '{query}'，我们推荐 {top_result.get('category_name', '相关')} 类别的 Skills", "suggestions": [s["name"] for s in local_results[:5]], "source": "rule"}
+    return {"recommendation": "🤖 未能理解您的需求。请尝试：Sprint规划、测试策略、API设计、AI安全等关键词", "suggestions": ["sprint-planning", "test-strategy"], "source": "rule"}
+
 
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "")
-
 GITHUB_HEADERS = {
     "Accept": "application/vnd.github.v3+json",
     "User-Agent": "Skills-Manager/1.0"
 }
 if GITHUB_TOKEN:
     GITHUB_HEADERS["Authorization"] = f"token {GITHUB_TOKEN}"
+
 
 # 分类 emoji 和名称映射
 CATEGORIES_EMOJI = {
@@ -135,6 +300,13 @@ def extract_category(skill_path: str) -> str:
     if not parts:
         return "other"
 
+    if 'all-skills' in parts:
+        all_skills_index = parts.index('all-skills')
+        if len(parts) > all_skills_index + 1:
+            cat_folder = parts[all_skills_index + 1]
+            cat = cat_folder.replace('-skills', '')
+            return cat
+
     # all-skills/XXX-skills/... -> extract category
     if parts[0] == 'all-skills' and len(parts) >= 2:
         cat_folder = parts[1]  # e.g. 'agile-skills', 'qa-testing-skills'
@@ -189,7 +361,9 @@ def build_skills_cache():
     if not raw_skills:
         # 从 sources 字典中合并
         sources = data.get("sources", {})
-        for src_list in sources.values():
+        for source_name, src_list in sources.items():
+            if source_name == "pending":
+                continue
             raw_skills.extend(src_list)
 
     # 为每个 skill 添加 category 等字段
@@ -266,45 +440,25 @@ def search_github_repos(query: str, per_page: int = 10):
         return {"error": "network", "message": str(e)}
 
 
-def get_ai_recommendation(query: str, local_results: list):
-    if not query:
-        return {"recommendation": "请输入关键词，我会为您推荐合适的 Skills", "suggestions": []}
-    query_lower = query.lower()
-    recommendations = {
-        "sprint": {"name": "Sprint 规划与管理", "emoji": "🏃", "skills": ["sprint-planning", "backlog-refinement", "retrospective"], "reason": "您似乎在关注 Sprint 相关的工作流程"},
-        "test": {"name": "测试与质量保障", "emoji": "🧪", "skills": ["playwright-automation", "e2e-testing", "unit-testing"], "reason": "您似乎需要测试相关的技能"},
-        "prd": {"name": "产品需求文档", "emoji": "📋", "skills": ["prd-development", "user-story", "product-requirements"], "reason": "您似乎在准备 PRD 或产品需求文档"},
-        "api": {"name": "API 设计", "emoji": "🌐", "skills": ["api-generator", "rest-api-design"], "reason": "您似乎在关注 API 设计与开发"},
-        "ddd": {"name": "领域驱动设计", "emoji": "🏗️", "skills": ["ddd-skills", "hexagonal-architecture"], "reason": "您似乎在关注 DDD 架构设计"},
-        "安全": {"name": "AI 安全", "emoji": "🚨", "skills": ["prompt-injection-defense", "jailbreak-detection", "hallucination-detection"], "reason": "您似乎在关注 AI 安全问题"},
-        "ai": {"name": "AI 产品开发", "emoji": "🤖", "skills": ["ai-product", "prompt-injection-defense", "hallucination-detection"], "reason": "您似乎在开发 AI 相关产品"},
-        "tdd": {"name": "测试驱动开发", "emoji": "⚡", "skills": ["tdd-workflow", "test-driven-development"], "reason": "您似乎在实践 TDD 开发流程"},
-        "mvp": {"name": "快速 MVP 开发", "emoji": "💰", "skills": ["validate-idea", "mvp"], "reason": "您似乎在准备独立开发或创业"},
-        "求是": {"name": "求是方法论", "emoji": "🎯", "skills": ["实事求是", "矛盾分析法", "调查研究"], "reason": "您似乎在关注求是方法论"},
-        "design": {"name": "设计系统", "emoji": "🎨", "skills": ["design-system", "ui-ux-pro-max"], "reason": "您似乎在关注设计与用户体验"},
-        "scrum": {"name": "Scrum 团队", "emoji": "🎯", "skills": ["sprint-planning", "retrospective", "backlog-refinement"], "reason": "您似乎在运作 Scrum 团队"},
-        "debug": {"name": "系统调试", "emoji": "🔧", "skills": ["systematic-debugging", "debugger"], "reason": "您似乎在寻找调试工具"},
-    }
-    matched = [rec for key, rec in recommendations.items() if key in query_lower]
-    if matched:
-        best_match = matched[0]
-        return {"recommendation": f"🤖 {best_match['reason']}", "category": best_match["name"], "emoji": best_match["emoji"], "suggestions": best_match["skills"], "source": "ai_recommendation"}
-    if local_results:
-        top_result = local_results[0]
-        return {"recommendation": f"🤖 根据您的搜索 '{query}'，我们推荐 {top_result.get('category_name', '相关')} 类别的 Skills", "suggestions": [s["name"] for s in local_results[:5]], "source": "ai_recommendation"}
-    return {"recommendation": "🤖 未能理解您的需求。请尝试：Sprint规划、测试策略、API设计、AI安全等关键词", "suggestions": ["sprint-planning", "test-strategy"], "source": "ai_recommendation"}
+
 
 
 def get_skill_dir(skill):
     skill_path_str = skill.get("path", "")
     if not skill_path_str:
         return None
+    skill_path_obj = Path(skill_path_str)
+    parts = skill_path_obj.parts
     # Handle relative paths starting with '..'
-    if skill_path_str.startswith('..'):
+    if skill_path_obj.is_absolute():
+        skill_path = skill_path_obj
+    elif skill_path_str.startswith('..'):
         # Convert to absolute path relative to project root parent
         skill_path = PROJECT_ROOT.parent / skill_path_str
+    elif parts and parts[0] == 'all-skills':
+        skill_path = SKILLS_ROOT / Path(*parts[1:])
     else:
-        skill_path = PROJECT_ROOT / skill_path_str
+        skill_path = PROJECT_ROOT / skill_path_obj
     if skill_path.is_file():
         skill_path = skill_path.parent
     return skill_path
@@ -333,6 +487,26 @@ def api_stats():
     # Sort by count desc
     categories.sort(key=lambda x: -x['count'])
     return jsonify({"total": total, "categories": categories})
+
+
+@app.route('/api/categories')
+def api_categories():
+    """返回所有分类列表"""
+    _, by_category, _ = build_skills_cache()
+    categories = []
+    for k, v in by_category.items():
+        cat_name = CATEGORIES_NAME.get(k, k.replace('-', ' ').title())
+        emoji = CATEGORIES_EMOJI.get(k, '📦')
+        categories.append({
+            "key": k,
+            "name": f"{emoji} {cat_name}",
+            "display_name": cat_name,
+            "count": len(v),
+            "emoji": emoji
+        })
+    # Sort by count desc
+    categories.sort(key=lambda x: -x['count'])
+    return jsonify({"categories": categories})
 
 
 @app.route('/api/skills/all')
@@ -692,6 +866,9 @@ def api_discover_clone():
     full_name = data.get("full_name")
     if not full_name:
         return jsonify({"error": "full_name required"}), 400
+    # 安全校验：GitHub 仓库名只允许字母、数字、连字符、下划线和斜杠
+    if not re.match(r'^[a-zA-Z0-9][a-zA-Z0-9_.-]*/[a-zA-Z0-9][a-zA-Z0-9_.-]*$', full_name):
+        return jsonify({"error": "Invalid repository name format"}), 400
     candidate = d.approve(full_name)
     if not candidate:
         return jsonify({"error": "Candidate not found"}), 404
@@ -734,6 +911,9 @@ def api_import_user_skill():
         return jsonify({"error": "Skill content is required"}), 400
 
     skill_name = name.lower().replace(' ', '-').replace('_', '-')
+    # 安全校验：防止路径遍历
+    if '..' in skill_name or '/' in skill_name or '\\' in skill_name:
+        return jsonify({"error": "Invalid skill name"}), 400
     skill_dir = SKILLS_ROOT / "user-imports" / skill_name
     skill_file = skill_dir / "SKILL.md"
 
@@ -876,6 +1056,9 @@ def api_import_from_github():
             return jsonify({"error": "Could not parse skill name from SKILL.md"}), 400
 
         skill_name = name_match.lower().replace(' ', '-').replace('_', '-')
+        # 安全校验：防止路径遍历
+        if '..' in skill_name or '/' in skill_name or '\\' in skill_name:
+            return jsonify({"error": "Invalid skill name in SKILL.md"}), 400
         skill_dir = SKILLS_ROOT / "user-imports" / skill_name
         skill_file = skill_dir / "SKILL.md"
 
@@ -1010,6 +1193,9 @@ def api_delete_user_skill():
     skill_name = data.get('name', '').strip()
     if not skill_name:
         return jsonify({"error": "Skill name is required"}), 400
+    # 安全校验：防止路径遍历
+    if '..' in skill_name or '/' in skill_name or '\\' in skill_name:
+        return jsonify({"error": "Invalid skill name"}), 400
 
     skill_dir = SKILLS_ROOT / "user-imports" / skill_name
     if not skill_dir.exists():
@@ -1133,11 +1319,192 @@ def api_release_detail(version):
     })
 
 
+# ========== AI 配置管理 API ==========
+
+@app.route('/api/ai/config', methods=['GET'])
+def api_ai_get_config():
+    """获取 AI 配置 (API Key 脱敏)"""
+    config = load_ai_config()
+    safe_config = dict(config)
+    if safe_config.get("api_key"):
+        safe_config["api_key"] = mask_api_key(safe_config["api_key"])
+    return jsonify(safe_config)
+
+
+@app.route('/api/ai/config', methods=['POST'])
+def api_ai_save_config():
+    """保存 AI 配置"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"success": False, "error": "无效的配置数据"}), 400
+        required = ["provider", "api_key", "base_url", "model"]
+        for field in required:
+            if field not in data:
+                return jsonify({"success": False, "error": f"缺少字段: {field}"}), 400
+        save_ai_config(data)
+        config = load_ai_config()
+        safe_config = dict(config)
+        if safe_config.get("api_key"):
+            safe_config["api_key"] = mask_api_key(safe_config["api_key"])
+        return jsonify({"success": True, "config": safe_config})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route('/api/ai/test', methods=['POST'])
+def api_ai_test():
+    """测试 AI 连接"""
+    try:
+        data = request.get_json() or {}
+        config = load_ai_config()
+        # 用请求中的值覆盖临时测试
+        if data.get("api_key") and data["api_key"] != "********":
+            config["api_key"] = data["api_key"]
+        if data.get("base_url"):
+            config["base_url"] = data["base_url"]
+        if data.get("model"):
+            config["model"] = data["model"]
+        if data.get("provider"):
+            config["provider"] = data["provider"]
+        config["enabled"] = True
+
+        result = call_ai_api([
+            {"role": "user", "content": "请回复 '连接成功' 四个字，不要包含其他内容。"}
+        ], config=config)
+
+        if result is None:
+            return jsonify({"success": False, "error": "API Key 未配置"})
+        if isinstance(result, dict) and "error" in result:
+            return jsonify({"success": False, "error": result["error"]})
+        return jsonify({"success": True, "reply": result})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route('/api/ai/providers')
+def api_ai_providers():
+    """获取支持的 AI 提供商列表"""
+    providers = [
+        {
+            "id": "openai",
+            "name": "OpenAI",
+            "base_url": "https://api.openai.com/v1",
+            "models": ["gpt-3.5-turbo", "gpt-4", "gpt-4-turbo", "gpt-4o", "gpt-4o-mini"],
+        },
+        {
+            "id": "deepseek",
+            "name": "DeepSeek",
+            "base_url": "https://api.deepseek.com/v1",
+            "models": ["deepseek-chat", "deepseek-reasoner"],
+        },
+        {
+            "id": "moonshot",
+            "name": "Moonshot (月之暗面)",
+            "base_url": "https://api.moonshot.cn/v1",
+            "models": ["moonshot-v1-8k", "moonshot-v1-32k", "moonshot-v1-128k"],
+        },
+        {
+            "id": "qwen",
+            "name": "通义千问",
+            "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+            "models": ["qwen-turbo", "qwen-plus", "qwen-max"],
+        },
+        {
+            "id": "glm",
+            "name": "智谱 GLM",
+            "base_url": "https://open.bigmodel.cn/api/paas/v4",
+            "models": ["glm-4", "glm-4-plus", "glm-4-flash"],
+        },
+        {
+            "id": "custom",
+            "name": "自定义 (OpenAI 兼容)",
+            "base_url": "",
+            "models": ["custom"],
+        },
+        {
+            "id": "longcat",
+            "name": "LongCat (美团)",
+            "base_url": "https://api.longcat.chat/openai",
+            "models": ["LongCat-2.0-Preview"],
+        },
+    ]
+    return jsonify(providers)
+
+@app.route('/api/auto-update/run', methods=['POST'])
+def api_auto_update_run():
+    """运行完整的自动更新流水线"""
+    try:
+        sys.path.insert(0, str(CLI_DIR))
+        from auto_update import UpdatePipeline
+        
+        data = request.get_json() or {}
+        skip_discover = data.get('skip_discover', False)
+        skip_scan = data.get('skip_scan', False)
+        skip_clean = data.get('skip_clean', False)
+        categories = data.get('categories')
+        min_stars = data.get('min_stars', 50)
+
+        pipeline = UpdatePipeline(verbose=True)
+        result = pipeline.run_full_update(
+            categories=categories,
+            min_stars=min_stars,
+            skip_discover=skip_discover,
+            skip_scan=skip_scan,
+            skip_clean=skip_clean,
+        )
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route('/api/auto-update/status')
+def api_auto_update_status():
+    """获取自动更新状态"""
+    try:
+        sys.path.insert(0, str(CLI_DIR))
+        from auto_update import UpdatePipeline
+
+        pipeline = UpdatePipeline(verbose=False)
+        stats = pipeline.get_index_stats()
+        return jsonify(stats)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/index/rebuild', methods=['POST'])
+def api_index_rebuild():
+    """重建索引"""
+    try:
+        import subprocess as _sub
+        result = _sub.run(
+            [sys.executable, str(CLI_DIR / "build-index.py")],
+            cwd=PROJECT_ROOT,
+            capture_output=True, text=True, encoding="utf-8",
+            errors="replace", timeout=120
+        )
+        return jsonify({
+            "success": result.returncode == 0,
+            "message": "Index rebuilt" if result.returncode == 0 else "Index build failed",
+            "output": result.stdout[-500:],
+            "error": result.stderr[-300:] if result.stderr else None,
+        })
+    except subprocess.TimeoutExpired:
+        return jsonify({"success": False, "error": "Timeout"}), 500
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 if __name__ == '__main__':
+    import os as _os
+    debug_mode = _os.environ.get("FLASK_DEBUG", "0").lower() in ("1", "true", "yes")
+    host = _os.environ.get("HOST", "0.0.0.0")
+    port = int(_os.environ.get("PORT", "5555"))
     print("=" * 60)
     print("Skills Manager Web - 可视化 Skills 导航")
     print("=" * 60)
     print(f"\nSkills 索引: {INDEX_PATH}")
     print(f"访问地址: http://127.0.0.1:5555")
+    print(f"Debug 模式: {'开启' if debug_mode else '关闭'}")
     print("\n按 Ctrl+C 停止服务器\n")
-    app.run(host='0.0.0.0', port=5555, debug=True)
+    app.run(host=host, port=port, debug=debug_mode)

@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-05-06T23:24:30.572816",
-  "total": 1,
+  "generated_at": "2026-06-21T23:26:08.321336",
+  "total": 3,
   "submissions": [
     {
       "name": "test-skill",
@@ -14,8 +14,35 @@
         "claude",
         "codex"
       ],
-      "security_audited": true,
+      "security_audited": false,
       "quality_score": 85
+    },
+    {
+      "name": "api-doc-generator",
+      "full_name": "team/api-doc-generator",
+      "description": "Automatically generate API documentation from code",
+      "url": "https://github.com/team/api-doc-generator",
+      "stars": 250,
+      "license": "Apache-2.0",
+      "platforms": [
+        "claude-code"
+      ],
+      "security_audited": true,
+      "quality_score": 92
+    },
+    {
+      "name": "code-review-assistant",
+      "full_name": "agency/code-review-assistant",
+      "description": "AI-powered code review assistance",
+      "url": "https://github.com/agency/code-review-assistant",
+      "stars": 180,
+      "license": "MIT",
+      "platforms": [
+        "claude",
+        "codex"
+      ],
+      "security_audited": true,
+      "quality_score": 88
     }
   ]
 }

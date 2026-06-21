@@ -25,9 +25,35 @@ from dotenv import load_dotenv
 load_dotenv(Path(__file__).parent.parent / ".env")
 
 
-ZHIPU_API_URL = os.environ.get("ZHIPU_API_URL", "https://ark.cn-beijing.volces.com/api/coding/v3/chat/completions")
-ZHIPU_API_KEY = os.environ.get("ZHIPU_API_KEY", "")
-ZHIPU_MODEL = os.environ.get("ZHIPU_MODEL", "kimi-k2.6")
+# AI 配置：优先使用环境变量，其次从 ai-config.json 读取
+AI_CONFIG_FILE = Path(__file__).parent.parent / "data" / "ai-config.json"
+
+
+def _load_ai_config():
+    """加载 AI 配置（环境变量 > ai-config.json）"""
+    env_url = os.environ.get("ZHIPU_API_URL", "")
+    env_key = os.environ.get("ZHIPU_API_KEY", "")
+    env_model = os.environ.get("ZHIPU_MODEL", "")
+
+    if env_key:
+        return env_url or "https://ark.cn-beijing.volces.com/api/coding/v3/chat/completions", env_key, env_model or "kimi-k2.6"
+
+    if AI_CONFIG_FILE.exists():
+        try:
+            import json as _json
+            cfg = _json.loads(AI_CONFIG_FILE.read_text(encoding="utf-8"))
+            if cfg.get("api_key"):
+                base = cfg.get("base_url", "").rstrip("/")
+                model = cfg.get("model", "gpt-3.5-turbo")
+                url = f"{base}/chat/completions" if base else ""
+                return url, cfg["api_key"], model
+        except Exception:
+            pass
+
+    return "", "", ""
+
+
+_ZHIPU_URL, _ZHIPU_KEY, _ZHIPU_MODEL = _load_ai_config()
 
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "")
 GITHUB_HEADERS = {
@@ -38,8 +64,8 @@ if GITHUB_TOKEN:
     GITHUB_HEADERS["Authorization"] = f"token {GITHUB_TOKEN}"
 
 PROJECT_ROOT = Path(__file__).parent.parent
-CANDIDATES_FILE = PROJECT_ROOT / "candidates.json"
-SKILLS_ROOT = PROJECT_ROOT / "all-skills"
+CANDIDATES_FILE = PROJECT_ROOT / "data" / "candidates.json"
+SKILLS_ROOT = PROJECT_ROOT / "data" / "all-skills"
 
 SEARCH_QUERIES = {
     "ai_agent": [
@@ -137,6 +163,13 @@ class SkillsDiscoverer:
         self._load_candidates()
 
     def _load_candidates(self):
+        # 兼容旧路径迁移
+        old_candidates_file = PROJECT_ROOT / "candidates.json"
+        if old_candidates_file.exists() and not CANDIDATES_FILE.exists():
+            CANDIDATES_FILE.parent.mkdir(parents=True, exist_ok=True)
+            import shutil
+            shutil.copy2(old_candidates_file, CANDIDATES_FILE)
+        
         if CANDIDATES_FILE.exists():
             try:
                 data = json.loads(CANDIDATES_FILE.read_text(encoding='utf-8'))
@@ -381,17 +414,19 @@ class SkillsDiscoverer:
         return [c for c in self.candidates if c.category == category]
 
     def call_zhipu_ai(self, prompt: str) -> Optional[str]:
-        if not ZHIPU_API_KEY:
-            print("Warning: ZHIPU_API_KEY not set, skipping AI recommendation")
+        # 每次调用重新读取 AI 配置（确保 Web 端修改后即时生效）
+        url, key, model = _load_ai_config()
+        if not key:
+            print("Warning: AI API key not configured (set ZHIPU_API_KEY env or configure in AI Settings page)")
             return None
 
         headers = {
-            "Authorization": f"Bearer {ZHIPU_API_KEY}",
+            "Authorization": f"Bearer {key}",
             "Content-Type": "application/json"
         }
 
         data = {
-            "model": ZHIPU_MODEL,
+            "model": model,
             "messages": [
                 {"role": "user", "content": prompt}
             ],
@@ -400,7 +435,7 @@ class SkillsDiscoverer:
         }
 
         try:
-            resp = requests.post(ZHIPU_API_URL, headers=headers, json=data, timeout=60)
+            resp = requests.post(url, headers=headers, json=data, timeout=60)
             if resp.status_code == 200:
                 result = resp.json()
                 return result.get("choices", [{}])[0].get("message", {}).get("content", "")
@@ -513,15 +548,14 @@ class SkillsDiscoverer:
         return [c for c in self.candidates if c.status == CandidateStatus.APPROVED.value]
 
     def recommend_skills_with_ai(self, requirement: str, top_k: int = 5) -> List[Dict]:
-        if not ZHIPU_API_KEY:
-            print("Error: ZHIPU_API_KEY not configured")
+        if not _ZHIPU_KEY:
+            print("Error: AI API key not configured (set ZHIPU_API_KEY env or configure in AI Settings page)")
             return []
 
-        index_path = PROJECT_ROOT / "skills-index.json"
+        index_path = PROJECT_ROOT / "data" / "skills-index.json"
         skill_list = []
         if index_path.exists():
             try:
-                import json
                 index_data = json.loads(index_path.read_text(encoding='utf-8'))
                 for cat_key, cat_info in index_data.get("by_category", {}).items():
                     for skill in cat_info.get("skills", []):
@@ -557,13 +591,13 @@ Respond with ONLY the JSON array, no other text."""
 
         try:
             response = requests.post(
-                ZHIPU_API_URL,
+                _ZHIPU_URL,
                 headers={
-                    "Authorization": f"Bearer {ZHIPU_API_KEY}",
+                    "Authorization": f"Bearer {_ZHIPU_KEY}",
                     "Content-Type": "application/json"
                 },
                 json={
-                    "model": ZHIPU_MODEL,
+                    "model": _ZHIPU_MODEL,
                     "messages": [
                         {"role": "system", "content": system_prompt},
                         {"role": "user", "content": user_prompt}

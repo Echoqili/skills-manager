@@ -9,8 +9,8 @@ import shutil
 from pathlib import Path
 
 BASE_DIR = Path(__file__).parent.parent
-SKILLS_JSON_FILE = BASE_DIR / "skills-index.json"
-ALL_SKILLS_DIR = BASE_DIR / "all-skills"
+SKILLS_JSON_FILE = BASE_DIR / "data" / "skills-index.json"
+ALL_SKILLS_DIR = BASE_DIR / "data" / "all-skills"
 
 # 优先级顺序：官方技能 > 高质量源 > 普通源
 SOURCE_PRIORITY = {
@@ -72,6 +72,11 @@ def delete_duplicate(skill_name, item):
 
 
 def main():
+    import argparse
+    parser = argparse.ArgumentParser(description="清理重复技能")
+    parser.add_argument("-y", "--yes", action="store_true", help="自动确认，不提示")
+    args = parser.parse_args()
+
     print("=" * 60)
     print("清理重复技能")
     print("=" * 60)
@@ -95,7 +100,11 @@ def main():
     if len(remove) > 5:
         print(f"  ... 还有 {len(remove) - 5} 个")
 
-    confirm = input("\n确认删除重复技能? (y/N): ").strip().lower()
+    if not remove:
+        print("\n没有需要删除的重复项")
+        return
+
+    confirm = 'y' if args.yes else input("\n确认删除重复技能? (y/N): ").strip().lower()
     if confirm == 'y':
         removed_count = 0
         for skill_name, item in remove:
@@ -104,7 +113,7 @@ def main():
         print(f"\n✅ 已删除 {removed_count} 个重复技能")
 
         print("\n重新构建索引...")
-        os.system(f"python {BASE_DIR / 'scripts' / 'build-index.py'}")
+        os.system(f"python {BASE_DIR / 'cli' / 'build-index.py'}")
     else:
         print("\n操作已取消")
 

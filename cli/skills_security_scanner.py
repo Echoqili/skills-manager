@@ -5,11 +5,23 @@
 """
 import os
 import re
+import sys
 import json
 from pathlib import Path
 from typing import List, Dict, Set
 from dataclasses import dataclass, field
 from enum import Enum
+
+
+def configure_console_encoding():
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            pass
+
+
+configure_console_encoding()
 
 class RiskLevel(Enum):
     CRITICAL = "CRITICAL"

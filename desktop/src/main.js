@@ -1,10 +1,104 @@
 const { app, BrowserWindow, ipcMain, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const { spawn } = require('child_process');
+const http = require('http');
 
 let mainWindow;
+let backendProcess = null;
 
-function createWindow() {
+const BACKEND_PORT = process.env.SKILLS_MANAGER_PORT || '5555';
+
+function getProjectRoot() {
+  if (app.isPackaged) {
+    return process.resourcesPath;
+  }
+  return path.resolve(__dirname, '..', '..');
+}
+
+const PROJECT_ROOT = getProjectRoot();
+const WEB_DIR = path.join(PROJECT_ROOT, 'web');
+const DATA_DIR = path.join(PROJECT_ROOT, 'data');
+const SKILLS_ROOT = path.join(DATA_DIR, 'all-skills');
+const WEB_APP = path.join(WEB_DIR, 'app.py');
+
+function waitForBackend(retries = 60) {
+  return new Promise((resolve, reject) => {
+    const check = (remaining) => {
+      const req = http.get({
+        hostname: '127.0.0.1',
+        port: BACKEND_PORT,
+        path: '/api/stats',
+        timeout: 1000
+      }, (res) => {
+        res.resume();
+        if (res.statusCode && res.statusCode < 500) {
+          resolve();
+        } else if (remaining > 0) {
+          setTimeout(() => check(remaining - 1), 300);
+        } else {
+          reject(new Error(`Backend responded with ${res.statusCode}`));
+        }
+      });
+
+      req.on('timeout', () => req.destroy());
+      req.on('error', () => {
+        if (remaining > 0) {
+          setTimeout(() => check(remaining - 1), 300);
+        } else {
+          reject(new Error('Backend did not start'));
+        }
+      });
+    };
+
+    check(retries);
+  });
+}
+
+function startBackend() {
+  if (backendProcess) {
+    return;
+  }
+
+  if (!fs.existsSync(WEB_APP)) {
+    throw new Error(`Web app not found: ${WEB_APP}`);
+  }
+
+  const python = process.env.PYTHON || 'python';
+  backendProcess = spawn(python, [WEB_APP], {
+    cwd: PROJECT_ROOT,
+    env: {
+      ...process.env,
+      HOST: '127.0.0.1',
+      PORT: BACKEND_PORT,
+      FLASK_DEBUG: '0',
+      PYTHONIOENCODING: 'utf-8'
+    },
+    windowsHide: true
+  });
+
+  if (process.argv.includes('--dev')) {
+    backendProcess.stdout.on('data', (data) => console.log(`[web] ${data}`));
+    backendProcess.stderr.on('data', (data) => console.error(`[web] ${data}`));
+  }
+
+  backendProcess.on('exit', () => {
+    backendProcess = null;
+  });
+}
+
+async function loadWebApp(window) {
+  try {
+    await waitForBackend(3);
+  } catch {
+    startBackend();
+    await waitForBackend();
+  }
+
+  await window.loadURL(`http://127.0.0.1:${BACKEND_PORT}`);
+}
+
+async function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
@@ -20,8 +114,13 @@ function createWindow() {
   });
 
   // 加载本地网页
-  const indexPath = path.join(__dirname, '..', 'web', 'templates', 'index.html');
-  mainWindow.loadFile(indexPath);
+  try {
+    await loadWebApp(mainWindow);
+  } catch (error) {
+    console.error('Failed to load web app:', error);
+    const indexPath = path.join(WEB_DIR, 'templates', 'index.html');
+    mainWindow.loadFile(indexPath);
+  }
 
   // 开发模式打开开发者工具
   if (process.argv.includes('--dev')) {
@@ -41,6 +140,12 @@ app.on('window-all-closed', () => {
   }
 });
 
+app.on('before-quit', () => {
+  if (backendProcess && !backendProcess.killed) {
+    backendProcess.kill();
+  }
+});
+
 app.on('activate', () => {
   if (mainWindow === null) {
     createWindow();
@@ -49,7 +154,7 @@ app.on('activate', () => {
 
 // IPC 处理器：读取 Skills 索引
 ipcMain.handle('read-skills-index', async () => {
-  const indexPath = path.join(__dirname, '..', 'data', 'skills-index.json');
+  const indexPath = path.join(DATA_DIR, 'skills-index.json');
   try {
     const data = fs.readFileSync(indexPath, 'utf-8');
     return JSON.parse(data);
@@ -61,7 +166,7 @@ ipcMain.handle('read-skills-index', async () => {
 
 // IPC 处理器：读取 Skills 文件
 ipcMain.handle('read-skill-file', async (event, skillPath) => {
-  const fullPath = path.join(__dirname, '..', 'data', 'all-skills', skillPath);
+  const fullPath = resolveSkillFile(skillPath);
   try {
     return fs.readFileSync(fullPath, 'utf-8');
   } catch (error) {
@@ -71,6 +176,28 @@ ipcMain.handle('read-skill-file', async (event, skillPath) => {
 });
 
 // IPC 处理器：安装 Skills 到 IDE
+function resolveSkillFile(skillPath) {
+  if (!skillPath) {
+    return null;
+  }
+
+  const normalizedPath = path.normalize(skillPath);
+  if (path.isAbsolute(normalizedPath)) {
+    return normalizedPath;
+  }
+
+  const dataPrefix = `data${path.sep}all-skills${path.sep}`;
+  const allSkillsPrefix = `all-skills${path.sep}`;
+
+  if (normalizedPath.startsWith(dataPrefix)) {
+    return path.join(PROJECT_ROOT, normalizedPath);
+  }
+  if (normalizedPath.startsWith(allSkillsPrefix)) {
+    return path.join(DATA_DIR, normalizedPath);
+  }
+  return path.join(SKILLS_ROOT, normalizedPath);
+}
+
 ipcMain.handle('install-skills', async (event, { ide, skillsPath }) => {
   const targetDirs = {
     claude: path.join(app.getPath('home'), '.claude', 'skills'),
@@ -94,7 +221,7 @@ ipcMain.handle('install-skills', async (event, { ide, skillsPath }) => {
     }
 
     // 复制 Skills 文件
-    const sourceDir = path.join(__dirname, '..', 'data', 'all-skills');
+    const sourceDir = SKILLS_ROOT;
     fs.cpSync(sourceDir, targetDir, { recursive: true });
 
     return { success: true, path: targetDir };
@@ -111,7 +238,7 @@ ipcMain.handle('open-external', async (event, url) => {
 
 // IPC 处理器：显示文件夹
 ipcMain.handle('show-in-folder', async (event, filePath) => {
-  const fullPath = path.join(__dirname, '..', 'data', filePath);
+  const fullPath = path.join(DATA_DIR, filePath);
   shell.showItemInFolder(fullPath);
 });
 
