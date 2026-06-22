@@ -652,13 +652,20 @@ def api_skill(name):
 
     return jsonify({
         "name": skill.get("name", ""),
+        "name_zh": skill.get("name_zh", ""),
+        "name_en": skill.get("name_en", ""),
         "description": skill.get("description", ""),
+        "description_zh": skill.get("description_zh", ""),
+        "description_en": skill.get("description_en", ""),
         "category": skill.get("category", "other"),
         "category_name": skill.get("category_name", ""),
         "category_emoji": skill.get("category_emoji", "📦"),
         "emoji": skill.get("emoji", skill.get("category_emoji", "📦")),
         "path": skill.get("path", ""),
-        "files": files
+        "files": files,
+        "downloads": skill.get("downloads"),
+        "rating": skill.get("rating"),
+        "rating_count": skill.get("rating_count")
     })
 
 
