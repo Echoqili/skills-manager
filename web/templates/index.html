@@ -1992,7 +1992,7 @@
                     </div>
                 </div>
                 <div id="manualPanel" class="discover-panel">
-                    <div style="max-width:700px;">
+                    <form id="manualImportForm" style="max-width:700px;" onsubmit="event.preventDefault()">
                         <div style="margin-bottom:16px;">
                             <label style="display:block;margin-bottom:6px;color:var(--text-secondary);font-size:0.88rem;" data-i18n="import_name_label">Skill 名称（英文）</label>
                             <input type="text" id="importName" class="select-input" style="width:100%;" placeholder="my-custom-skill">
@@ -2006,25 +2006,25 @@
                             <textarea id="importContent" class="ai-textarea" style="min-height:200px;" placeholder="# My Custom Skill&#10;&#10;描述这个 Skill 的使用方法..."></textarea>
                         </div>
                         <div style="display:flex;gap:10px;margin-bottom:16px;">
-                            <button class="btn btn-secondary" onclick="validateImport()" data-i18n="import_validate">🔍 验证</button>
-                            <button class="btn btn-primary" onclick="submitImport()" data-i18n="import_submit">✅ 导入</button>
+                            <button type="button" class="btn btn-secondary" onclick="validateImport()" data-i18n="import_validate">🔍 验证</button>
+                            <button type="button" class="btn btn-primary" onclick="submitImport()" data-i18n="import_submit">✅ 导入</button>
                         </div>
                         <div id="importValidation" style="display:none;padding:12px;border-radius:8px;font-size:0.88rem;"></div>
-                    </div>
+                    </form>
                 </div>
                 <div id="githubPanel" class="discover-panel" style="display:none;">
-                    <div style="max-width:700px;">
+                    <form id="githubImportForm" style="max-width:700px;" onsubmit="event.preventDefault()">
                         <div style="margin-bottom:16px;">
                             <label style="display:block;margin-bottom:6px;color:var(--text-secondary);font-size:0.88rem;" data-i18n="import_github_label">GitHub 仓库 URL 或完整路径</label>
                             <input type="text" id="importGithubUrl" class="select-input" style="width:100%;" placeholder="https://github.com/username/repo/tree/main/skills/my-skill">
                         </div>
                         <div style="margin-bottom:16px;color:var(--text-muted);font-size:0.82rem;" data-i18n="import_github_hint">支持完整路径：/tree/branch/path/to/SKILL.md</div>
                         <div style="display:flex;gap:10px;margin-bottom:16px;">
-                            <button class="btn btn-secondary" onclick="browseGithubSkills()" data-i18n="import_github_browse">🔍 浏览</button>
-                            <button class="btn btn-primary" onclick="importFromGithub()" data-i18n="import_github_btn">🐙 导入</button>
+                            <button type="button" class="btn btn-secondary" onclick="browseGithubSkills()" data-i18n="import_github_browse">🔍 浏览</button>
+                            <button type="button" class="btn btn-primary" onclick="importFromGithub()" data-i18n="import_github_btn">🐙 导入</button>
                         </div>
                         <div id="browseResults" style="display:none;margin-top:16px;"></div>
-                    </div>
+                    </form>
                 </div>
                 <div id="listPanel" class="discover-panel" style="display:none;">
                     <div id="userSkillsList"></div>
@@ -2122,66 +2122,68 @@
 
                 <div class="ai-settings">
                     <div class="ai-config-card">
-                        <div class="ai-config-header">
-                            <div class="ai-config-title" data-i18n="ai_config_title">API 配置</div>
-                            <div class="ai-config-desc" data-i18n="ai_config_desc">配置 AI 服务后，搜索时将使用 AI 进行智能 Skill 推荐</div>
-                        </div>
-
-                        <div class="form-group">
-                            <label data-i18n="ai_label_enable">启用 AI</label>
-                            <label class="switch">
-                                <input type="checkbox" id="aiEnabled" onchange="onAiConfigChanged()">
-                                <span class="switch-slider"></span>
-                            </label>
-                        </div>
-
-                        <div class="form-group">
-                            <label for="aiProvider" data-i18n="ai_label_provider">AI 提供商</label>
-                            <select id="aiProvider" onchange="onAiProviderChange()">
-                                <option value="">加载中...</option>
-                            </select>
-                        </div>
-
-                        <div class="form-group">
-                            <label for="aiModel" data-i18n="ai_label_model">模型</label>
-                            <select id="aiModel"></select>
-                        </div>
-
-                        <div class="form-group">
-                            <label for="aiBaseUrl" data-i18n="ai_label_base_url">API 地址</label>
-                            <input type="text" id="aiBaseUrl" placeholder="https://api.openai.com/v1" onchange="onAiConfigChanged()">
-                        </div>
-
-                        <div class="form-group">
-                            <label for="aiApiKey" data-i18n="ai_label_api_key">API Key</label>
-                            <div class="api-key-row">
-                                <input type="password" id="aiApiKey" placeholder="sk-..." onchange="onAiConfigChanged()">
-                                <button class="btn btn-sm btn-outline" onclick="toggleApiKeyVisibility()" data-i18n="btn_show" id="btnToggleKey">显示</button>
+                        <form id="aiConfigForm" onsubmit="event.preventDefault()">
+                            <div class="ai-config-header">
+                                <div class="ai-config-title" data-i18n="ai_config_title">API 配置</div>
+                                <div class="ai-config-desc" data-i18n="ai_config_desc">配置 AI 服务后，搜索时将使用 AI 进行智能 Skill 推荐</div>
                             </div>
-                        </div>
 
-                        <div class="form-group">
-                            <label for="aiTemperature" data-i18n="ai_label_temperature">温度 (Temperature)</label>
-                            <div class="range-row">
-                                <input type="range" id="aiTemperature" min="0" max="2" step="0.1" value="0.7" oninput="document.getElementById('tempValue').textContent = this.value; onAiConfigChanged()">
-                                <span id="tempValue" class="range-value">0.7</span>
+                            <div class="form-group">
+                                <label data-i18n="ai_label_enable">启用 AI</label>
+                                <label class="switch">
+                                    <input type="checkbox" id="aiEnabled" onchange="onAiConfigChanged()">
+                                    <span class="switch-slider"></span>
+                                </label>
                             </div>
-                        </div>
 
-                        <div class="form-group">
-                            <label for="aiMaxTokens" data-i18n="ai_label_max_tokens">最大 Token 数</label>
-                            <input type="number" id="aiMaxTokens" value="1024" min="128" max="8192" step="128" onchange="onAiConfigChanged()">
-                        </div>
+                            <div class="form-group">
+                                <label for="aiProvider" data-i18n="ai_label_provider">AI 提供商</label>
+                                <select id="aiProvider" onchange="onAiProviderChange()">
+                                    <option value="">加载中...</option>
+                                </select>
+                            </div>
 
-                        <div class="ai-config-actions">
-                            <button class="btn btn-primary" onclick="saveAiConfig()" id="btnSaveAi">
-                                <span data-i18n="btn_save_ai">💾 保存配置</span>
-                            </button>
-                            <button class="btn btn-outline" onclick="testAiConnection()" id="btnTestAi">
-                                <span data-i18n="btn_test_ai">🔌 测试连接</span>
-                            </button>
-                        </div>
-                        <div id="aiTestResult" class="ai-test-result" style="display:none;"></div>
+                            <div class="form-group">
+                                <label for="aiModel" data-i18n="ai_label_model">模型</label>
+                                <select id="aiModel"></select>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="aiBaseUrl" data-i18n="ai_label_base_url">API 地址</label>
+                                <input type="text" id="aiBaseUrl" placeholder="https://api.openai.com/v1" onchange="onAiConfigChanged()">
+                            </div>
+
+                            <div class="form-group">
+                                <label for="aiApiKey" data-i18n="ai_label_api_key">API Key</label>
+                                <div class="api-key-row">
+                                    <input type="password" id="aiApiKey" placeholder="sk-..." autocomplete="current-password" onchange="onAiConfigChanged()">
+                                    <button type="button" class="btn btn-sm btn-outline" onclick="toggleApiKeyVisibility()" data-i18n="btn_show" id="btnToggleKey">显示</button>
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="aiTemperature" data-i18n="ai_label_temperature">温度 (Temperature)</label>
+                                <div class="range-row">
+                                    <input type="range" id="aiTemperature" min="0" max="2" step="0.1" value="0.7" oninput="document.getElementById('tempValue').textContent = this.value; onAiConfigChanged()">
+                                    <span id="tempValue" class="range-value">0.7</span>
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="aiMaxTokens" data-i18n="ai_label_max_tokens">最大 Token 数</label>
+                                <input type="number" id="aiMaxTokens" value="1024" min="128" max="8192" step="128" onchange="onAiConfigChanged()">
+                            </div>
+
+                            <div class="ai-config-actions">
+                                <button type="button" class="btn btn-primary" onclick="saveAiConfig()" id="btnSaveAi">
+                                    <span data-i18n="btn_save_ai">💾 保存配置</span>
+                                </button>
+                                <button type="button" class="btn btn-outline" onclick="testAiConnection()" id="btnTestAi">
+                                    <span data-i18n="btn_test_ai">🔌 测试连接</span>
+                                </button>
+                            </div>
+                            <div id="aiTestResult" class="ai-test-result" style="display:none;"></div>
+                        </form>
                     </div>
 
                     <div class="ai-info-card">
@@ -2397,6 +2399,28 @@
                 sec_categories: '📂 分类浏览',
                 tag_categories: '按分类查看所有 Skills',
                 btn_back_categories: '← 返回分类列表',
+                category_product: '产品经理',
+                category_agile: '敏捷开发',
+                category_scrum: 'Scrum团队',
+                category_ddd: 'DDD架构',
+                'category_dev-quality': '开发质量',
+                'category_qa-testing': 'QA测试',
+                'category_api-design': 'API设计',
+                'category_ai-product': 'AI产品',
+                'category_ai-safety': 'AI安全',
+                category_superpowers: 'Superpowers',
+                'category_dev-workflow': '开发工作流',
+                category_design: '设计系统',
+                'category_skill-authoring': 'Skill开发',
+                'category_indie-hacker': '独立开发者',
+                category_qiushi: '求是方法论',
+                category_qa: 'QA测试',
+                category_skills: '通用Skills',
+                'category_ui-ux': 'UI/UX设计',
+                category_gitnexus: 'GitNexus',
+                category_testing: '测试工具包',
+                'category_user-imports': '用户导入',
+                category_other: '其他',
                 // Cart
                 sec_cart: '📦 打包清单',
                 tag_cart: '已选择 {} 个 Skills',
@@ -2706,6 +2730,28 @@
                 sec_categories: '📂 Browse by Category',
                 tag_categories: 'View all Skills by category',
                 btn_back_categories: '← Back to categories',
+                category_product: 'Product Manager',
+                category_agile: 'Agile',
+                category_scrum: 'Scrum Team',
+                category_ddd: 'DDD Architecture',
+                'category_dev-quality': 'Dev Quality',
+                'category_qa-testing': 'QA Testing',
+                'category_api-design': 'API Design',
+                'category_ai-product': 'AI Product',
+                'category_ai-safety': 'AI Safety',
+                category_superpowers: 'Superpowers',
+                'category_dev-workflow': 'Dev Workflow',
+                category_design: 'Design System',
+                'category_skill-authoring': 'Skill Authoring',
+                'category_indie-hacker': 'Indie Hacker',
+                category_qiushi: 'Qiushi Methodology',
+                category_qa: 'QA Testing',
+                category_skills: 'General Skills',
+                'category_ui-ux': 'UI/UX Design',
+                category_gitnexus: 'GitNexus',
+                category_testing: 'Testing Toolkit',
+                'category_user-imports': 'User Imports',
+                category_other: 'Other',
                 // Cart
                 sec_cart: '📦 Package List',
                 tag_cart: '{} Skills selected',
@@ -2886,6 +2932,10 @@
             let s = (translations[currentLang] && translations[currentLang][key]) || key;
             args.forEach((a, i) => { s = s.replace('{}', a); });
             return s;
+        }
+
+        function categoryName(key) {
+            return t('category_' + (key || 'other'));
         }
 
         function applyI18n() {
@@ -3113,14 +3163,14 @@
             }
 
             body.innerHTML = cart.map(name => {
-                const s = allSkillsCache[name] || { name, category_emoji: '📦', category_name: '', description: '' };
+                const s = allSkillsCache[name] || { name, category_emoji: '📦', category: 'other', category_name: '', description: '' };
                 const displayName = (currentLang === 'zh' ? s.name_zh : s.name_en) || s.name;
                 return `
                 <div class="cart-sidebar-item">
                     <span class="emoji">${s.category_emoji || '📦'}</span>
                     <div class="info">
                         <div class="name">${displayName}</div>
-                        <div class="meta">${s.category_name || ''}${s.description ? ' · ' + s.description.substring(0, 40) + (s.description.length > 40 ? '...' : '') : ''}</div>
+                        <div class="meta">${categoryName(s.category)}${s.description ? ' · ' + s.description.substring(0, 40) + (s.description.length > 40 ? '...' : '') : ''}</div>
                     </div>
                     <button class="remove" onclick="removeFromCart('${escHtml(s.name)}'); renderCartSidebar();" title="${t('remove')}">🗑️</button>
                 </div>`;
@@ -3169,7 +3219,7 @@
 
             const items = [
                 { key: '', emoji: '📦', name: t('cat_all') },
-                ...categoriesData.map(c => ({ key: c.key, emoji: c.emoji, name: c.display_name || c.name }))
+                ...categoriesData.map(c => ({ key: c.key, emoji: c.emoji, name: categoryName(c.key) }))
             ];
 
             bar.style.display = 'flex';
@@ -3199,7 +3249,7 @@
             try {
                 const res = await fetch(`/api/category/${key}`);
                 const data = await res.json();
-                document.getElementById('searchTag').textContent = `${data.name} · ${t('skill_count', data.count)}`;
+                document.getElementById('searchTag').textContent = `${categoryName(key)} · ${t('skill_count', data.count)}`;
                 currentSearchResults = data.skills || [];
                 renderSkillsPage(1);
             } catch (e) {
@@ -3415,7 +3465,7 @@
                         <div class="skill-emoji">${skill.category_emoji || '📦'}</div>
                         <div class="skill-info">
                             <div class="skill-name" title="${skill.name}">${displayName}</div>
-                            <span class="skill-category">${skill.category_emoji || ''} ${skill.category_name || skill.category || ''}</span>
+                            <span class="skill-category">${skill.category_emoji || ''} ${categoryName(skill.category)}</span>
                         </div>
                     </div>
                     <p class="skill-desc">${(currentLang === 'zh' ? skill.description_zh : skill.description_en) || skill.description || t('detail_no_desc')}</p>
@@ -3545,7 +3595,7 @@
                             <div class="detail-info">
                                 <h2>${displayName}</h2>
                                 <div class="detail-meta">
-                                    <span>${skill.category_emoji || ''} ${skill.category_name || skill.category || ''}</span>
+                                    <span>${skill.category_emoji || ''} ${categoryName(skill.category)}</span>
                                     <span>📁 ${t('detail_files_count', skill.files?.length || 0)}</span>
                                     <span style="word-break:break-all;max-width:300px;" title="${skill.path}">📍 ${skill.path ? skill.path.slice(-40) : t('detail_no_path')}</span>
                                 </div>
@@ -3686,12 +3736,12 @@
                 container.innerHTML = `<div class="categories-grid">${data.categories.map(cat => {
                     const isTrending = trendingCategories.includes(cat.key);
                     return `
-                    <div class="category-card" onclick="loadCategory('${cat.key}', '${escHtml(cat.display_name || cat.name)}')">
+                    <div class="category-card" onclick="loadCategory('${cat.key}')">
                         <div class="category-header">
                             <div class="category-emoji">${cat.emoji}</div>
                             <div class="category-info">
                                 <div style="display:flex;align-items:center;gap:8px;">
-                                    <h3>${cat.display_name || cat.name}</h3>
+                                    <h3>${categoryName(cat.key)}</h3>
                                     ${isTrending ? `<span class="category-badge">🔥 ${t('hot')}</span>` : ''}
                                 </div>
                                 <span class="category-count">${t('skill_count', cat.count)}</span>
@@ -3708,7 +3758,7 @@
             }
         }
 
-        async function loadCategory(key, name) {
+        async function loadCategory(key) {
             // 重构后：分类点击切换到浏览页并过滤
             setCategoryFilter(key);
             showSection('search');
@@ -3730,7 +3780,7 @@
                         <div class="skill-emoji">${skill.category_emoji || '📦'}</div>
                         <div class="skill-info">
                             <div class="skill-name" title="${skill.name}">${displayName}</div>
-                            <span class="skill-category">${skill.category_emoji || ''} ${skill.category_name || skill.category || ''}</span>
+                            <span class="skill-category">${skill.category_emoji || ''} ${categoryName(skill.category)}</span>
                         </div>
                     </div>
                     <p class="skill-desc">${(currentLang === 'zh' ? skill.description_zh : skill.description_en) || skill.description || t('detail_no_desc')}</p>
@@ -3840,14 +3890,14 @@
                 return;
             }
 
-            const skills = cart.map(name => allSkillsCache[name] || {name, category_emoji: '📦', category_name: '', description: ''});
+            const skills = cart.map(name => allSkillsCache[name] || {name, category_emoji: '📦', category: 'other', category_name: '', description: ''});
             container.innerHTML = `<div class="skills-grid">${skills.map(s => `
                 <div class="skill-card">
                     <div class="skill-card-header">
                         <div class="skill-emoji">${s.category_emoji || '📦'}</div>
                         <div class="skill-info">
                             <div class="skill-name">${s.name}</div>
-                            <span class="skill-category">${s.category_name || ''}</span>
+                            <span class="skill-category">${categoryName(s.category)}</span>
                         </div>
                     </div>
                     ${s.description ? `<p class="skill-desc">${s.description}</p>` : ''}
@@ -4225,6 +4275,15 @@
             modelSelect.innerHTML = models.map(m =>
                 `<option value="${m}">${m}</option>`
             ).join('');
+            onAiConfigChanged();
+        }
+
+        function onAiConfigChanged() {
+            // 配置项变更时的回调，可用于启用保存按钮或实时状态更新
+            const saveBtn = document.getElementById('btnSaveAi');
+            if (saveBtn) {
+                saveBtn.disabled = false;
+            }
         }
 
         function toggleApiKeyVisibility() {
