@@ -2222,8 +2222,8 @@
     <div class="cart-overlay" id="cartOverlay" onclick="toggleCartSidebar()"></div>
     <div class="cart-sidebar" id="cartSidebar">
         <div class="cart-sidebar-header">
-            <h3 id="cartSidebarTitle">📦 打包清单 <span id="cartSidebarCount">(0)</span></h3>
-            <button class="cart-sidebar-close" onclick="toggleCartSidebar()">✕</button>
+            <h3 id="cartSidebarTitle"><span id="cartSidebarTitleText">📦 打包清单</span> <span id="cartSidebarCount">(0)</span></h3>
+            <button class="cart-sidebar-close" onclick="toggleCartSidebar(); event.stopPropagation();" aria-label="关闭清单">✕</button>
         </div>
         <div class="cart-sidebar-body" id="cartSidebarBody">
             <div class="cart-empty">
@@ -3098,9 +3098,9 @@
         function renderCartSidebar() {
             const body = document.getElementById('cartSidebarBody');
             const countEl = document.getElementById('cartSidebarCount');
-            const titleEl = document.getElementById('cartSidebarTitle');
-            countEl.textContent = `(${cart.length})`;
-            titleEl.innerHTML = `${t('cart_sidebar_title')} <span id="cartSidebarCount">(${cart.length})</span>`;
+            const titleText = document.getElementById('cartSidebarTitleText');
+            if (countEl) countEl.textContent = `(${cart.length})`;
+            if (titleText) titleText.textContent = t('cart_sidebar_title');
 
             if (cart.length === 0) {
                 body.innerHTML = `
