@@ -253,6 +253,67 @@
             color: var(--text);
         }
 
+        /* 搜索来源切换 */
+        .search-source-bar {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 12px;
+            justify-content: center;
+        }
+        .search-source {
+            padding: 8px 18px;
+            background: var(--bg-glass);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-full);
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.25s ease;
+        }
+        .search-source:hover { background: var(--bg-glass-hover); color: var(--text); }
+        .search-source.active {
+            background: var(--gradient-primary);
+            border-color: transparent;
+            color: white;
+        }
+
+        /* 分类筛选条 */
+        .category-filter-bar {
+            display: flex;
+            gap: 8px;
+            padding: 10px;
+            margin: 24px auto 24px;
+            overflow-x: auto;
+            max-width: 100%;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-xl);
+            -webkit-overflow-scrolling: touch;
+        }
+        .category-filter-bar::-webkit-scrollbar { height: 0; }
+        .category-filter {
+            padding: 8px 16px;
+            background: var(--bg-glass);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-full);
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+            font-weight: 500;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: all 0.25s ease;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .category-filter:hover { background: var(--bg-glass-hover); color: var(--text); }
+        .category-filter.active {
+            background: var(--gradient-primary);
+            border-color: transparent;
+            color: white;
+        }
+
         /* 搜索热词 */
         .search-hints {
             display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px;
@@ -267,35 +328,50 @@
         .search-hint:hover { background: var(--bg-glass-hover); color: var(--text); border-color: var(--border-glow); }
 
         /* ========== 导航标签 (SkillStore 风格) ========== */
+        /* ========== 导航栏重构：3 主标签 + 右侧操作区 ========== */
         .nav-tabs {
-            display: flex; 
-            gap: 8px; 
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
             padding: 8px;
-            background: var(--bg-card); 
+            background: var(--bg-card);
             border: 1px solid var(--border);
             border-radius: var(--radius-xl);
-            margin-bottom: 40px; 
+            margin-bottom: 32px;
             backdrop-filter: blur(24px);
             animation: fadeInUp 0.6s ease-out 0.4s both;
             box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2);
-            flex-wrap: wrap;
-            justify-content: flex-start;
-            overflow: visible;
         }
-        .nav-tabs::-webkit-scrollbar { height: 0; }
+        .nav-tabs-main {
+            display: flex;
+            gap: 8px;
+            flex-wrap: nowrap;
+            overflow-x: auto;
+        }
+        .nav-tabs-main::-webkit-scrollbar { height: 0; }
+        .nav-tabs-actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-shrink: 0;
+            border-left: 1px solid var(--border);
+            padding-left: 8px;
+            margin-left: auto;
+        }
         .nav-tab {
-            padding: 13px 24px; 
+            padding: 12px 20px;
             background: transparent;
-            border: none; 
+            border: none;
             border-radius: var(--radius-md);
-            color: var(--text-secondary); 
-            font-size: 0.92rem; 
+            color: var(--text-secondary);
+            font-size: 0.92rem;
             font-weight: 600;
-            cursor: pointer; 
-            transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1); 
+            cursor: pointer;
+            transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
             white-space: nowrap;
-            display: flex; 
-            align-items: center; 
+            display: flex;
+            align-items: center;
             gap: 8px;
             letter-spacing: -0.3px;
             position: relative;
@@ -312,32 +388,104 @@
             transition: opacity 0.4s ease;
             z-index: -1;
         }
-        .nav-tab:hover { 
-            background: var(--bg-glass-hover); 
+        .nav-tab:hover {
+            background: var(--bg-glass-hover);
             color: var(--text);
             transform: translateY(-2px);
         }
         .nav-tab.active {
-            background: var(--gradient-primary); 
+            background: var(--gradient-primary);
             color: white;
             box-shadow: 0 6px 24px rgba(99, 102, 241, 0.4);
             transform: translateY(-2px);
         }
-        .nav-tab.active::before {
-            opacity: 1;
-        }
+        .nav-tab.active::before { opacity: 1; }
         .nav-tab .count {
-            padding: 3px 10px; 
+            padding: 3px 10px;
             background: rgba(255,255,255,0.2);
-            border-radius: var(--radius-full); 
+            border-radius: var(--radius-full);
             font-size: 0.7rem;
             font-weight: 700;
-            min-width: 24px;
+            min-width: 22px;
             text-align: center;
         }
-        .nav-tab.active .count {
-            background: rgba(255,255,255,0.25);
+        .nav-tab.active .count { background: rgba(255,255,255,0.25); }
+
+        .nav-action-btn {
+            padding: 10px 14px;
+            background: var(--bg-glass);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            white-space: nowrap;
+            flex-shrink: 0;
         }
+        .nav-action-btn:hover {
+            background: var(--bg-glass-hover);
+            border-color: var(--border-glow);
+            color: var(--text);
+        }
+        .nav-action-btn.primary {
+            background: var(--gradient-primary);
+            border: none;
+            color: white;
+        }
+        .nav-action-btn.primary:hover {
+            box-shadow: 0 6px 20px rgba(99, 102, 241, 0.4);
+        }
+        .nav-action-btn .count {
+            padding: 2px 8px;
+            background: rgba(255,255,255,0.2);
+            border-radius: var(--radius-full);
+            font-size: 0.7rem;
+            font-weight: 700;
+        }
+
+        /* 管理下拉菜单 */
+        .manage-menu {
+            position: absolute;
+            top: calc(100% + 10px);
+            right: 0;
+            min-width: 220px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 8px;
+            box-shadow: var(--shadow-hover);
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(-10px);
+            transition: all 0.25s ease;
+            z-index: 100;
+        }
+        .manage-menu.show {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0);
+        }
+        .manage-menu-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 12px;
+            border-radius: var(--radius-sm);
+            color: var(--text-secondary);
+            font-size: 0.88rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .manage-menu-item:hover {
+            background: var(--bg-glass-hover);
+            color: var(--text);
+        }
+        .manage-wrap { position: relative; }
 
         /* ========== 内容区域 ========== */
         .content-section { display: none; animation: fadeIn 0.4s ease-out; }
@@ -676,6 +824,87 @@
         .cart-empty { text-align: center; padding: 80px 20px; color: var(--text-muted); }
         .cart-empty-icon { font-size: 4rem; margin-bottom: 20px; opacity: 0.5; }
         .cart-empty h3 { font-size: 1.2rem; margin-bottom: 8px; color: var(--text-secondary); }
+
+        /* ========== 购物车侧边栏 ========== */
+        .cart-overlay {
+            position: fixed; inset: 0;
+            background: rgba(0,0,0,0.5);
+            opacity: 0; visibility: hidden;
+            transition: all 0.3s ease;
+            z-index: 1020;
+        }
+        .cart-overlay.show { opacity: 1; visibility: visible; }
+        .cart-sidebar {
+            position: fixed; top: 0; right: 0;
+            width: 420px; max-width: 90vw;
+            height: 100vh;
+            background: var(--bg-secondary);
+            border-left: 1px solid var(--border);
+            box-shadow: -20px 0 60px rgba(0,0,0,0.5);
+            transform: translateX(100%);
+            transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+            z-index: 1030;
+            display: flex; flex-direction: column;
+        }
+        .cart-sidebar.show { transform: translateX(0); }
+        .cart-sidebar-header {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 24px;
+            border-bottom: 1px solid var(--border);
+        }
+        .cart-sidebar-header h3 { font-size: 1.2rem; font-weight: 600; }
+        .cart-sidebar-close {
+            width: 36px; height: 36px;
+            border-radius: 50%;
+            background: var(--bg-glass);
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+            cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            transition: all 0.2s;
+        }
+        .cart-sidebar-close:hover { background: var(--bg-glass-hover); color: var(--text); }
+        .cart-sidebar-body {
+            flex: 1; overflow-y: auto;
+            padding: 20px 24px;
+        }
+        .cart-sidebar-footer {
+            padding: 20px 24px;
+            border-top: 1px solid var(--border);
+            background: var(--bg-card);
+        }
+        .cart-sidebar-item {
+            display: flex; align-items: center; gap: 12px;
+            padding: 14px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            margin-bottom: 10px;
+        }
+        .cart-sidebar-item .emoji { font-size: 1.5rem; }
+        .cart-sidebar-item .info { flex: 1; min-width: 0; }
+        .cart-sidebar-item .name {
+            font-weight: 600; font-size: 0.95rem;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .cart-sidebar-item .meta {
+            font-size: 0.8rem; color: var(--text-muted);
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .cart-sidebar-item .remove {
+            width: 32px; height: 32px;
+            border-radius: 50%;
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            transition: all 0.2s;
+        }
+        .cart-sidebar-item .remove:hover { background: rgba(239,68,68,0.1); color: var(--error); }
+        @media (max-width: 600px) {
+            .cart-sidebar { width: 100%; max-width: 100%; }
+        }
 
         /* ========== AI 推荐卡片 ========== */
         .ai-card {
@@ -1527,8 +1756,12 @@
             </div>
         </header>
 
-        <!-- 搜索区域 -->
+        <!-- 搜索区域（全局，始终可见） -->
         <section class="search-section">
+            <div class="search-source-bar">
+                <button class="search-source active" data-source="local" data-i18n="source_local" onclick="setSearchSource('local')">📋 本地 Skills</button>
+                <button class="search-source" data-source="github" data-i18n="source_github" onclick="setSearchSource('github')">🐙 GitHub</button>
+            </div>
             <div class="search-wrapper">
                 <div class="search-box">
                     <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1541,7 +1774,6 @@
                     onkeydown="if(event.key==='Enter') searchSkills()">
                 </div>
                 <button onclick="searchSkills()" class="search-btn" data-i18n="search_btn">🔍 搜索</button>
-                <button onclick="searchAll()" class="search-btn secondary" data-i18n="search_all">🌐 全网</button>
             </div>
             <div class="search-hints">
                 <span class="search-hint" onclick="quickSearch('sprint')" data-i18n="hint_sprint">🏃 Sprint</span>
@@ -1557,45 +1789,56 @@
 
         <!-- 导航标签 -->
         <nav class="nav-tabs">
-            <button class="nav-tab active" data-tab="search">
-                <span data-i18n="tab_local">📋 本地 Skills</span>
-            </button>
-            <button class="nav-tab" data-tab="github">
-                <span data-i18n="tab_github">🐙 GitHub 仓库</span>
-            </button>
-            <button class="nav-tab" data-tab="scenarios">
-                <span data-i18n="tab_scenarios">🎯 场景推荐</span>
-            </button>
-            <button class="nav-tab" data-tab="categories">
-                <span data-i18n="tab_categories">📂 分类浏览</span>
-            </button>
-            <button class="nav-tab" data-tab="cart">
-                <span data-i18n="tab_cart">📦 打包清单</span> <span class="count" id="cartCount">0</span>
-            </button>
-            <button class="nav-tab" data-tab="discover">
-                <span data-i18n="tab_discover">🔍 发现新 Skills</span>
-            </button>
-            <button class="nav-tab" data-tab="update">
-                <span data-i18n="tab_update">🔄 自动更新</span>
-            </button>
-            <button class="nav-tab" data-tab="ai">
-                <span data-i18n="tab_ai">🤖 AI 设置</span>
-            </button>
-            <button class="nav-tab" data-tab="releases">
-                <span data-i18n="tab_releases">📅 版本发布</span>
-            </button>
-            <button class="nav-tab" data-tab="import">
-                <span data-i18n="tab_import">👤 导入 Skill</span>
-            </button>
+            <div class="nav-tabs-main">
+                <button class="nav-tab active" data-tab="search">
+                    <span data-i18n="tab_browse">📋 浏览 Skills</span>
+                </button>
+                <button class="nav-tab" data-tab="scenarios">
+                    <span data-i18n="tab_scenarios">🎯 场景推荐</span>
+                </button>
+            </div>
+            <div class="nav-tabs-actions">
+                <button class="nav-action-btn primary" id="cartToggleBtn" onclick="toggleCartSidebar()">
+                    <span>📦</span>
+                    <span data-i18n="cart_btn">清单</span>
+                    <span class="count" id="cartCount">0</span>
+                </button>
+                <div class="manage-wrap">
+                    <button class="nav-action-btn" id="manageToggleBtn" onclick="toggleManageMenu()">
+                        <span>⚙️</span>
+                        <span data-i18n="manage_btn">管理</span>
+                    </button>
+                    <div class="manage-menu" id="manageMenu">
+                        <div class="manage-menu-item" onclick="showManage('discover')">
+                            <span>🔍</span><span data-i18n="tab_discover">发现新 Skills</span>
+                        </div>
+                        <div class="manage-menu-item" onclick="showManage('import')">
+                            <span>👤</span><span data-i18n="tab_import">导入 Skill</span>
+                        </div>
+                        <div class="manage-menu-item" onclick="showManage('update')">
+                            <span>🔄</span><span data-i18n="tab_update">自动更新</span>
+                        </div>
+                        <div class="manage-menu-item" onclick="showManage('releases')">
+                            <span>📅</span><span data-i18n="tab_releases">版本发布</span>
+                        </div>
+                        <div class="manage-menu-item" onclick="showManage('ai')">
+                            <span>🤖</span><span data-i18n="tab_ai">AI 设置</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </nav>
+
+        <!-- 分类筛选条 -->
+        <div class="category-filter-bar" id="categoryFilterBar" style="display:none;"></div>
 
         <main>
             <!-- 本地 Skills 搜索结果 -->
             <section id="searchSection" class="content-section active">
                 <div class="section-header">
                     <div class="section-title">
-                        <h2 data-i18n="sec_local">📋 本地 Skills</h2>
-                        <span class="tag" id="searchTag" data-i18n="tag_local">显示最新 Skills</span>
+                        <h2 data-i18n="sec_local">📋 浏览 Skills</h2>
+                        <span class="tag" id="searchTag">显示最新 Skills</span>
                     </div>
                     <div style="display:flex;gap:8px;align-items:center;">
                         <span style="color:var(--text-muted);font-size:0.85rem;" data-i18n="sort_label">排序：</span>
@@ -1616,7 +1859,7 @@
                 <div class="section-header">
                     <div class="section-title">
                         <h2 data-i18n="sec_github">🐙 GitHub 仓库</h2>
-                        <span class="tag" id="githubTag" data-i18n="tag_github">发现优质开源项目</span>
+                        <span class="tag" id="githubTag">发现优质开源项目</span>
                     </div>
                 </div>
                 <div class="github-grid" id="githubResults">
@@ -1633,7 +1876,7 @@
                 <div class="section-header">
                     <div class="section-title">
                         <h2 data-i18n="sec_scenarios">🎯 场景化推荐</h2>
-                        <span class="tag" id="scenarioTag" data-i18n="tag_scenarios">选择您的使用场景</span>
+                        <span class="tag" id="scenarioTag">选择您的使用场景</span>
                     </div>
                     <button class="btn btn-ghost" id="scenarioBackBtn" onclick="loadScenarios()" style="display:none;" data-i18n="btn_back_scenarios">
                         ← 返回场景列表
@@ -1642,12 +1885,12 @@
                 <div id="scenariosList"></div>
             </section>
 
-            <!-- 分类浏览 -->
+            <!-- 分类浏览（已合并到浏览页，保留 section 用于管理菜单兼容） -->
             <section id="categoriesSection" class="content-section">
                 <div class="section-header">
                     <div class="section-title">
                         <h2 data-i18n="sec_categories">📂 分类浏览</h2>
-                        <span class="tag" id="categoriesTag" data-i18n="tag_categories">按分类查看所有 Skills</span>
+                        <span class="tag" id="categoriesTag">按分类查看所有 Skills</span>
                     </div>
                     <button class="btn btn-ghost" id="categoryBackBtn" onclick="loadCategories()" style="display:none;" data-i18n="btn_back_categories">
                         ← 返回分类列表
@@ -1656,12 +1899,12 @@
                 <div id="categoriesList"></div>
             </section>
 
-            <!-- 打包清单 -->
+            <!-- 打包清单（保留原 section 兼容，购物车主交互改为侧边栏） -->
             <section id="cartSection" class="content-section">
                 <div class="section-header">
                     <div class="section-title">
                         <h2 data-i18n="sec_cart">📦 打包清单</h2>
-                        <span class="tag" id="cartTag" data-i18n="tag_cart">已选择 0 个 Skills</span>
+                        <span class="tag" id="cartTag">已选择 0 个 Skills</span>
                     </div>
                 </div>
                 <div class="cart-actions">
@@ -1677,7 +1920,7 @@
                 <div class="section-header">
                     <div class="section-title">
                         <h2 data-i18n="sec_discover">🔍 发现新 Skills</h2>
-                        <span class="tag" id="discoverTag" data-i18n="tag_discover">从 GitHub 发现优质 Skills</span>
+                        <span class="tag" id="discoverTag">从 GitHub 发现优质 Skills</span>
                     </div>
                 </div>
                 <div class="discover-controls">
@@ -1727,7 +1970,7 @@
                 <div class="section-header">
                     <div class="section-title">
                         <h2 data-i18n="sec_releases">📅 版本发布历史</h2>
-                        <span class="tag" id="releasesTag" data-i18n="tag_releases">追踪 Skills 更新记录</span>
+                        <span class="tag" id="releasesTag">追踪 Skills 更新记录</span>
                     </div>
                 </div>
                 <div id="releasesList"></div>
@@ -1738,7 +1981,7 @@
                 <div class="section-header">
                     <div class="section-title">
                         <h2 data-i18n="sec_import">👤 导入我的 Skill</h2>
-                        <span class="tag" data-i18n="tag_import">创建和管理您的自定义 Skills</span>
+                        <span class="tag" id="importTag">创建和管理您的自定义 Skills</span>
                     </div>
                 </div>
                 <div class="discover-controls">
@@ -1793,7 +2036,7 @@
                 <div class="section-header">
                     <div class="section-title">
                         <h2 data-i18n="sec_update">🔄 自动更新管理</h2>
-                        <span class="tag" data-i18n="tag_update">一键更新索引、发现、扫描</span>
+                        <span class="tag" id="updateTag">一键更新索引、发现、扫描</span>
                     </div>
                 </div>
 
@@ -1873,7 +2116,7 @@
                 <div class="section-header">
                     <div class="section-title">
                         <h2 data-i18n="sec_ai">🤖 AI 设置</h2>
-                        <span class="tag" data-i18n="tag_ai">配置 AI API，启用智能推荐</span>
+                        <span class="tag" id="aiTag">配置 AI API，启用智能推荐</span>
                     </div>
                 </div>
 
@@ -1975,6 +2218,29 @@
         </footer>
     </div>
 
+    <!-- 购物车侧边栏 -->
+    <div class="cart-overlay" id="cartOverlay" onclick="toggleCartSidebar()"></div>
+    <div class="cart-sidebar" id="cartSidebar">
+        <div class="cart-sidebar-header">
+            <h3 id="cartSidebarTitle">📦 打包清单 <span id="cartSidebarCount">(0)</span></h3>
+            <button class="cart-sidebar-close" onclick="toggleCartSidebar()">✕</button>
+        </div>
+        <div class="cart-sidebar-body" id="cartSidebarBody">
+            <div class="cart-empty">
+                <div class="cart-empty-icon">📦</div>
+                <h3 data-i18n="cart_empty_title">清单是空的</h3>
+                <p data-i18n="cart_empty_desc">浏览 Skills 并加入清单，即可打包下载</p>
+            </div>
+        </div>
+        <div class="cart-sidebar-footer">
+            <button class="btn btn-primary" onclick="packageSelectedFromSidebar()" style="width:100%;margin-bottom:10px;" data-i18n="btn_package">📦 打包下载选中项</button>
+            <div style="display:flex;gap:10px;">
+                <button class="btn btn-secondary" onclick="packageAll()" style="flex:1;" data-i18n="btn_package_all">打包全部</button>
+                <button class="btn btn-ghost" onclick="clearCart()" style="flex:1;" data-i18n="btn_clear_cart">清空</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Toast 容器 -->
     <div class="toast-container" id="toastContainer"></div>
 
@@ -1992,6 +2258,7 @@
 
     <script>
         // ========== i18n 多语言支持 ==========
+        console.log('[script] inline script start');
         let currentLang = localStorage.getItem('lang') || 'zh';
 
         const translations = {
@@ -2016,6 +2283,7 @@
                 hint_debug: '🔧 调试',
                 hint_mvp: '💰 MVP',
                 // Nav tabs
+                tab_browse: '📋 浏览 Skills',
                 tab_local: '📋 本地 Skills',
                 tab_github: '🐙 GitHub 仓库',
                 tab_scenarios: '🎯 场景推荐',
@@ -2025,6 +2293,13 @@
                 tab_releases: '📅 版本发布',
                 tab_import: '👤 导入 Skill',
                 tab_update: '🔄 自动更新',
+                source_local: '📋 本地 Skills',
+                source_github: '🐙 GitHub',
+                cat_all: '全部分类',
+                cart_btn: '清单',
+                manage_btn: '管理',
+                cart_sidebar_title: '📦 打包清单',
+                msg_searching_github: '正在搜索 GitHub...',
                 // Auto-Update
                 sec_update: '🔄 自动更新管理',
                 tag_update: '一键更新索引、发现、扫描',
@@ -2091,7 +2366,7 @@
                 import_github_browse: '🔍 浏览',
                 import_github_btn: '🐙 导入',
                 // Section headers
-                sec_local: '📋 本地 Skills',
+                sec_local: '📋 浏览 Skills',
                 sec_github: '🐙 GitHub 仓库',
                 tag_local: '显示最新 Skills',
                 tag_search: '找到 {} 个 Skills',
@@ -2317,6 +2592,7 @@
                 hint_debug: '🔧 Debug',
                 hint_mvp: '💰 MVP',
                 // Nav tabs
+                tab_browse: '📋 Browse Skills',
                 tab_local: '📋 Local Skills',
                 tab_github: '🐙 GitHub Repos',
                 tab_scenarios: '🎯 By Scenario',
@@ -2326,6 +2602,13 @@
                 tab_releases: '📅 Releases',
                 tab_import: '👤 Import Skill',
                 tab_update: '🔄 Auto Update',
+                source_local: '📋 Local Skills',
+                source_github: '🐙 GitHub',
+                cat_all: 'All Categories',
+                cart_btn: 'Cart',
+                manage_btn: 'Manage',
+                cart_sidebar_title: '📦 Package List',
+                msg_searching_github: 'Searching GitHub...',
                 // Auto-Update
                 sec_update: '🔄 Auto Update Manager',
                 tag_update: 'One-click index rebuild, discover, scan',
@@ -2392,7 +2675,7 @@
                 import_github_browse: '🔍 Browse',
                 import_github_btn: '🐙 Import',
                 // Section headers
-                sec_local: '📋 Local Skills',
+                sec_local: '📋 Browse Skills',
                 sec_github: '🐙 GitHub Repos',
                 tag_local: 'Showing latest Skills',
                 tag_search: 'Found {} Skills',
@@ -2609,6 +2892,11 @@
             document.querySelectorAll('[data-i18n]').forEach(el => {
                 const key = el.dataset.i18n;
                 const raw = t(key);
+                // Skip if translation missing (preserve fallback HTML text)
+                if (raw === key) {
+                    console.warn('[i18n] missing translation:', key);
+                    return;
+                }
                 // Preserve inner HTML for keys with tags (e.g., stats_skills)
                 if (raw.includes('<') && (raw.includes('<strong>') || raw.includes('<'))) {
                     el.innerHTML = raw;
@@ -2657,17 +2945,23 @@
             }
             if (view === 'scenarios') loadScenarios();
             if (view === 'categories') loadCategories();
-            if (view === 'cart') renderCart();
             if (view === 'discover') { loadDiscoverStats(); switchDiscoverMode(document.querySelector('.discover-tab.active')?.dataset.mode || 'keyword'); }
             if (view === 'releases') loadReleases();
             if (view === 'update') loadUpdateStatus();
             if (view === 'ai') loadAiConfig();
+            if (view === 'import') loadImportList();
             if (view === 'detail' && currentDetailSkillName) showSkillDetail(currentDetailSkillName);
             // Update nav tab texts
             document.querySelectorAll('.nav-tab').forEach(tab => {
                 const key = tab.dataset.tab;
-                const map = { 'search': 'tab_local', 'github': 'tab_github', 'scenarios': 'tab_scenarios', 'categories': 'tab_categories', 'cart': 'tab_cart', 'discover': 'tab_discover', 'update': 'tab_update', 'ai': 'tab_ai', 'releases': 'tab_releases', 'import': 'tab_import' };
-                if (map[key]) tab.innerHTML = t(map[key]) + (key === 'cart' ? ' <span class="count" id="cartCount">' + cart.length + '</span>' : '');
+                const map = { 'search': 'tab_browse', 'scenarios': 'tab_scenarios' };
+                if (map[key]) tab.innerHTML = t(map[key]);
+            });
+            // Update search source buttons
+            document.querySelectorAll('.search-source').forEach(btn => {
+                const key = `source_${btn.dataset.source}`;
+                btn.innerHTML = t(key);
+                btn.classList.toggle('active', btn.dataset.source === searchSource);
             });
             // Update section headers
             updateSectionHeaders();
@@ -2676,6 +2970,8 @@
             const aiTab = document.querySelector('[data-mode="ai"]');
             if (keywordTab) keywordTab.innerHTML = t('discover_keyword');
             if (aiTab) aiTab.innerHTML = t('discover_ai');
+            // Update manage menu
+            renderCategoryFilterBar();
         }
 
         function updateSectionHeaders() {
@@ -2722,6 +3018,9 @@
         let totalSkillsCount = 0;
         let allLoadedSkills = [];     // 初始加载的全部 skills
         let currentDetailSkillName = null; // 当前详情页显示的 skill
+        let searchSource = 'local';   // 'local' | 'github'
+        let currentCategoryFilter = ''; // 当前分类筛选
+        let categoriesData = [];      // 分类数据缓存
 
         const langColors = {
             'Python': '#3572A5', 'JavaScript': '#f1e05a', 'TypeScript': '#3178c6',
@@ -2732,11 +3031,17 @@
 
         // ========== 初始化 ==========
         async function init() {
+            console.log('[init] start');
             loadCart();
             setupTabs();
+            setupManageMenu();
+            console.log('[init] before applyI18n');
             applyI18n();  // 应用初始语言
+            console.log('[init] after applyI18n, source_local text:', document.querySelector('[data-source="local"]')?.textContent);
             await loadStats();
+            await loadCategoriesData();
             await loadInitialSkills();
+            console.log('[init] done');
         }
 
         function setupTabs() {
@@ -2745,14 +3050,85 @@
                     const section = tab.dataset.tab;
                     showSection(section);
                     if (section === 'scenarios') loadScenarios();
-                    if (section === 'categories') loadCategories();
-                    if (section === 'cart') renderCart();
-                    if (section === 'discover') loadDiscoverStats();
-                    if (section === 'releases') loadReleases();
-                    if (section === 'update') loadUpdateStatus();
-                    if (section === 'ai') loadAiConfig();
                 });
             });
+        }
+
+        function setupManageMenu() {
+            // 点击外部关闭管理菜单
+            document.addEventListener('click', (e) => {
+                const manageMenu = document.getElementById('manageMenu');
+                const manageBtn = document.getElementById('manageToggleBtn');
+                if (manageMenu && manageBtn && !manageMenu.contains(e.target) && !manageBtn.contains(e.target)) {
+                    manageMenu.classList.remove('show');
+                }
+            });
+        }
+
+        // ========== 管理菜单 ==========
+        function toggleManageMenu() {
+            document.getElementById('manageMenu').classList.toggle('show');
+        }
+
+        function showManage(section) {
+            document.getElementById('manageMenu').classList.remove('show');
+            showSection(section);
+            if (section === 'discover') loadDiscoverStats();
+            if (section === 'releases') loadReleases();
+            if (section === 'update') loadUpdateStatus();
+            if (section === 'ai') loadAiConfig();
+            if (section === 'import') loadImportList();
+        }
+
+        // ========== 购物车侧边栏 ==========
+        function toggleCartSidebar() {
+            const overlay = document.getElementById('cartOverlay');
+            const sidebar = document.getElementById('cartSidebar');
+            const isOpen = sidebar.classList.contains('show');
+            if (isOpen) {
+                sidebar.classList.remove('show');
+                overlay.classList.remove('show');
+            } else {
+                renderCartSidebar();
+                sidebar.classList.add('show');
+                overlay.classList.add('show');
+            }
+        }
+
+        function renderCartSidebar() {
+            const body = document.getElementById('cartSidebarBody');
+            const countEl = document.getElementById('cartSidebarCount');
+            const titleEl = document.getElementById('cartSidebarTitle');
+            countEl.textContent = `(${cart.length})`;
+            titleEl.innerHTML = `${t('cart_sidebar_title')} <span id="cartSidebarCount">(${cart.length})</span>`;
+
+            if (cart.length === 0) {
+                body.innerHTML = `
+                    <div class="cart-empty">
+                        <div class="cart-empty-icon">📦</div>
+                        <h3>${t('cart_empty_title')}</h3>
+                        <p>${t('cart_empty_desc')}</p>
+                    </div>`;
+                return;
+            }
+
+            body.innerHTML = cart.map(name => {
+                const s = allSkillsCache[name] || { name, category_emoji: '📦', category_name: '', description: '' };
+                const displayName = (currentLang === 'zh' ? s.name_zh : s.name_en) || s.name;
+                return `
+                <div class="cart-sidebar-item">
+                    <span class="emoji">${s.category_emoji || '📦'}</span>
+                    <div class="info">
+                        <div class="name">${displayName}</div>
+                        <div class="meta">${s.category_name || ''}${s.description ? ' · ' + s.description.substring(0, 40) + (s.description.length > 40 ? '...' : '') : ''}</div>
+                    </div>
+                    <button class="remove" onclick="removeFromCart('${escHtml(s.name)}'); renderCartSidebar();" title="${t('remove')}">🗑️</button>
+                </div>`;
+            }).join('');
+        }
+
+        async function packageSelectedFromSidebar() {
+            await packageSelected();
         }
 
         // ========== 统计加载 ==========
@@ -2761,6 +3137,7 @@
                 const res = await fetch('/api/stats');
                 const data = await res.json();
                 totalSkillsCount = data.total;
+                categoriesData = data.categories || [];
                 const totalSkillsEl = document.getElementById('totalSkills');
                 const totalCategoriesEl = document.getElementById('totalCategories');
                 const footerTotalEl = document.getElementById('footerTotal');
@@ -2772,6 +3149,72 @@
             }
         }
 
+        async function loadCategoriesData() {
+            try {
+                if (categoriesData.length === 0) {
+                    const res = await fetch('/api/stats');
+                    const data = await res.json();
+                    categoriesData = data.categories || [];
+                }
+                renderCategoryFilterBar();
+            } catch (e) {
+                console.error('Failed to load categories:', e);
+            }
+        }
+
+        // ========== 分类筛选条 ==========
+        function renderCategoryFilterBar() {
+            const bar = document.getElementById('categoryFilterBar');
+            if (!bar || categoriesData.length === 0) return;
+
+            const items = [
+                { key: '', emoji: '📦', name: t('cat_all') },
+                ...categoriesData.map(c => ({ key: c.key, emoji: c.emoji, name: c.display_name || c.name }))
+            ];
+
+            bar.style.display = 'flex';
+            bar.innerHTML = items.map(item => `
+                <button class="category-filter ${currentCategoryFilter === item.key ? 'active' : ''}"
+                    data-category="${item.key}"
+                    onclick="setCategoryFilter('${item.key}')">
+                    <span>${item.emoji}</span><span>${item.name}</span>
+                </button>
+            `).join('');
+        }
+
+        async function setCategoryFilter(key) {
+            currentCategoryFilter = key;
+            renderCategoryFilterBar();
+            document.getElementById('searchInput').value = '';
+
+            if (!key) {
+                // 显示全部
+                document.getElementById('searchTag').textContent = t('tag_local_all', allLoadedSkills.length);
+                currentSearchResults = allLoadedSkills;
+                renderSkillsPage(1);
+                return;
+            }
+
+            showGridLoading('searchResults', 6);
+            try {
+                const res = await fetch(`/api/category/${key}`);
+                const data = await res.json();
+                document.getElementById('searchTag').textContent = `${data.name} · ${t('skill_count', data.count)}`;
+                currentSearchResults = data.skills || [];
+                renderSkillsPage(1);
+            } catch (e) {
+                showToast(t('msg_packing_fail', e.message), 'error');
+            }
+        }
+
+        // ========== 搜索来源切换 ==========
+        function setSearchSource(source) {
+            searchSource = source;
+            document.querySelectorAll('.search-source').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.source === source);
+            });
+        }
+
         // ========== 初始加载全部 Skills ==========
         async function loadInitialSkills() {
             showGridLoading('searchResults', 6);
@@ -2781,7 +3224,7 @@
                 allLoadedSkills = data.results || [];
                 // Build cache
                 allLoadedSkills.forEach(s => { allSkillsCache[s.name] = s; });
-                document.getElementById('searchTag').textContent = `全部 ${data.total} 个 Skills`;
+                document.getElementById('searchTag').textContent = t('tag_local_all', data.total);
                 currentSearchResults = allLoadedSkills;
                 renderSkillsPage(1);
             } catch (e) {
@@ -2805,6 +3248,20 @@
             // Hide nav highlight for detail page
             if (section === 'detail') {
                 document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+            }
+            // Update section tags
+            const tagMap = {
+                'github': 'tag_github',
+                'discover': 'tag_discover',
+                'releases': 'tag_releases',
+                'import': 'tag_import',
+                'update': 'tag_update',
+                'ai': 'tag_ai'
+            };
+            const tagId = `${section}Tag`;
+            const tagEl = document.getElementById(tagId);
+            if (tagEl && tagMap[section]) {
+                tagEl.textContent = t(tagMap[section]);
             }
         }
 
@@ -2843,6 +3300,8 @@
             const query = document.getElementById('searchInput').value.trim();
             if (!query) {
                 // Reset to all skills
+                currentCategoryFilter = '';
+                renderCategoryFilterBar();
                 document.getElementById('searchTag').textContent = t('tag_local_all', allLoadedSkills.length);
                 document.getElementById('aiRecommendation').innerHTML = '';
                 currentSearchResults = allLoadedSkills;
@@ -2854,6 +3313,10 @@
             showGridLoading('searchResults', 6);
             document.getElementById('searchTag').textContent = t('tag_searching', query);
             document.getElementById('searchPagination').innerHTML = '';
+
+            if (searchSource === 'github') {
+                return searchGithub(query);
+            }
 
             try {
                 const [res, aiRes] = await Promise.all([
@@ -2876,34 +3339,20 @@
             }
         }
 
-        async function searchAll() {
-            const query = document.getElementById('searchInput').value.trim();
-            if (!query) { showToast(t('msg_search_empty'), 'warning'); return; }
-
+        async function searchGithub(query) {
             showGridLoading('searchResults', 4);
-            showToast(t('msg_searching'), 'info');
+            showToast(t('msg_searching_github'), 'info');
 
             try {
-                const res = await fetch(`/api/search/all?q=${encodeURIComponent(query)}`);
+                const res = await fetch(`/api/search/github?q=${encodeURIComponent(query)}`);
                 const data = await res.json();
                 if (data.error) { showToast(data.message || t('msg_packing_fail', ''), 'error'); return; }
 
-                showAIRecommendation(data.recommendation);
-
-                const localCount = data.local?.count || 0;
-                const githubCount = data.github?.count || 0;
-                document.getElementById('searchTag').textContent = t('tag_local_all', localCount);
-
-                currentSearchResults = data.local?.results || [];
-                renderSkillsPage(1);
-
-                if (data.github?.repos?.length > 0) {
-                    renderGithubResults(data.github.repos);
-                    document.getElementById('githubTag').textContent = t('tag_github_result', githubCount);
-                    showSection('github');
-                } else {
-                    showSection('search');
-                }
+                document.getElementById('searchTag').textContent = t('tag_github_result', data.count);
+                document.getElementById('aiRecommendation').innerHTML = '';
+                currentSearchResults = [];
+                renderGithubResults(data.repos || []);
+                showSection('search');
             } catch (e) {
                 showToast(t('msg_packing_fail', e.message), 'error');
             }
@@ -3023,14 +3472,15 @@
 
         // ========== 渲染 GitHub 结果 ==========
         function renderGithubResults(repos) {
-            const container = document.getElementById('githubResults');
+            const container = document.getElementById('searchResults');
+            document.getElementById('searchPagination').innerHTML = '';
             if (!repos || repos.length === 0) {
                 container.innerHTML = '';
-                renderEmpty('githubResults', t('empty_no_data'), t('github_desc'));
+                renderEmpty('searchResults', t('empty_no_data'), t('github_desc'));
                 return;
             }
 
-            container.innerHTML = repos.map(repo => {
+            container.innerHTML = `<div class="github-grid">${repos.map(repo => {
                 const lang = repo.language || '';
                 const langColor = langColors[lang] || '#8b949e';
                 return `
@@ -3046,7 +3496,7 @@
                             ${repo.updated ? `<span>${t('updated_at')}${formatDate(repo.updated)}</span>` : ''}
                         </div>
                     </div>`;
-            }).join('');
+            }).join('')}</div>`;
         }
 
         // ========== 详情页 (SkillStore 风格) ==========
@@ -3259,25 +3709,9 @@
         }
 
         async function loadCategory(key, name) {
-            document.getElementById('categoryBackBtn').style.display = 'inline-flex';
-            document.getElementById('categoriesTag').textContent = t('msg_loading', name);
-            const container = document.getElementById('categoriesList');
-            container.innerHTML = `<div class="skills-grid">${getSkeletonCards(4)}</div>`;
-
-            try {
-                const res = await fetch(`/api/category/${key}`);
-                const data = await res.json();
-                document.getElementById('categoriesTag').textContent = `${name} · ${t('skill_count', data.count)}`;
-
-                if (!data.skills || data.skills.length === 0) {
-                    container.innerHTML = '';
-                    renderEmpty('categoriesList', t('empty_no_skills'), t('category_no_skills', name));
-                    return;
-                }
-                container.innerHTML = `<div class="skills-grid">${renderSkillsHTML(data.skills)}</div>`;
-            } catch (e) {
-                showToast(t('msg_packing_fail', e.message), 'error');
-            }
+            // 重构后：分类点击切换到浏览页并过滤
+            setCategoryFilter(key);
+            showSection('search');
         }
 
         // ========== 渲染 Skills HTML（不依赖 container）==========
@@ -3343,7 +3777,6 @@
         function removeFromCart(name) {
             cart = cart.filter(n => n !== name);
             updateCart();
-            if (currentView === 'cart') renderCart();
             showToast(t('msg_removed', name), 'info');
             updateAllCartButtons();
         }
@@ -3366,11 +3799,17 @@
             if (currentDetailSkillName) {
                 updateDetailBtn(currentDetailSkillName, cart.includes(currentDetailSkillName));
             }
+            // Sync sidebar if open
+            const sidebar = document.getElementById('cartSidebar');
+            if (sidebar && sidebar.classList.contains('show')) {
+                renderCartSidebar();
+            }
         }
 
         function updateCart() {
             document.getElementById('cartCount').textContent = cart.length;
-            document.getElementById('cartTag').textContent = t('tag_cart', cart.length);
+            const cartTag = document.getElementById('cartTag');
+            if (cartTag) cartTag.textContent = t('tag_cart', cart.length);
             localStorage.setItem('cart', JSON.stringify(cart));
         }
 
@@ -3385,7 +3824,7 @@
             if (cart.length === 0) return;
             cart = [];
             updateCart();
-            renderCart();
+            updateAllCartButtons();
             showToast(t('msg_cleared'), 'info');
         }
 
@@ -4232,6 +4671,10 @@
         }
 
         // ========== 用户导入功能 ==========
+        function loadImportList() {
+            switchImportMode('list');
+        }
+
         function switchImportMode(mode) {
             document.querySelectorAll('#importSection .discover-tab').forEach(t => t.classList.remove('active'));
             document.querySelector(`#importSection [data-mode="${mode}"]`).classList.add('active');
@@ -4427,7 +4870,11 @@
         }
 
         // ========== 启动 ==========
-        init();
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', init);
+        } else {
+            init();
+        }
     </script>
 </body>
 </html>
