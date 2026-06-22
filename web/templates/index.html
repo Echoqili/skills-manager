@@ -1821,7 +1821,7 @@
                     </div>
                     <div class="stat-card">
                         <div class="stat-label" data-i18n="stat_total_skills">Skills 总数</div>
-                        <div class="stat-value" id="totalSkills">-</div>
+                        <div class="stat-value" id="updateTotalSkills">-</div>
                     </div>
                 </div>
 
@@ -1977,6 +1977,18 @@
 
     <!-- Toast 容器 -->
     <div class="toast-container" id="toastContainer"></div>
+
+    <!-- 自定义确认对话框 -->
+    <div class="confirm-overlay" id="confirmOverlay">
+        <div class="confirm-dialog">
+            <div class="confirm-title" id="confirmTitle" data-i18n="confirm_title">确认操作</div>
+            <div class="confirm-message" id="confirmMessage">确定要执行此操作吗？</div>
+            <div class="confirm-actions">
+                <button class="btn btn-secondary" id="confirmCancel" data-i18n="btn_cancel">取消</button>
+                <button class="btn btn-danger" id="confirmOk" data-i18n="btn_confirm">确认</button>
+            </div>
+        </div>
+    </div>
 
     <script>
         // ========== i18n 多语言支持 ==========
@@ -3489,7 +3501,7 @@
                 document.getElementById('lastSecurityScan').textContent = formatTime(data.last_security_scan);
                 document.getElementById('lastSecurityScan').className = 'stat-value' + (data.last_security_scan ? '' : ' never');
                 document.getElementById('totalUpdates').textContent = data.total_updates || 0;
-                document.getElementById('totalSkills').textContent = data.total_skills || '-';
+                document.getElementById('updateTotalSkills').textContent = data.total_skills || '-';
 
                 // Load history
                 const updateStatusFile = await fetch('/api/auto-update/status');
@@ -4395,17 +4407,5 @@
         // ========== 启动 ==========
         init();
     </script>
-
-    <!-- 自定义确认对话框 -->
-    <div class="confirm-overlay" id="confirmOverlay">
-        <div class="confirm-dialog">
-            <div class="confirm-title" id="confirmTitle" data-i18n="confirm_title">确认操作</div>
-            <div class="confirm-message" id="confirmMessage">确定要执行此操作吗？</div>
-            <div class="confirm-actions">
-                <button class="btn btn-secondary" id="confirmCancel" data-i18n="btn_cancel">取消</button>
-                <button class="btn btn-danger" id="confirmOk" data-i18n="btn_confirm">确认</button>
-            </div>
-        </div>
-    </div>
 </body>
 </html>
