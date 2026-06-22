@@ -2581,7 +2581,7 @@
                 msg_input_requirement: 'Please describe the Skills you need',
                 msg_click_approve: 'Click "{}" to approve, or "{}" to reject',
                 // Footer
-                footer: 'Skills Manager | {} Skills | 16+ categories | GitHub',
+                footer: 'Skills Manager | <span id="footerTotal">{}</span> Skills | 16+ categories | GitHub',
                 // Discover AI descriptions
                 desc_pm_basics: 'PRD, User Stories, Requirements',
                 desc_pm_advanced: 'Strategy, Metrics, Monetization',
@@ -2956,9 +2956,10 @@
             container.innerHTML = skills.map((skill, i) => {
                 const inCart = cart.includes(skill.name);
                 const displayName = (currentLang === 'zh' ? skill.name_zh : skill.name_en) || skill.name;
-                const downloads = skill.downloads || Math.floor(Math.random() * 5000) + 100;
-                const rating = skill.rating || (Math.random() * 1.5 + 3.5).toFixed(1);
-                const ratingCount = skill.rating_count || Math.floor(Math.random() * 200) + 20;
+                const downloads = skill.downloads;
+                const rating = skill.rating;
+                const ratingCount = skill.rating_count;
+                const hasStats = downloads || rating || ratingCount;
                 return `
                 <div class="skill-card">
                     <div class="skill-card-header">
@@ -2969,26 +2970,27 @@
                         </div>
                     </div>
                     <p class="skill-desc">${(currentLang === 'zh' ? skill.description_zh : skill.description_en) || skill.description || t('detail_no_desc')}</p>
-                    <div class="skill-stats">
+                    ${hasStats ? `<div class="skill-stats">
                         <span class="skill-stat">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
                             </svg>
-                            ${formatDownloads(downloads)}
+                            ${downloads ? formatDownloads(downloads) : '—'}
                         </span>
                         <span class="skill-stat">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
                             </svg>
-                            ${rating} (${ratingCount})
+                            ${rating ? rating + ' (' + (ratingCount || 0) + ')' : '—'}
                         </span>
-                    </div>
+                    </div>` : ''}
                     <div class="skill-actions">
                         <button class="skill-action secondary" onclick="showSkillDetail('${escHtml(skill.name)}')">
                             ${t('view_detail')}
                         </button>
                         <button class="skill-action ${inCart ? 'danger' : 'primary'}"
                             id="cart-btn-${escHtml(skill.name).replace(/[^a-z0-9]/gi, '_')}"
+                            data-skill-name="${escHtml(skill.name)}"
                             onclick="${inCart ? `removeFromCart('${escHtml(skill.name)}')` : `addToCart('${escHtml(skill.name)}')`}">
                             ${inCart ? t('added') : t('add_to_cart')}
                         </button>
@@ -3079,10 +3081,11 @@
 
                 const inCart = cart.includes(skill.name);
                 const displayName = (currentLang === 'zh' ? skill.name_zh : skill.name_en) || skill.name;
-                const downloads = skill.downloads || Math.floor(Math.random() * 5000) + 100;
-                const rating = skill.rating || (Math.random() * 1.5 + 3.5).toFixed(1);
-                const ratingCount = skill.rating_count || Math.floor(Math.random() * 200) + 20;
-                
+                const downloads = skill.downloads;
+                const rating = skill.rating;
+                const ratingCount = skill.rating_count;
+                const hasStats = downloads || rating || ratingCount;
+
                 const installCmd = `npx skillstore add ${skill.name}`;
 
                 document.getElementById('skillDetail').innerHTML = `
@@ -3098,20 +3101,20 @@
                                 </div>
                             </div>
                         </div>
-                        <div class="detail-stats-row">
-                            <div class="detail-stat">
+                        ${hasStats ? `<div class="detail-stats-row">
+                            ${downloads ? `<div class="detail-stat">
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                     <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
                                 </svg>
                                 <span>${formatDownloads(downloads)} ${t('detail_downloads')}</span>
-                            </div>
-                            <div class="detail-stat">
+                            </div>` : ''}
+                            ${rating ? `<div class="detail-stat">
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                     <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
                                 </svg>
-                                <span>${rating} (${ratingCount})</span>
-                            </div>
-                        </div>
+                                <span>${rating} (${ratingCount || 0})</span>
+                            </div>` : ''}
+                        </div>` : ''}
                         <p class="detail-desc">${(currentLang === 'zh' ? skill.description_zh : skill.description_en) || skill.description || t('detail_no_desc')}</p>
                         <div class="detail-install">
                             <h4>${t('detail_install_cmd')}</h4>
@@ -3282,9 +3285,11 @@
             return skills.map(skill => {
                 const inCart = cart.includes(skill.name);
                 const displayName = (currentLang === 'zh' ? skill.name_zh : skill.name_en) || skill.name;
-                const downloads = skill.downloads || Math.floor(Math.random() * 5000) + 100;
-                const rating = skill.rating || (Math.random() * 1.5 + 3.5).toFixed(1);
-                const ratingCount = skill.rating_count || Math.floor(Math.random() * 200) + 20;
+                const downloads = skill.downloads;
+                const rating = skill.rating;
+                const ratingCount = skill.rating_count;
+                const hasStats = downloads || rating || ratingCount;
+                const safeName = escHtml(skill.name).replace(/[^a-z0-9]/gi, '_');
                 return `
                 <div class="skill-card">
                     <div class="skill-card-header">
@@ -3295,23 +3300,25 @@
                         </div>
                     </div>
                     <p class="skill-desc">${(currentLang === 'zh' ? skill.description_zh : skill.description_en) || skill.description || t('detail_no_desc')}</p>
-                    <div class="skill-stats">
+                    ${hasStats ? `<div class="skill-stats">
                         <span class="skill-stat">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
                             </svg>
-                            ${formatDownloads(downloads)}
+                            ${downloads ? formatDownloads(downloads) : '—'}
                         </span>
                         <span class="skill-stat">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
                             </svg>
-                            ${rating} (${ratingCount})
+                            ${rating ? rating + ' (' + (ratingCount || 0) + ')' : '—'}
                         </span>
-                    </div>
+                    </div>` : ''}
                     <div class="skill-actions">
                         <button class="skill-action secondary" onclick="showSkillDetail('${escHtml(skill.name)}')">${t('view_detail')}</button>
                         <button class="skill-action ${inCart ? 'danger' : 'primary'}"
+                            id="cart-btn-${safeName}"
+                            data-skill-name="${escHtml(skill.name)}"
                             onclick="${inCart ? `removeFromCart('${escHtml(skill.name)}')` : `addToCart('${escHtml(skill.name)}')`}">
                             ${inCart ? t('added') : t('add_to_cart')}
                         </button>
@@ -3344,6 +3351,21 @@
         function updateAllCartButtons() {
             // Refresh cart count badge
             document.getElementById('cartCount').textContent = cart.length;
+            // Sync every skill card cart button in the current view
+            document.querySelectorAll('[data-skill-name]').forEach(btn => {
+                const name = btn.dataset.skillName;
+                const inCart = cart.includes(name);
+                const safeName = name.replace(/[^a-z0-9]/gi, '_');
+                // Reconcile id if missing (renderSkillsHTML already adds it, but guard anyway)
+                if (!btn.id) btn.id = `cart-btn-${safeName}`;
+                btn.className = `skill-action ${inCart ? 'danger' : 'primary'}`;
+                btn.onclick = () => inCart ? removeFromCart(name) : addToCart(name);
+                btn.textContent = inCart ? t('added') : t('add_to_cart');
+            });
+            // Sync detail page button if visible
+            if (currentDetailSkillName) {
+                updateDetailBtn(currentDetailSkillName, cart.includes(currentDetailSkillName));
+            }
         }
 
         function updateCart() {
