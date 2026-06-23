@@ -24,6 +24,12 @@ try:
 except ImportError:
     HAS_DISCOVERER = False
 
+sys.path.insert(0, str(Path(__file__).parent))
+import db as skills_db  # SQLite 索引层
+
+# 启动时建表 + 全量重建
+skills_db.init_db()
+
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024
 
@@ -159,9 +165,9 @@ def get_ai_recommendation(query: str, local_results: list):
                     parsed = json.loads(json_match.group())
                     if "recommendation" in parsed:
                         return {
-                            "recommendation": f"🤖 {parsed['recommendation']}",
+                            "recommendation": f"⚙️ {parsed['recommendation']}",
                             "category": parsed.get("category", ""),
-                            "emoji": parsed.get("emoji", "🤖"),
+                            "emoji": parsed.get("emoji", "⚙️"),
                             "suggestions": parsed.get("suggestions", []),
                             "source": "ai",
                         }
@@ -179,7 +185,7 @@ def get_ai_recommendation(query: str, local_results: list):
         "api": {"name": "API 设计", "emoji": "🌐", "skills": ["api-generator", "rest-api-design"], "reason": "您似乎在关注 API 设计与开发"},
         "ddd": {"name": "领域驱动设计", "emoji": "🏗️", "skills": ["ddd-skills", "hexagonal-architecture"], "reason": "您似乎在关注 DDD 架构设计"},
         "安全": {"name": "AI 安全", "emoji": "🚨", "skills": ["prompt-injection-defense", "jailbreak-detection", "hallucination-detection"], "reason": "您似乎在关注 AI 安全问题"},
-        "ai": {"name": "AI 产品开发", "emoji": "🤖", "skills": ["ai-product", "prompt-injection-defense", "hallucination-detection"], "reason": "您似乎在开发 AI 相关产品"},
+        "ai": {"name": "AI 产品开发", "emoji": "⚙️", "skills": ["ai-product", "prompt-injection-defense", "hallucination-detection"], "reason": "您似乎在开发 AI 相关产品"},
         "tdd": {"name": "测试驱动开发", "emoji": "⚡", "skills": ["tdd-workflow", "test-driven-development"], "reason": "您似乎在实践 TDD 开发流程"},
         "mvp": {"name": "快速 MVP 开发", "emoji": "💰", "skills": ["validate-idea", "mvp"], "reason": "您似乎在准备独立开发或创业"},
         "求是": {"name": "求是方法论", "emoji": "🎯", "skills": ["实事求是", "矛盾分析法", "调查研究"], "reason": "您似乎在关注求是方法论"},
@@ -190,11 +196,11 @@ def get_ai_recommendation(query: str, local_results: list):
     matched = [rec for key, rec in recommendations.items() if key in query_lower]
     if matched:
         best_match = matched[0]
-        return {"recommendation": f"🤖 {best_match['reason']}", "category": best_match["name"], "emoji": best_match["emoji"], "suggestions": best_match["skills"], "source": "rule"}
+        return {"recommendation": f"⚙️ {best_match['reason']}", "category": best_match["name"], "emoji": best_match["emoji"], "suggestions": best_match["skills"], "source": "rule"}
     if local_results:
         top_result = local_results[0]
-        return {"recommendation": f"🤖 根据您的搜索 '{query}'，我们推荐 {top_result.get('category_name', '相关')} 类别的 Skills", "suggestions": [s["name"] for s in local_results[:5]], "source": "rule"}
-    return {"recommendation": "🤖 未能理解您的需求。请尝试：Sprint规划、测试策略、API设计、AI安全等关键词", "suggestions": ["sprint-planning", "test-strategy"], "source": "rule"}
+        return {"recommendation": f"⚙️ 根据您的搜索 '{query}'，我们推荐 {top_result.get('category_name', '相关')} 类别的 Skills", "suggestions": [s["name"] for s in local_results[:5]], "source": "rule"}
+    return {"recommendation": "⚙️ 未能理解您的需求。请尝试：Sprint规划、测试策略、API设计、AI安全等关键词", "suggestions": ["sprint-planning", "test-strategy"], "source": "rule"}
 
 
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "")
@@ -215,12 +221,14 @@ CATEGORIES_EMOJI = {
     "dev-quality": "🟣",
     "qa-testing": "🔴",
     "api-design": "⚪",
-    "ai-product": "🩵",
+    "ai-product": "⚙️",
     "ai-safety": "🚨",
     "superpowers": "⚡",
     "dev-workflow": "🔧",
     "design": "🎨",
     "skill-authoring": "🛠️",
+    "skill-creation": "🛠️",
+    "github-projects": "🔗",
     "indie-hacker": "💰",
     "qiushi": "🎯",
     "qa": "🧪",
@@ -246,6 +254,8 @@ CATEGORIES_NAME = {
     "dev-workflow": "开发工作流",
     "design": "设计系统",
     "skill-authoring": "Skill开发",
+    "skill-creation": "Skill开发",
+    "github-projects": "GitHub项目",
     "indie-hacker": "独立开发者",
     "qiushi": "求是方法论",
     "qa": "QA测试",
@@ -268,7 +278,7 @@ SCENARIOS = {
     "dev_quality": {"name": "开发质量", "emoji": "💎"},
     "tdd_workflow": {"name": "TDD测试驱动", "emoji": "⚡"},
     "indie_hacker": {"name": "独立开发者创业", "emoji": "💰"},
-    "ai_product": {"name": "AI产品开发", "emoji": "🤖"},
+    "ai_product": {"name": "AI产品开发", "emoji": "⚙️"},
     "design_system": {"name": "设计系统", "emoji": "🎨"},
     "skill_creation": {"name": "Skill开发", "emoji": "🛠️"},
     "qiushi_thinking": {"name": "求是方法论", "emoji": "🎯"}
@@ -347,81 +357,21 @@ def enrich_skill(skill: dict) -> dict:
 
 
 def build_skills_cache():
-    """构建 skills 缓存，支持新的 sources 结构"""
-    if not INDEX_PATH.exists():
-        return [], {}, {}
-
-    try:
-        data = json.loads(INDEX_PATH.read_text(encoding='utf-8'))
-    except Exception:
-        return [], {}, {}
-
-    # 支持新的 sources 结构
-    raw_skills = data.get("skills", [])
-    if not raw_skills:
-        # 从 sources 字典中合并
-        sources = data.get("sources", {})
-        for source_name, src_list in sources.items():
-            if source_name == "pending":
-                continue
-            raw_skills.extend(src_list)
-
-    # 为每个 skill 添加 category 等字段
-    skills = [enrich_skill(s) for s in raw_skills]
-
-    by_category = {}
-    by_name = {}
-    for s in skills:
-        cat = s.get("category", "other")
-        by_category.setdefault(cat, []).append(s)
+    """从 SQLite 读取 skills，返回 (all_skills, by_category, by_name)"""
+    all_skills = skills_db.list_all()
+    by_category: Dict[str, list] = {}
+    by_name: Dict[str, dict] = {}
+    for s in all_skills:
+        by_category.setdefault(s["category"], []).append(s)
         by_name[s["name"].lower()] = s
-
-    return skills, by_category, by_name
+    return all_skills, by_category, by_name
 
 
 def search_skills(query, top_k=20):
+    """走 DB 搜索"""
     if not query:
         return []
-    all_skills, _, _ = build_skills_cache()
-    query_lower = query.lower()
-    is_chinese = bool(re.search(r'[\u4e00-\u9fff]', query))
-    results = []
-    for skill in all_skills:
-        score = 0
-        name_lower = skill["name"].lower()
-        desc_lower = skill.get("description", "").lower()
-        cat_name = skill.get("category_name", "").lower()
-
-        if is_chinese:
-            # Chinese query: match against translated name/desc
-            if query_lower in name_lower or query_lower in desc_lower:
-                score = 50
-            elif query_lower in cat_name:
-                score = 30
-            elif any(c in name_lower for c in query_lower):
-                score = 20
-                match_count = sum(1 for c in query_lower if c in name_lower)
-                if match_count >= 2:
-                    score += 10
-        else:
-            query_words = re.findall(r'[\w]+', query_lower)
-            for word in query_words:
-                if word == name_lower:
-                    score += 60
-                elif name_lower.startswith(word):
-                    score += 40
-                elif word in name_lower:
-                    score += 30
-                if word in desc_lower:
-                    score += 15
-                if word in cat_name:
-                    score += 10
-
-        if score > 0:
-            results.append((score, skill))
-
-    results.sort(key=lambda x: -x[0])
-    return [s for _, s in results[:top_k]]
+    return skills_db.search(query, top_k)
 
 
 def search_github_repos(query: str, per_page: int = 10):
@@ -938,6 +888,8 @@ source: user-imports
 {content}
 """
         skill_file.write_text(skill_content, encoding='utf-8')
+        # 双写：DB 入库
+        skills_db.upsert_skill(skill_file, source="user-imports")
         return jsonify({
             "success": True,
             "message": f"Skill '{skill_name}' imported successfully",
@@ -1074,6 +1026,8 @@ def api_import_from_github():
 
         skill_dir.mkdir(parents=True, exist_ok=True)
         skill_file.write_text(content, encoding='utf-8')
+        # 双写：DB 入库
+        skills_db.upsert_skill(skill_file, source="user-imports")
 
         return jsonify({
             "success": True,
@@ -1211,6 +1165,8 @@ def api_delete_user_skill():
     try:
         import shutil
         shutil.rmtree(skill_dir)
+        # 双写：DB 删除
+        skills_db.delete_skill(skill_name)
         return jsonify({
             "success": True,
             "message": f"Skill '{skill_name}' deleted"
@@ -1502,6 +1458,21 @@ def api_index_rebuild():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+@app.route('/api/admin/rebuild', methods=['POST'])
+def api_admin_rebuild():
+    """手动触发 SQLite 索引重建"""
+    try:
+        skills_db.rebuild_all()
+        return jsonify({
+            "success": True,
+            "message": "Skills DB rebuilt",
+            "total": skills_db.count_all(),
+            "db_path": str(skills_db.DB_PATH),
+        })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 if __name__ == '__main__':
     import os as _os
     debug_mode = _os.environ.get("FLASK_DEBUG", "0").lower() in ("1", "true", "yes")
@@ -1510,7 +1481,7 @@ if __name__ == '__main__':
     print("=" * 60)
     print("Skills Manager Web - 可视化 Skills 导航")
     print("=" * 60)
-    print(f"\nSkills 索引: {INDEX_PATH}")
+    print(f"\nSkills 索引 DB: {skills_db.DB_PATH}")
     print(f"访问地址: http://127.0.0.1:5555")
     print(f"Debug 模式: {'开启' if debug_mode else '关闭'}")
     print("\n按 Ctrl+C 停止服务器\n")

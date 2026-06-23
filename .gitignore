@@ -51,3 +51,14 @@ Thumbs.db
 # Environment / Secrets
 .env
 data/ai-config.json
+
+# SQLite 索引（启动时自动重建）
+data/skills.db
+data/skills.db-wal
+data/skills.db-shm
+
+# 用户导入（运行时生成）
+data/user-imports/
+
+# 打包输出
+packages/
