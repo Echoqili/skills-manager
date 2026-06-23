@@ -1810,19 +1810,19 @@
                     </button>
                     <div class="manage-menu" id="manageMenu">
                         <div class="manage-menu-item" onclick="showManage('discover')">
-                            <span>🔍</span><span data-i18n="tab_discover">发现新 Skills</span>
+                            <span data-i18n="tab_discover">🔍 发现新 Skills</span>
                         </div>
                         <div class="manage-menu-item" onclick="showManage('import')">
-                            <span>👤</span><span data-i18n="tab_import">导入 Skill</span>
+                            <span data-i18n="tab_import">👤 导入 Skill</span>
                         </div>
                         <div class="manage-menu-item" onclick="showManage('update')">
-                            <span>🔄</span><span data-i18n="tab_update">自动更新</span>
+                            <span data-i18n="tab_update">🔄 自动更新</span>
                         </div>
                         <div class="manage-menu-item" onclick="showManage('releases')">
-                            <span>📅</span><span data-i18n="tab_releases">版本发布</span>
+                            <span data-i18n="tab_releases">📅 版本发布</span>
                         </div>
                         <div class="manage-menu-item" onclick="showManage('ai')">
-                            <span>🤖</span><span data-i18n="tab_ai">AI 设置</span>
+                            <span data-i18n="tab_ai">🤖 AI 设置</span>
                         </div>
                     </div>
                 </div>
@@ -3810,6 +3810,11 @@
             document.getElementById('cartCount').textContent = cart.length;
             const cartTag = document.getElementById('cartTag');
             if (cartTag) cartTag.textContent = t('tag_cart', cart.length);
+            // 同步侧边栏标题和数量，避免关闭状态下显示旧数据
+            const countEl = document.getElementById('cartSidebarCount');
+            const titleText = document.getElementById('cartSidebarTitleText');
+            if (countEl) countEl.textContent = `(${cart.length})`;
+            if (titleText) titleText.textContent = t('cart_sidebar_title');
             localStorage.setItem('cart', JSON.stringify(cart));
         }
 
