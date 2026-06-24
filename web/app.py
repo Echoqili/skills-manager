@@ -1533,7 +1533,7 @@ def api_ai_providers():
     return jsonify(providers)
 
 def _run_update_pipeline(task_id, data):
-    """在后台线程运行自动更新流水线"""
+    """在后台线程运行自动更新流水线（直接调用 Python 类，避免子进程输出丢失）"""
     try:
         sys.path.insert(0, str(CLI_DIR))
         from auto_update import UpdatePipeline
