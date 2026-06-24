@@ -76,9 +76,15 @@ class UpdatePipeline:
             if args:
                 cmd.extend(args)
 
+            # 设置 UTF-8 编码环境，避免子进程 print 中文/emoji 时编码错误
+            env = os.environ.copy()
+            env["PYTHONIOENCODING"] = "utf-8"
+            env["LC_ALL"] = "C.UTF-8"
+            env["LANG"] = "C.UTF-8"
+
             # 使用临时文件保存子进程输出，避免后台线程中 pipe 被关闭导致输出丢失
-            with tempfile.NamedTemporaryFile(mode='w+', delete=False, suffix='.out') as out_f, \
-                 tempfile.NamedTemporaryFile(mode='w+', delete=False, suffix='.err') as err_f:
+            with tempfile.NamedTemporaryFile(mode='w+', delete=False, suffix='.out', encoding='utf-8') as out_f, \
+                 tempfile.NamedTemporaryFile(mode='w+', delete=False, suffix='.err', encoding='utf-8') as err_f:
                 out_path = out_f.name
                 err_path = err_f.name
                 result = subprocess.run(
@@ -88,6 +94,7 @@ class UpdatePipeline:
                     stderr=err_f,
                     text=True,
                     timeout=600,
+                    env=env,
                 )
 
             stdout_text = Path(out_path).read_text(encoding='utf-8') if out_path else ""
