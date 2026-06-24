@@ -561,7 +561,7 @@ def api_categories():
 
 @app.route('/api/skills/all')
 def api_skills_all():
-    """返回所有技能列表（分页）"""
+    """返回所有技能列表（分页，不包含正文内容以减小体积）"""
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 20, type=int)
     all_skills, _, _ = build_skills_cache()
@@ -572,8 +572,18 @@ def api_skills_all():
         "total": total,
         "page": page,
         "per_page": per_page,
-        "results": all_skills[start:end]
+        "results": _strip_content(all_skills[start:end])
     })
+
+
+def _strip_content(skills):
+    """移除 skill 列表中的正文内容，减小 API 响应体积"""
+    out = []
+    for s in skills:
+        s = dict(s)
+        s.pop("content", None)
+        out.append(s)
+    return out
 
 
 @app.route('/api/search')
@@ -581,7 +591,7 @@ def api_search():
     query = request.args.get('q', '')
     top_k = request.args.get('top_k', 20, type=int)
     results = search_skills(query, top_k)
-    return jsonify({"query": query, "count": len(results), "results": results})
+    return jsonify({"query": query, "count": len(results), "results": _strip_content(results)})
 
 
 @app.route('/api/debug/github')
@@ -681,7 +691,7 @@ def api_category(cat_key):
         "name": CATEGORIES_NAME.get(cat_key, cat_key.title()),
         "emoji": CATEGORIES_EMOJI.get(cat_key, '📦'),
         "count": len(skills),
-        "skills": skills
+        "skills": _strip_content(skills)
     })
 
 
@@ -706,7 +716,7 @@ def api_scenario(scenario_key):
         "name": scenario.get("name", scenario_key),
         "emoji": scenario.get("emoji", "📦"),
         "count": len(matched),
-        "skills": matched[:20]
+        "skills": _strip_content(matched[:20])
     })
 
 
