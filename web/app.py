@@ -486,7 +486,8 @@ def search_skills(query, top_k=20):
 
 def search_github_repos(query: str, per_page: int = 10):
     url = "https://api.github.com/search/repositories"
-    params = {"q": query, "per_page": per_page, "sort": "stars", "order": "desc"}
+    # 默认按 GitHub 相关度排序，比按 stars 排序更能命中目标仓库
+    params = {"q": query, "per_page": per_page}
     try:
         resp = requests.get(url, headers=GITHUB_HEADERS, params=params, timeout=30)
         if resp.status_code == 200:
@@ -631,7 +632,8 @@ def api_search_github():
     per_page = request.args.get('per_page', 10, type=int)
     if not query:
         return jsonify({"error": "Query is required"}), 400
-    enhanced_query = f"{query} skills in:name,description,readme"
+    # GitHub API 使用 in: 语法；site:github.com 会被忽略并返回大量不相关高星仓库
+    enhanced_query = f"{query} in:name,description,readme"
     repos = search_github_repos(enhanced_query, per_page)
     if isinstance(repos, dict) and "error" in repos:
         return jsonify(repos), 429 if repos["error"] == "rate_limited" else 400
@@ -673,7 +675,8 @@ def api_search_all():
         return jsonify({"error": "Query is required"}), 400
     local_results = search_skills(query)
     recommendation = get_ai_recommendation(query, local_results)
-    enhanced_query = f"{query} skills in:name,description,readme"
+    # GitHub API 使用 in: 语法；site:github.com 会被忽略并返回大量不相关高星仓库
+    enhanced_query = f"{query} in:name,description,readme"
     github_repos = search_github_repos(enhanced_query, 5)
     github_data = [
         {
