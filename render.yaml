@@ -10,3 +10,9 @@ services:
         value: 3.11.0
       - key: FLASK_ENV
         value: production
+      - key: ZHIPU_API_URL
+        value: https://open.bigmodel.cn/api/paas/v4
+      - key: ZHIPU_API_KEY
+        sync: false
+      - key: ZHIPU_MODEL
+        value: glm-4

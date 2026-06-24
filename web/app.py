@@ -44,10 +44,10 @@ AI_CONFIG_FILE = PROJECT_ROOT / "data" / "ai-config.json"
 # ========== AI 配置管理 ==========
 
 DEFAULT_AI_CONFIG = {
-    "provider": "openai",
+    "provider": "glm",
     "api_key": "",
-    "base_url": "https://api.openai.com/v1",
-    "model": "gpt-3.5-turbo",
+    "base_url": "https://open.bigmodel.cn/api/paas/v4",
+    "model": "glm-4",
     "temperature": 0.7,
     "max_tokens": 1024,
     "enabled": False,
@@ -55,7 +55,7 @@ DEFAULT_AI_CONFIG = {
 
 
 def load_ai_config():
-    """加载 AI 配置"""
+    """加载 AI 配置（Render 的 ZHIPU_* 环境变量作为默认配置）"""
     if AI_CONFIG_FILE.exists():
         try:
             config = json.loads(AI_CONFIG_FILE.read_text(encoding="utf-8"))
@@ -64,6 +64,20 @@ def load_ai_config():
             return merged
         except Exception:
             pass
+
+    # 没有本地配置时，优先使用 Render 部署时设置的 zhipu 环境变量
+    env_url = os.environ.get("ZHIPU_API_URL", "")
+    env_key = os.environ.get("ZHIPU_API_KEY", "")
+    env_model = os.environ.get("ZHIPU_MODEL", "")
+    if env_key:
+        config = dict(DEFAULT_AI_CONFIG)
+        config["provider"] = "glm"
+        config["base_url"] = env_url or config["base_url"]
+        config["model"] = env_model or config["model"]
+        config["api_key"] = env_key
+        # 智能功能仍默认关闭，需用户手动启用
+        return config
+
     return dict(DEFAULT_AI_CONFIG)
 
 
