@@ -573,6 +573,27 @@ def api_search():
     return jsonify({"query": query, "count": len(results), "results": results})
 
 
+@app.route('/api/debug/github')
+def api_debug_github():
+    """调试用：检查 GITHUB_TOKEN 状态和 GitHub API 速率限制"""
+    try:
+        resp = requests.get(
+            "https://api.github.com/rate_limit",
+            headers=GITHUB_HEADERS,
+            timeout=10,
+        )
+        data = resp.json()
+        return jsonify({
+            "github_token_configured": bool(GITHUB_TOKEN),
+            "token_prefix": GITHUB_TOKEN[:4] + "****" if GITHUB_TOKEN else None,
+            "rate_limit_status_code": resp.status_code,
+            "rate_limit": data.get("resources", {}).get("search", {}),
+            "headers": dict(resp.headers),
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route('/api/search/github')
 def api_search_github():
     query = request.args.get('q', '')
