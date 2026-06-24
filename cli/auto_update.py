@@ -14,6 +14,7 @@ import sys
 import json
 import time
 import subprocess
+import tempfile
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, List, Optional
@@ -69,33 +70,44 @@ class UpdatePipeline:
         step_start = time.time()
         step = {"name": name, "started_at": datetime.now().isoformat(), "success": False}
 
+        out_path = err_path = None
         try:
             cmd = [sys.executable, script]
             if args:
                 cmd.extend(args)
 
-            result = subprocess.run(
-                cmd,
-                cwd=PROJECT_ROOT,
-                capture_output=True,
-                text=True,
-                timeout=600,
-            )
-            if self.verbose and result.stdout:
-                print(result.stdout[-500:])
+            # 使用临时文件保存子进程输出，避免后台线程中 pipe 被关闭导致输出丢失
+            with tempfile.NamedTemporaryFile(mode='w+', delete=False, suffix='.out') as out_f, \
+                 tempfile.NamedTemporaryFile(mode='w+', delete=False, suffix='.err') as err_f:
+                out_path = out_f.name
+                err_path = err_f.name
+                result = subprocess.run(
+                    cmd,
+                    cwd=PROJECT_ROOT,
+                    stdout=out_f,
+                    stderr=err_f,
+                    text=True,
+                    timeout=600,
+                )
+
+            stdout_text = Path(out_path).read_text(encoding='utf-8') if out_path else ""
+            stderr_text = Path(err_path).read_text(encoding='utf-8') if err_path else ""
+
+            if self.verbose and stdout_text:
+                print(stdout_text[-500:])
 
             success = result.returncode == 0
             step["success"] = success
             step["duration"] = round(time.time() - step_start, 2)
-            step["output"] = result.stdout[-500:] if result.stdout else ""
-            step["error"] = result.stderr[-300:] if result.stderr else ""
+            step["output"] = stdout_text[-500:] if stdout_text else ""
+            step["error"] = stderr_text[-300:] if stderr_text else ""
 
             if success:
                 self.log(f"  ✅ {name} completed ({step['duration']}s)")
             else:
                 self.log(f"  ❌ {name} failed (exit code {result.returncode})")
-                if result.stderr:
-                    self.log(f"     Error: {result.stderr.strip()[-200:]}")
+                if stderr_text:
+                    self.log(f"     Error: {stderr_text.strip()[-200:]}")
 
             self.steps.append(step)
             return success
@@ -115,6 +127,16 @@ class UpdatePipeline:
             step["duration"] = round(time.time() - step_start, 2)
             self.steps.append(step)
             return False
+
+        finally:
+            # 清理临时文件
+            try:
+                if out_path:
+                    os.unlink(out_path)
+                if err_path:
+                    os.unlink(err_path)
+            except Exception:
+                pass
 
     def run_discover(self, categories: List[str] = None, min_stars: int = 50) -> bool:
         """Step 1: Discover new skills from GitHub"""
