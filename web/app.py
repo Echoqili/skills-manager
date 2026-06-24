@@ -11,6 +11,9 @@ import re
 import zipfile
 import requests
 import subprocess
+import threading
+import time
+import uuid
 from pathlib import Path
 from datetime import datetime
 from functools import lru_cache
@@ -32,6 +35,9 @@ skills_db.init_db()
 
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024
+
+# 后台自动更新任务状态
+_update_tasks = {}
 
 PROJECT_ROOT = Path(__file__).parent.parent
 CLI_DIR = PROJECT_ROOT / "cli"
@@ -1526,14 +1532,12 @@ def api_ai_providers():
     ]
     return jsonify(providers)
 
-@app.route('/api/auto-update/run', methods=['POST'])
-def api_auto_update_run():
-    """运行完整的自动更新流水线"""
+def _run_update_pipeline(task_id, data):
+    """在后台线程运行自动更新流水线"""
     try:
         sys.path.insert(0, str(CLI_DIR))
         from auto_update import UpdatePipeline
-        
-        data = request.get_json() or {}
+
         skip_discover = data.get('skip_discover', False)
         skip_scan = data.get('skip_scan', False)
         skip_clean = data.get('skip_clean', False)
@@ -1548,10 +1552,56 @@ def api_auto_update_run():
             skip_scan=skip_scan,
             skip_clean=skip_clean,
         )
-        return jsonify(result)
+        _update_tasks[task_id].update({
+            "status": "completed",
+            "finished_at": datetime.now().isoformat(),
+            "result": result,
+        })
+    except Exception as e:
+        import traceback as _tb
+        _update_tasks[task_id].update({
+            "status": "failed",
+            "finished_at": datetime.now().isoformat(),
+            "error": str(e),
+            "traceback": _tb.format_exc(),
+        })
+
+
+@app.route('/api/auto-update/run', methods=['POST'])
+def api_auto_update_run():
+    """启动自动更新流水线（后台异步执行）"""
+    try:
+        data = request.get_json() or {}
+        task_id = str(uuid.uuid4())
+        _update_tasks[task_id] = {
+            "status": "running",
+            "started_at": datetime.now().isoformat(),
+            "params": data,
+        }
+        thread = threading.Thread(
+            target=_run_update_pipeline,
+            args=(task_id, data),
+            daemon=True,
+        )
+        thread.start()
+        return jsonify({
+            "success": True,
+            "task_id": task_id,
+            "status": "running",
+            "message": "自动更新已在后台启动，可通过 /api/auto-update/task/<task_id> 查询状态",
+        })
     except Exception as e:
         import traceback as _tb
         return jsonify({"success": False, "error": str(e), "traceback": _tb.format_exc()}), 500
+
+
+@app.route('/api/auto-update/task/<task_id>')
+def api_auto_update_task(task_id):
+    """查询自动更新任务状态"""
+    task = _update_tasks.get(task_id)
+    if not task:
+        return jsonify({"error": "Task not found"}), 404
+    return jsonify({"task_id": task_id, **task})
 
 
 @app.route('/api/auto-update/status')
