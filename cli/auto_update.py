@@ -77,10 +77,12 @@ class UpdatePipeline:
             result = subprocess.run(
                 cmd,
                 cwd=PROJECT_ROOT,
-                capture_output=not self.verbose,
+                capture_output=True,
                 text=True,
                 timeout=600,
             )
+            if self.verbose and result.stdout:
+                print(result.stdout[-500:])
 
             success = result.returncode == 0
             step["success"] = success
