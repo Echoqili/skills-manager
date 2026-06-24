@@ -109,8 +109,9 @@ def save_ai_config(config, ip: str = None):
     cfg_file = _ai_config_file(ip)
 
     current = load_ai_config(ip)
-    # api_key 传 ******** 时不覆盖
-    if config.get("api_key") == "********":
+    # api_key 传 ******** 或包含 **** 的脱敏值时不覆盖
+    new_key = config.get("api_key", "")
+    if new_key == "********" or "****" in new_key:
         config["api_key"] = current.get("api_key", "")
 
     to_save = {
@@ -144,6 +145,12 @@ def call_ai_api(messages, config=None, stream=False):
     base_url = config.get("base_url", DEFAULT_AI_BASE_URL).rstrip("/")
     model = config.get("model", DEFAULT_AI_MODEL)
 
+    # 兼容 base_url 已经包含 /chat/completions 的情况
+    if base_url.endswith("/chat/completions"):
+        endpoint = base_url
+    else:
+        endpoint = f"{base_url}/chat/completions"
+
     headers = {
         "Authorization": f"Bearer {config['api_key']}",
         "Content-Type": "application/json",
@@ -158,7 +165,7 @@ def call_ai_api(messages, config=None, stream=False):
 
     try:
         resp = requests.post(
-            f"{base_url}/chat/completions",
+            endpoint,
             headers=headers, json=payload, timeout=60,
         )
         if resp.status_code == 200:
