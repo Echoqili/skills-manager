@@ -64,12 +64,33 @@ def _ai_config_file(ip: str):
 
 
 def _load_env_ai_config():
-    """从 Render 环境变量读取默认 AI 配置"""
+    """从 Render 环境变量读取默认 AI 配置，并根据 URL 自动识别 provider"""
+    api_key = os.environ.get("ZHIPU_API_KEY", "")
+    base_url = os.environ.get("ZHIPU_API_URL", DEFAULT_AI_BASE_URL)
+    model = os.environ.get("ZHIPU_MODEL", DEFAULT_AI_MODEL)
+
+    # 根据 base_url 自动判断 provider
+    url_lower = base_url.lower()
+    if "nvidia.com" in url_lower or "integrate.api.nvidia" in url_lower:
+        provider = "nvidia"
+    elif "open.bigmodel.cn" in url_lower or "zhipu" in url_lower:
+        provider = "glm"
+    elif "openai.com" in url_lower:
+        provider = "openai"
+    elif "deepseek" in url_lower:
+        provider = "deepseek"
+    elif "moonshot" in url_lower:
+        provider = "moonshot"
+    elif "dashscope" in url_lower or "aliyun" in url_lower:
+        provider = "qwen"
+    else:
+        provider = "custom"
+
     return {
-        "provider": "glm",
-        "api_key": os.environ.get("ZHIPU_API_KEY", ""),
-        "base_url": os.environ.get("ZHIPU_API_URL", DEFAULT_AI_BASE_URL),
-        "model": os.environ.get("ZHIPU_MODEL", DEFAULT_AI_MODEL),
+        "provider": provider,
+        "api_key": api_key,
+        "base_url": base_url,
+        "model": model,
     }
 
 
@@ -145,11 +166,10 @@ def call_ai_api(messages, config=None, stream=False):
     base_url = config.get("base_url", DEFAULT_AI_BASE_URL).rstrip("/")
     model = config.get("model", DEFAULT_AI_MODEL)
 
-    # 兼容 base_url 已经包含 /chat/completions 的情况
+    # 统一处理 base_url：去掉可能存在的 /chat/completions 后缀，再拼接标准 endpoint
     if base_url.endswith("/chat/completions"):
-        endpoint = base_url
-    else:
-        endpoint = f"{base_url}/chat/completions"
+        base_url = base_url[: -len("/chat/completions")]
+    endpoint = f"{base_url}/chat/completions"
 
     headers = {
         "Authorization": f"Bearer {config['api_key']}",
@@ -1433,6 +1453,12 @@ def api_ai_providers():
             "name": "智谱 GLM",
             "base_url": "https://open.bigmodel.cn/api/paas/v4",
             "models": ["glm-4", "glm-4-plus", "glm-4-flash"],
+        },
+        {
+            "id": "nvidia",
+            "name": "NVIDIA NIM",
+            "base_url": "https://integrate.api.nvidia.com/v1",
+            "models": ["meta/llama-3.1-8b-instruct", "meta/llama-3.1-70b-instruct", "meta/llama-3.3-70b-instruct"],
         },
         {
             "id": "custom",
