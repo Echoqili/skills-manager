@@ -1515,7 +1515,8 @@ def api_auto_update_run():
         )
         return jsonify(result)
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        import traceback as _tb
+        return jsonify({"success": False, "error": str(e), "traceback": _tb.format_exc()}), 500
 
 
 @app.route('/api/auto-update/status')
