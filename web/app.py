@@ -600,7 +600,7 @@ def api_search_github():
     per_page = request.args.get('per_page', 10, type=int)
     if not query:
         return jsonify({"error": "Query is required"}), 400
-    enhanced_query = f"{query} skills site:github.com"
+    enhanced_query = f"{query} skills in:name,description,readme"
     repos = search_github_repos(enhanced_query, per_page)
     if isinstance(repos, dict) and "error" in repos:
         return jsonify(repos), 429 if repos["error"] == "rate_limited" else 400
@@ -642,7 +642,7 @@ def api_search_all():
         return jsonify({"error": "Query is required"}), 400
     local_results = search_skills(query)
     recommendation = get_ai_recommendation(query, local_results)
-    enhanced_query = f"{query} skills site:github.com"
+    enhanced_query = f"{query} skills in:name,description,readme"
     github_repos = search_github_repos(enhanced_query, 5)
     github_data = [
         {

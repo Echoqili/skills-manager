@@ -69,34 +69,34 @@ SKILLS_ROOT = PROJECT_ROOT / "data" / "all-skills"
 
 SEARCH_QUERIES = {
     "ai_agent": [
-        "claude skills site:github.com",
-        "cursor skills site:github.com",
-        "agent skills claude site:github.com",
+        "claude skills in:name,description,readme",
+        "cursor skills in:name,description,readme",
+        "agent skills claude in:name,description,readme",
     ],
     "product": [
-        "product manager skills site:github.com",
-        "prd template site:github.com",
-        "user story skills site:github.com",
+        "product manager skills in:name,description,readme",
+        "prd template in:name,description,readme",
+        "user story skills in:name,description,readme",
     ],
     "agile": [
-        "scrum skills site:github.com",
-        "sprint planning template site:github.com",
-        "agile workflow site:github.com",
+        "scrum skills in:name,description,readme",
+        "sprint planning template in:name,description,readme",
+        "agile workflow in:name,description,readme",
     ],
     "qa_testing": [
-        "playwright template site:github.com",
-        "e2e testing skills site:github.com",
-        "automation testing template site:github.com",
+        "playwright template in:name,description,readme",
+        "e2e testing skills in:name,description,readme",
+        "automation testing template in:name,description,readme",
     ],
     "architecture": [
-        "ddd skills site:github.com",
-        "architecture template site:github.com",
-        "hexagonal architecture site:github.com",
+        "ddd skills in:name,description,readme",
+        "architecture template in:name,description,readme",
+        "hexagonal architecture in:name,description,readme",
     ],
     "dev_workflow": [
-        "tdd template site:github.com",
-        "clean code guidelines site:github.com",
-        "git workflow site:github.com",
+        "tdd template in:name,description,readme",
+        "clean code guidelines in:name,description,readme",
+        "git workflow in:name,description,readme",
     ],
 }
 
