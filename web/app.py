@@ -594,7 +594,16 @@ def api_search_github():
         }
         for r in repos
     ]
-    return jsonify({"query": query, "count": len(formatted), "repos": formatted})
+    return jsonify({
+        "query": query,
+        "count": len(formatted),
+        "repos": formatted,
+        "debug": {
+            "github_token_configured": bool(GITHUB_TOKEN),
+            "token_prefix": GITHUB_TOKEN[:4] + "****" if GITHUB_TOKEN else None,
+            "enhanced_query": enhanced_query,
+        }
+    })
 
 
 @app.route('/api/search/ai')
