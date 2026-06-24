@@ -29,6 +29,8 @@ except ImportError:
 
 sys.path.insert(0, str(Path(__file__).parent))
 import db as skills_db  # SQLite 索引层
+from security_audit import audit_skill, risk_emoji, risk_color
+from quality_score import calculate_quality_score, grade_color, grade_emoji
 
 # 启动时建表 + 全量重建
 skills_db.init_db()
@@ -768,8 +770,170 @@ def api_skill(name):
         "files": files,
         "downloads": skill.get("downloads"),
         "rating": skill.get("rating"),
-        "rating_count": skill.get("rating_count")
+        "rating_count": skill.get("rating_count"),
+        "tags": [t.strip() for t in (skill.get("tags") or "").split(",") if t.strip()],
+        "version": skill.get("version", ""),
+        "author": skill.get("author", ""),
+        "updated_at": skill.get("updated_at", ""),
+        "mtime": skill.get("mtime", 0),
     })
+
+
+@app.route('/api/skill/<name>/similar')
+def api_skill_similar(name):
+    """返回同分类的类似 Skills（最多 6 个）"""
+    all_skills, _, by_name = build_skills_cache()
+    skill = by_name.get(name.lower())
+    if not skill:
+        for k, v in by_name.items():
+            if name.lower() in k:
+                skill = v
+                break
+    if not skill:
+        return jsonify({"error": "Skill not found"}), 404
+
+    cat = skill.get("category", "other")
+    similar = [
+        {
+            "name": s["name"],
+            "name_zh": s.get("name_zh", ""),
+            "name_en": s.get("name_en", ""),
+            "description": s.get("description", ""),
+            "description_zh": s.get("description_zh", ""),
+            "description_en": s.get("description_en", ""),
+            "category": s.get("category", ""),
+            "category_emoji": s.get("category_emoji", "📦"),
+            "category_name": s.get("category_name", ""),
+            "tags": s.get("tags", ""),
+            "downloads": s.get("downloads"),
+            "rating": s.get("rating"),
+        }
+        for s in all_skills
+        if s.get("category") == cat and s["name"] != skill["name"]
+    ][:6]
+    return jsonify({"skills": similar})
+
+
+@app.route('/api/skill/<name>/audit')
+def api_skill_audit(name):
+    """返回 skill 的安全审计报告"""
+    all_skills, _, by_name = build_skills_cache()
+    skill = by_name.get(name.lower())
+    if not skill:
+        for k, v in by_name.items():
+            if name.lower() in k:
+                skill = v
+                break
+    if not skill:
+        return jsonify({"error": "Skill not found"}), 404
+
+    skill_path = skill.get("path", "")
+    if not skill_path:
+        return jsonify({"error": "Skill path not available"}), 400
+
+    skill_dir = Path(skill_path)
+    if not skill_dir.is_absolute():
+        skill_dir = PROJECT_ROOT / skill_dir
+
+    report = audit_skill(skill_dir)
+    report["risk_emoji"] = risk_emoji(report["risk_level"])
+    report["risk_color"] = risk_color(report["risk_level"])
+    return jsonify(report)
+
+
+@app.route('/api/skill/<name>/quality')
+def api_skill_quality(name):
+    """返回 skill 的质量评分"""
+    all_skills, _, by_name = build_skills_cache()
+    skill = by_name.get(name.lower())
+    if not skill:
+        for k, v in by_name.items():
+            if name.lower() in k:
+                skill = v
+                break
+    if not skill:
+        return jsonify({"error": "Skill not found"}), 404
+
+    score = calculate_quality_score(skill)
+    score["grade_color"] = grade_color(score["grade"])
+    score["grade_emoji"] = grade_emoji(score["grade"])
+    return jsonify(score)
+
+
+@app.route('/api/skill/<name>/report')
+def api_skill_report(name):
+    """返回完整的 skill-report（安全审计+质量评分+元数据）"""
+    all_skills, _, by_name = build_skills_cache()
+    skill = by_name.get(name.lower())
+    if not skill:
+        for k, v in by_name.items():
+            if name.lower() in k:
+                skill = v
+                break
+    if not skill:
+        return jsonify({"error": "Skill not found"}), 404
+
+    skill_path = skill.get("path", "")
+    skill_dir = Path(skill_path) if skill_path else None
+    if skill_dir and not skill_dir.is_absolute():
+        skill_dir = PROJECT_ROOT / skill_dir
+
+    # 安全审计
+    if skill_dir and skill_dir.exists():
+        security = audit_skill(skill_dir)
+    else:
+        security = {
+            "risk_level": "safe", "is_blocked": False, "safe_to_publish": True,
+            "summary": "Directory not found", "findings": [], "risk_factors": [],
+            "files_scanned": 0, "total_lines": 0, "score": 0,
+        }
+
+    # 质量评分
+    quality = calculate_quality_score(skill)
+
+    # 结构化元数据
+    tags = [t.strip() for t in (skill.get("tags") or "").split(",") if t.strip()]
+    report = {
+        "schema_version": "1.0",
+        "meta": {
+            "slug": skill.get("name", ""),
+            "generated_at": datetime.now().isoformat(),
+            "source_url": skill.get("path", ""),
+        },
+        "skill": {
+            "name": skill.get("name", ""),
+            "name_zh": skill.get("name_zh", ""),
+            "name_en": skill.get("name_en", ""),
+            "description": skill.get("description", ""),
+            "description_zh": skill.get("description_zh", ""),
+            "description_en": skill.get("description_en", ""),
+            "category": skill.get("category", "other"),
+            "category_name": skill.get("category_name", ""),
+            "category_emoji": skill.get("category_emoji", "📦"),
+            "tags": tags,
+            "version": skill.get("version", ""),
+            "author": skill.get("author", ""),
+            "license": skill.get("license", ""),
+            "updated_at": skill.get("updated_at", ""),
+            "mtime": skill.get("mtime", 0),
+        },
+        "security_audit": {
+            **security,
+            "risk_emoji": risk_emoji(security["risk_level"]),
+            "risk_color": risk_color(security["risk_level"]),
+        },
+        "quality_score": {
+            **quality,
+            "grade_color": grade_color(quality["grade"]),
+            "grade_emoji": grade_emoji(quality["grade"]),
+        },
+        "stats": {
+            "downloads": skill.get("downloads", 0),
+            "rating": skill.get("rating", 0),
+            "rating_count": skill.get("rating_count", 0),
+        },
+    }
+    return jsonify(report)
 
 
 @app.route('/api/package', methods=['POST'])
