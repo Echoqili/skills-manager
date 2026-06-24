@@ -217,7 +217,8 @@ def get_ai_recommendation(query: str, local_results: list):
 
 {skills_context}
 
-请分析用户需求，返回 JSON 格式推荐结果（不要包含其他内容）:
+请分析用户需求，并严格只返回一个 JSON 对象，不要包含 markdown 代码块、注释或任何其他文字。
+JSON 必须包含以下字段且格式如下：
 {{
   "recommendation": "一句话说明推荐理由",
   "category": "推荐分类名称",
@@ -225,17 +226,23 @@ def get_ai_recommendation(query: str, local_results: list):
   "suggestions": ["推荐的skill名称1", "推荐的skill名称2"]
 }}"""
 
+        # 使用更低的 temperature 提高 JSON 输出稳定性
+        ai_config = dict(config)
+        ai_config["temperature"] = 0.1
+
         result = call_ai_api([
-            {"role": "system", "content": "你是 AI Agent Skills 推荐专家。只返回 JSON，不要包含其他内容。"},
+            {"role": "system", "content": "你是 AI Agent Skills 推荐专家。你的回复必须且只能是一个合法 JSON 对象，不要添加 markdown、解释或其他内容。"},
             {"role": "user", "content": prompt},
-        ], config=config)
+        ], config=ai_config)
 
         if result and isinstance(result, str):
             import re as _re
-            json_match = _re.search(r'\{.*\}', result, _re.DOTALL)
-            if json_match:
+            # 先尝试直接解析
+            for candidate in [result, _re.search(r'\{{.*\}}', result, _re.DOTALL).group() if _re.search(r'\{{.*\}}', result, _re.DOTALL) else ""]:
+                if not candidate:
+                    continue
                 try:
-                    parsed = json.loads(json_match.group())
+                    parsed = json.loads(candidate)
                     if "recommendation" in parsed:
                         return {
                             "recommendation": f"⚙️ {parsed['recommendation']}",
@@ -245,7 +252,16 @@ def get_ai_recommendation(query: str, local_results: list):
                             "source": "ai",
                         }
                 except Exception:
-                    pass
+                    continue
+            # 若解析失败但拿到有效文本，返回原始输出便于排查（同时保留规则降级）
+            if result.strip():
+                return {
+                    "recommendation": f"⚙️ {result.strip()[:200]}",
+                    "category": "AI 原始输出",
+                    "emoji": "🤖",
+                    "suggestions": [],
+                    "source": "ai-raw",
+                }
 
     # 降级: 规则匹配
     if not query:
