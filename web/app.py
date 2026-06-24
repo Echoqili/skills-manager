@@ -38,17 +38,33 @@ CLI_DIR = PROJECT_ROOT / "cli"
 SKILLS_ROOT = PROJECT_ROOT / "data" / "all-skills"
 INDEX_PATH = PROJECT_ROOT / "data" / "skills-index.json"
 CANDIDATES_FILE = PROJECT_ROOT / "data" / "candidates.json"
-AI_CONFIG_FILE = PROJECT_ROOT / "data" / "ai-config.json"
+AI_CONFIG_DIR = PROJECT_ROOT / "data" / "ai-configs"
 
 # ========== AI 配置管理 ==========
-# API URL / Key / Model 仅通过 Render 环境变量注入，不在页面暴露
+# 默认配置来自 Render 环境变量；每个 IP 可有自己的本地覆盖配置
 
 DEFAULT_AI_BASE_URL = "https://open.bigmodel.cn/api/paas/v4"
 DEFAULT_AI_MODEL = "glm-4"
 
 
+def _get_client_ip():
+    """获取客户端 IP（优先 X-Forwarded-For）"""
+    xff = request.headers.get("X-Forwarded-For", "")
+    if xff:
+        return xff.split(",")[0].strip()
+    return request.remote_addr or "unknown"
+
+
+def _ai_config_file(ip: str):
+    """获取某 IP 对应的配置文件路径"""
+    # 简单安全处理：去掉可能的路径特殊字符
+    safe_ip = ip.replace("/", "_").replace("\\", "_")
+    AI_CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    return AI_CONFIG_DIR / f"ai-config-{safe_ip}.json"
+
+
 def _load_env_ai_config():
-    """从 Render 环境变量读取 AI 配置（唯一配置来源）"""
+    """从 Render 环境变量读取默认 AI 配置"""
     return {
         "provider": "glm",
         "api_key": os.environ.get("ZHIPU_API_KEY", ""),
@@ -57,39 +73,65 @@ def _load_env_ai_config():
     }
 
 
-def _load_ai_enabled():
-    """读取前端保存的启用开关（唯一可保存在本地的配置项）"""
-    if AI_CONFIG_FILE.exists():
-        try:
-            config = json.loads(AI_CONFIG_FILE.read_text(encoding="utf-8"))
-            return bool(config.get("enabled", False))
-        except Exception:
-            pass
-    return False
-
-
-def _save_ai_enabled(enabled: bool):
-    """保存前端保存的启用开关"""
-    AI_CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
-    AI_CONFIG_FILE.write_text(
-        json.dumps({"enabled": bool(enabled)}, ensure_ascii=False, indent=2),
-        encoding="utf-8",
-    )
-    return {"enabled": bool(enabled)}
-
-
-def load_ai_config():
-    """加载完整 AI 配置（环境变量 + 前端 enabled 开关）"""
+def _default_ai_config():
+    """默认 AI 配置（来自 Render 环境变量）"""
     config = _load_env_ai_config()
     config["temperature"] = 0.7
     config["max_tokens"] = 1024
-    config["enabled"] = _load_ai_enabled()
+    config["enabled"] = False
     return config
 
 
-def save_ai_config(config):
-    """保存 AI 配置（仅保存 enabled 开关，API 配置来自 Render 环境变量）"""
-    return _save_ai_enabled(config.get("enabled", False))
+def load_ai_config(ip: str = None):
+    """加载某 IP 的 AI 配置；环境变量为默认，本地配置可覆盖（除 enabled 外）"""
+    ip = ip or _get_client_ip()
+    config = _default_ai_config()
+
+    cfg_file = _ai_config_file(ip)
+    if cfg_file.exists():
+        try:
+            local = json.loads(cfg_file.read_text(encoding="utf-8"))
+            # 本地覆盖：provider/base_url/model/api_key/temperature/max_tokens
+            for key in ["provider", "base_url", "model", "api_key", "temperature", "max_tokens"]:
+                if key in local and local[key]:
+                    config[key] = local[key]
+            if "enabled" in local:
+                config["enabled"] = bool(local["enabled"])
+        except Exception:
+            pass
+
+    return config
+
+
+def save_ai_config(config, ip: str = None):
+    """保存某 IP 的 AI 配置"""
+    ip = ip or _get_client_ip()
+    cfg_file = _ai_config_file(ip)
+
+    current = load_ai_config(ip)
+    # api_key 传 ******** 时不覆盖
+    if config.get("api_key") == "********":
+        config["api_key"] = current.get("api_key", "")
+
+    to_save = {
+        "provider": config.get("provider", current.get("provider", "glm")),
+        "api_key": config.get("api_key", current.get("api_key", "")),
+        "base_url": config.get("base_url", current.get("base_url", DEFAULT_AI_BASE_URL)),
+        "model": config.get("model", current.get("model", DEFAULT_AI_MODEL)),
+        "temperature": float(config.get("temperature", current.get("temperature", 0.7))),
+        "max_tokens": int(config.get("max_tokens", current.get("max_tokens", 1024))),
+        "enabled": bool(config.get("enabled", False)),
+    }
+    cfg_file.write_text(json.dumps(to_save, ensure_ascii=False, indent=2), encoding="utf-8")
+    return load_ai_config(ip)
+
+
+def mask_api_key(key: str) -> str:
+    if not key:
+        return ""
+    if len(key) <= 8:
+        return "********"
+    return key[:4] + "****" + key[-4:]
 
 
 def call_ai_api(messages, config=None, stream=False):
@@ -1290,34 +1332,52 @@ def api_release_detail(version):
 
 @app.route('/api/ai/config', methods=['GET'])
 def api_ai_get_config():
-    """获取 AI 启用状态（API 配置仅来自 Render 环境变量，不在页面暴露）"""
+    """获取当前 IP 的 AI 配置（API Key 脱敏，默认来自 Render 环境变量）"""
     config = load_ai_config()
-    return jsonify({
-        "enabled": config.get("enabled", False),
-        "configured": bool(config.get("api_key")),
-        "provider": config.get("provider", "glm"),
-        "model": config.get("model", DEFAULT_AI_MODEL),
-    })
+    safe_config = dict(config)
+    if safe_config.get("api_key"):
+        safe_config["api_key"] = mask_api_key(safe_config["api_key"])
+    safe_config["configured"] = bool(config.get("api_key"))
+    safe_config["default_from_env"] = bool(os.environ.get("ZHIPU_API_KEY", ""))
+    return jsonify(safe_config)
 
 
 @app.route('/api/ai/config', methods=['POST'])
 def api_ai_save_config():
-    """保存 AI 启用开关（API 配置来自 Render 环境变量，不可由页面修改）"""
+    """保存当前 IP 的 AI 配置"""
     try:
-        data = request.get_json() or {}
-        result = save_ai_config(data)
-        return jsonify({"success": True, "config": result})
+        data = request.get_json()
+        if not data:
+            return jsonify({"success": False, "error": "无效的配置数据"}), 400
+        required = ["provider", "api_key", "base_url", "model"]
+        for field in required:
+            if field not in data:
+                return jsonify({"success": False, "error": f"缺少字段: {field}"}), 400
+        save_ai_config(data)
+        config = load_ai_config()
+        safe_config = dict(config)
+        if safe_config.get("api_key"):
+            safe_config["api_key"] = mask_api_key(safe_config["api_key"])
+        return jsonify({"success": True, "config": safe_config})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
 
 @app.route('/api/ai/test', methods=['POST'])
 def api_ai_test():
-    """测试 AI 连接（使用 Render 环境变量配置）"""
+    """测试当前 IP 的 AI 连接"""
     try:
+        data = request.get_json() or {}
         config = load_ai_config()
-        if not config.get("api_key"):
-            return jsonify({"success": False, "error": "ZHIPU_API_KEY 环境变量未配置"})
+        # 用请求中的值覆盖临时测试
+        if data.get("api_key") and data["api_key"] != "********":
+            config["api_key"] = data["api_key"]
+        if data.get("base_url"):
+            config["base_url"] = data["base_url"]
+        if data.get("model"):
+            config["model"] = data["model"]
+        if data.get("provider"):
+            config["provider"] = data["provider"]
         config["enabled"] = True
 
         result = call_ai_api([
@@ -1325,7 +1385,7 @@ def api_ai_test():
         ], config=config)
 
         if result is None:
-            return jsonify({"success": False, "error": "API 调用失败"})
+            return jsonify({"success": False, "error": "API Key 未配置"})
         if isinstance(result, dict) and "error" in result:
             return jsonify({"success": False, "error": result["error"]})
         return jsonify({"success": True, "reply": result})
