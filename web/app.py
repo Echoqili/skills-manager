@@ -202,7 +202,17 @@ def call_ai_api(messages, config=None, stream=False):
         if resp.status_code == 200:
             data = resp.json()
             return data["choices"][0]["message"]["content"]
-        error_msg = resp.json().get("error", {}).get("message", str(resp.status_code))
+        try:
+            err_data = resp.json()
+        except Exception:
+            err_data = {}
+        # 兼容 OpenAI 风格 error.message 与 NVIDIA 风格 detail/title
+        error_msg = (
+            err_data.get("error", {}).get("message")
+            or err_data.get("detail")
+            or err_data.get("title")
+            or str(resp.status_code)
+        )
         return {"error": f"API 错误 ({resp.status_code}): {error_msg}"}
     except requests.exceptions.ConnectionError:
         return {"error": f"无法连接到 {base_url}，请检查地址是否正确"}
@@ -1463,9 +1473,10 @@ def api_ai_test():
     try:
         data = request.get_json() or {}
         config = load_ai_config()
-        # 用请求中的值覆盖临时测试
-        if data.get("api_key") and data["api_key"] != "********":
-            config["api_key"] = data["api_key"]
+        # 用请求中的值覆盖临时测试；如果传入的是脱敏 key，则继续使用本地存储的真实 key
+        test_key = data.get("api_key", "")
+        if test_key and test_key != "********" and "****" not in test_key:
+            config["api_key"] = test_key
         if data.get("base_url"):
             config["base_url"] = data["base_url"]
         if data.get("model"):
