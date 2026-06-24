@@ -104,22 +104,27 @@ def _default_ai_config():
 
 
 def load_ai_config(ip: str = None):
-    """加载某 IP 的 AI 配置；环境变量为默认，本地配置可覆盖（除 enabled 外）"""
+    """加载 AI 配置；环境变量为默认，本地配置可覆盖。
+    若本地从未保存过且环境变量配置完整，则默认启用 AI。"""
     ip = ip or _get_client_ip()
     config = _default_ai_config()
 
     cfg_file = _ai_config_file(ip)
+    has_local = False
     if cfg_file.exists():
         try:
             local = json.loads(cfg_file.read_text(encoding="utf-8"))
-            # 本地覆盖：provider/base_url/model/api_key/temperature/max_tokens
-            for key in ["provider", "base_url", "model", "api_key", "temperature", "max_tokens"]:
-                if key in local and local[key]:
+            has_local = True
+            # 本地覆盖所有字段
+            for key in ["provider", "base_url", "model", "api_key", "temperature", "max_tokens", "enabled"]:
+                if key in local:
                     config[key] = local[key]
-            if "enabled" in local:
-                config["enabled"] = bool(local["enabled"])
         except Exception:
             pass
+
+    # 如果本地没有保存过，且环境变量配置完整，默认启用 AI
+    if not has_local and config.get("api_key") and config.get("base_url") and config.get("model"):
+        config["enabled"] = True
 
     return config
 
