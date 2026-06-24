@@ -1,0 +1,26 @@
+{
+  "url": "https://skills-manager.onrender.com/",
+  "cacheBustUrl": "https://skills-manager.onrender.com/?_t=1782292666601",
+  "finalUrl": "https://skills-manager.onrender.com/?_t=1782292666601",
+  "wakeUpRetries": 0,
+  "skillCardCount": 24,
+  "skeletonCardCount": 0,
+  "consoleErrors": [],
+  "pageErrors": [],
+  "networkResponses": [
+    {
+      "url": "https://skills-manager.onrender.com/api/skills/all?page=1&per_page=300",
+      "status": 200,
+      "statusText": ""
+    }
+  ],
+  "apiResponse": {
+    "url": "/api/skills/all?page=1&per_page=300",
+    "status": 200,
+    "statusText": "",
+    "bodyPreview": "{\"page\":1,\"per_page\":300,\"results\":[{\"abs_path\":\"/opt/render/project/src/data/all-skills/agile-skills/skills/acceptance-driven-planner/SKILL.md\",\"author\":\"\",\"category\":\"agile\",\"category_emoji\":\"\\ud83d\\udfe2\",\"category_name\":\"\\u654f\\u6377\\u5f00\\u53d1\",\"description\":\"\",\"description_en\":\"\",\"description_zh\":\"\",\"mtime\":1782290512.0,\"name\":\"acceptance-driven-planner\",\"name_en\":\"acceptance-driven-planner\",\"name_zh\":\"\",\"path\":\"data/all-skills/agile-skills/skills/acceptance-driven-planner/SKILL.md\",\"platforms\":\"\",\"size_bytes\":2626,\"source\":\"learning-open-source\",\"tags\":\"\",\"updated_at\":\"2026-06-24T09:17:04.810518+00:00\",\"version\":\"1.0.0\"},{\"abs_path\":\"/opt/render/project/src/data/all-skills/agile-skills/skills/backlog-groomer/SKILL.md\",\"author\":\"\",\"category\":\"agile\",\"category_emoji\":\"\\ud83d\\udfe2\",\"category_name\":\"\\u654f\\u6377\\u5f00\\u53d1\",\"description\":\"\",\"description_en\":\"\",\"description_zh\":\"\",\"mtime\":1782290512.0,\"name\":\"backlog-groomer\",\"name_en\":\"backlog-groomer\",\"name_zh\":\"\",\"path\":\"data/all-skills/agile-skills/skills/backlog-groomer/SKILL.md\",\"platforms\":\"\",\"size_bytes\":2518,\"source\":\"learning-open-source\",\"tags\":\"\",\"updated_at\":\"2026-06-24T09:17:04.810402+00:00\",\"version\":\"1.0.0\"},{\"abs_path\":\"/opt/render/project/src/data/all-skills/agile-skills/skills/blocker-escalation-advisor/SKILL.md\",\"author\":\"\",\"category\":\"agile\",\"category_emoji\":\"\\ud83d\\udfe2\",\"category_name\":\"\\u654f\\u6377\\u5f00\\u53d1\",\"description\":\"\",\"description_en\":\"\",\"description_zh\":\"\",\"mtime\":1782290512.0,\"name\":\"blocker-escalation-advisor\",\"name_en\":\"blocker-escalation-advisor\",\"name_zh\":\"\",\"path\":\"data/all-skills/agile-skills/skills/blocker-escalation-advisor/SKILL.md\",\"platforms\":\"\",\"size_bytes\":2570,\"source\":\"learning-open-source\",\"tags\":\"\",\"updated_at\":\"2026-06-24T09:17:04.810482+00:00\",\"version\":\"1.0.0\"},{\"abs_path\":\"/opt/render/project/src/data/all-skills/agile-skills/skills/cross-functional-team-checker/SKILL.md\",\"author\":\"\",\"category\":\"agile\",\"category_emoji\":\"\\ud83d\\udfe2\",\"category_name\":\"\\u65"
+  },
+  "searchResultsPreview": "<div class=\"skills-grid\" id=\"searchResults\">\n                <div class=\"skill-card\">\n                    <div class=\"skill-card-header\">\n                        <div class=\"skill-emoji\">🟢</div>\n                        <div class=\"skill-info\">\n                            <div class=\"skill-name\" title=\"acceptance-driven-planner\">acceptance-driven-planner</div>\n                            <span class=\"skill-category\">🟢 敏捷开发</span>\n                        </div>\n                    </div>\n                    <p class=\"skill-desc\">暂无描述</p>\n                    \n                    <div class=\"skill-actions\">\n                        <button class=\"skill-action secondary\" onclick=\"showSkillDetail('acceptance-driven-planner')\">\n                            📄 查看详情\n                        </button>\n                        <button class=\"skill-action primary\" id=\"cart-btn-acceptance_driven_planner\" data-skill-name=\"acceptance-driven-planner\" onclick=\"addToCart('acceptance-driven-planner')\">\n                            + 加入清单\n                        </button>\n                    </div>\n                </div>\n                <div class=\"skill-card\">\n                    <div class=\"skill-card-header\">\n                        <div class=\"skill-emoji\">🟢</div>\n                        <div class=\"skill-info\">\n                            <div class=\"skill-name\" title=\"backlog-groomer\">backlog-groomer</div>\n                            <span class=\"skill-category\">🟢 敏捷开发</span>\n                        </div>\n                    </div>\n                    <p class=\"skill-desc\">暂无描述</p>\n                    \n                    <div class=\"skill-actions\">\n                        <button class=\"skill-action secondary\" onclick=\"showSkillDetail('backlog-groomer')\">\n                            📄 查看详情\n                        </button>\n                        <button class=\"skill-action primary\" id=\"cart-btn-backlog_groomer\" data-skill-name=\"backlog-groomer\" onclick=\"addToCart('backlog-groo",
+  "screenshotPath": "/workspace/skills-site-verification.png",
+  "renderedCorrectly": true
+}
