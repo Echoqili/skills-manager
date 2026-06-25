@@ -831,9 +831,10 @@ def api_skill_audit(name):
     if not skill_path:
         return jsonify({"error": "Skill path not available"}), 400
 
-    skill_dir = Path(skill_path)
-    if not skill_dir.is_absolute():
-        skill_dir = PROJECT_ROOT / skill_dir
+    skill_path_obj = Path(skill_path)
+    if not skill_path_obj.is_absolute():
+        skill_path_obj = PROJECT_ROOT / skill_path_obj
+    skill_dir = skill_path_obj.parent
 
     report = audit_skill(skill_dir)
     report["risk_emoji"] = risk_emoji(report["risk_level"])
@@ -874,9 +875,10 @@ def api_skill_report(name):
         return jsonify({"error": "Skill not found"}), 404
 
     skill_path = skill.get("path", "")
-    skill_dir = Path(skill_path) if skill_path else None
-    if skill_dir and not skill_dir.is_absolute():
-        skill_dir = PROJECT_ROOT / skill_dir
+    skill_path_obj = Path(skill_path) if skill_path else None
+    if skill_path_obj and not skill_path_obj.is_absolute():
+        skill_path_obj = PROJECT_ROOT / skill_path_obj
+    skill_dir = skill_path_obj.parent if skill_path_obj else None
 
     # 安全审计
     if skill_dir and skill_dir.exists():
