@@ -207,7 +207,10 @@ CREATE TABLE IF NOT EXISTS skills (
     content TEXT NOT NULL,
     size_bytes INTEGER DEFAULT 0,
     mtime REAL DEFAULT 0,
-    updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    downloads INTEGER DEFAULT 0,
+    rating REAL DEFAULT 0,
+    rating_count INTEGER DEFAULT 0
 );
 
 CREATE INDEX IF NOT EXISTS idx_skills_source ON skills(source);
@@ -244,20 +247,45 @@ def tx():
         raise
 
 
+def _migrate_add_columns() -> None:
+    """为旧表添加新列（幂等）"""
+    conn = get_conn()
+    existing = {row[1] for row in conn.execute("PRAGMA table_info(skills)")}
+    new_columns = {
+        "downloads": "INTEGER DEFAULT 0",
+        "rating": "REAL DEFAULT 0",
+        "rating_count": "INTEGER DEFAULT 0",
+    }
+    for col, ctype in new_columns.items():
+        if col not in existing:
+            conn.execute(f"ALTER TABLE skills ADD COLUMN {col} {ctype}")
+
+
 def init_db() -> None:
-    """建表 + 全量重建"""
+    """建表 + 迁移 + 全量重建"""
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     conn = get_conn()
     conn.executescript(SCHEMA)
+    _migrate_add_columns()
     rebuild_all()
 
 
 def rebuild_all() -> None:
-    """全量重建 skills 表（启动时调用）"""
+    """全量重建 skills 表，保留已有的下载/评分统计"""
     skills = scan_all_skills()
     with tx() as conn:
+        # 备份现有统计
+        existing_stats = {
+            row["name"]: {
+                "downloads": row["downloads"] or 0,
+                "rating": row["rating"] or 0,
+                "rating_count": row["rating_count"] or 0,
+            }
+            for row in conn.execute("SELECT name, downloads, rating, rating_count FROM skills")
+        }
         conn.execute("DELETE FROM skills")
         for s in skills:
+            stats = existing_stats.get(s["name"], {"downloads": 0, "rating": 0, "rating_count": 0})
             conn.execute(
                 """
                 INSERT OR REPLACE INTO skills (
@@ -265,8 +293,9 @@ def rebuild_all() -> None:
                     category, category_emoji, category_name,
                     description, description_en, description_zh,
                     version, author, platforms, tags,
-                    content, size_bytes, mtime, updated_at
-                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                    content, size_bytes, mtime, updated_at,
+                    downloads, rating, rating_count
+                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                 """,
                 (
                     s["name"], s["name_zh"], s["name_en"], s["path"], s["abs_path"],
@@ -275,17 +304,25 @@ def rebuild_all() -> None:
                     s["version"], s["author"], s["platforms"], s["tags"],
                     s["content"], s["size_bytes"], s["mtime"],
                     datetime.now(timezone.utc).isoformat(),
+                    stats["downloads"], stats["rating"], stats["rating_count"],
                 ),
             )
 
 
 # ========== 增 / 删 / 改 ==========
 def upsert_skill(abs_path: Path, source: str) -> Optional[Dict[str, Any]]:
-    """单个 Skill 入库（导入时调用）"""
+    """单个 Skill 入库（导入时调用），保留已有的下载/评分数据"""
     data = scan_skill_file(abs_path, source=source)
     if not data:
         return None
     with tx() as conn:
+        existing = conn.execute(
+            "SELECT downloads, rating, rating_count FROM skills WHERE name = ?",
+            (data["name"],)
+        ).fetchone()
+        downloads = existing["downloads"] if existing else 0
+        rating = existing["rating"] if existing else 0
+        rating_count = existing["rating_count"] if existing else 0
         conn.execute(
             """
             INSERT OR REPLACE INTO skills (
@@ -293,8 +330,9 @@ def upsert_skill(abs_path: Path, source: str) -> Optional[Dict[str, Any]]:
                 category, category_emoji, category_name,
                 description, description_en, description_zh,
                 version, author, platforms, tags,
-                content, size_bytes, mtime, updated_at
-            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                content, size_bytes, mtime, updated_at,
+                downloads, rating, rating_count
+            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             """,
             (
                 data["name"], data["name_zh"], data["name_en"], data["path"],
@@ -304,6 +342,7 @@ def upsert_skill(abs_path: Path, source: str) -> Optional[Dict[str, Any]]:
                 data["version"], data["author"], data["platforms"], data["tags"],
                 data["content"], data["size_bytes"], data["mtime"],
                 datetime.utcnow().isoformat(),
+                downloads, rating, rating_count,
             ),
         )
     return data
@@ -443,6 +482,43 @@ def _score(s: Dict[str, Any], query: str, q_lower: str, is_chinese: bool) -> int
         if word in cat_name:
             score += 10
     return score
+
+
+# ========== 下载 / 评分统计 ==========
+def increment_downloads(name: str) -> bool:
+    """下载量 +1"""
+    with tx() as conn:
+        cur = conn.execute(
+            "UPDATE skills SET downloads = downloads + 1 WHERE name = ?",
+            (name,)
+        )
+        return cur.rowcount > 0
+
+
+def submit_rating(name: str, score: float) -> Dict[str, Any]:
+    """提交评分，使用滑动平均更新"""
+    if not (0 <= score <= 5):
+        return {"error": "Score must be between 0 and 5"}
+    with tx() as conn:
+        row = conn.execute(
+            "SELECT rating, rating_count FROM skills WHERE name = ?",
+            (name,)
+        ).fetchone()
+        if not row:
+            return {"error": "Skill not found"}
+        old_rating = row["rating"] or 0
+        old_count = row["rating_count"] or 0
+        new_count = old_count + 1
+        new_rating = round((old_rating * old_count + score) / new_count, 2)
+        conn.execute(
+            "UPDATE skills SET rating = ?, rating_count = ? WHERE name = ?",
+            (new_rating, new_count, name)
+        )
+        return {
+            "name": name,
+            "rating": new_rating,
+            "rating_count": new_count,
+        }
 
 
 # ========== 启动自检 ==========

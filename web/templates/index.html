@@ -1204,6 +1204,31 @@
             gap: 14px; 
             flex-wrap: wrap; 
         }
+        .detail-rating {
+            display: flex; align-items: center; gap: 10px;
+            margin-top: 16px; padding: 10px 14px;
+            background: var(--bg-card); border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+        }
+        .detail-rating-label {
+            font-size: 0.85rem; color: var(--text-secondary);
+        }
+        .detail-stars {
+            display: flex; gap: 4px;
+        }
+        .detail-star {
+            background: transparent; border: none;
+            font-size: 1.3rem; color: var(--text-muted);
+            cursor: pointer; transition: 0.15s;
+            padding: 0 2px; line-height: 1;
+        }
+        .detail-star:hover,
+        .detail-star.active {
+            color: #f59e0b; transform: scale(1.1);
+        }
+        .detail-rating-text {
+            font-size: 0.8rem; color: var(--text-muted); margin-left: 6px;
+        }
 
         /* ========== 类似 Skills ========== */
         .detail-similar { margin-top: 28px; }
@@ -1285,6 +1310,52 @@
         .audit-factor { color: var(--text-muted); font-size: 0.72rem; }
         .audit-desc { color: var(--text); }
         .audit-loc { color: var(--text-muted); font-size: 0.72rem; font-family: monospace; }
+        .audit-evidence-row {
+            grid-column: 1 / -1;
+            display: flex; align-items: center; gap: 8px;
+            margin-top: 2px;
+        }
+        .audit-evidence {
+            flex: 1;
+            font-family: monospace; font-size: 0.72rem;
+            color: var(--text-secondary);
+            background: rgba(0,0,0,0.15);
+            padding: 4px 8px; border-radius: var(--radius-sm);
+            overflow-x: auto; white-space: pre;
+        }
+        .audit-context-toggle {
+            background: transparent; border: 1px solid var(--border-subtle);
+            color: var(--text-muted); font-size: 0.7rem;
+            padding: 2px 8px; border-radius: var(--radius-sm);
+            cursor: pointer; transition: 0.2s;
+        }
+        .audit-context-toggle:hover {
+            border-color: var(--border-glow); color: var(--text);
+            background: var(--bg-glass);
+        }
+        .audit-context {
+            grid-column: 1 / -1;
+            display: none;
+            margin-top: 6px;
+            background: rgba(0,0,0,0.2);
+            border-radius: var(--radius-sm);
+            padding: 8px 10px;
+            font-family: monospace; font-size: 0.72rem;
+            overflow-x: auto;
+        }
+        .audit-context.open { display: block; }
+        .audit-context-line {
+            color: var(--text-muted);
+            white-space: pre;
+            padding: 1px 0;
+        }
+        .audit-context-line.current {
+            color: var(--text);
+            background: rgba(255,255,255,0.06);
+            border-left: 2px solid var(--border-glow);
+            padding-left: 8px; margin-left: -10px;
+        }
+        .audit-context-line.dim { opacity: 0.6; }
         .audit-summary-text {
             font-size: 0.82rem; color: var(--text-secondary); margin-top: 8px;
         }
@@ -2690,11 +2761,13 @@
                 audit_files: '个文件',
                 audit_lines: '行代码',
                 audit_findings: '个发现',
+                view_context: '上下文',
+                hide_context: '收起',
                 quality_score: '质量评分',
                 quality_content: '内容质量',
                 quality_maintainability: '维护活跃度',
                 quality_community: '社区人气',
-                quality_grace: '🆕 新 Skill 宽限期内，使用中性评分',
+                quality_grace: '🆕 新 Skill 宽限期内（还剩 {0} 天），使用中性评分',
                 // Detail page
                 detail_files: '📁 文件结构',
                 detail_no_files: '暂无文件信息',
@@ -2707,6 +2780,9 @@
                 detail_no_path: '无路径',
                 detail_no_desc: '暂无描述',
                 detail_downloads: '次下载',
+                detail_rating: '评分',
+                detail_rate_placeholder: '点击星星评分',
+                detail_rate_thanks: '感谢评分！',
                 detail_based_on: '基于您的搜索意图',
                 updated_at: '更新于 ',
                 skill_count: '{} 个 Skills',
@@ -3037,11 +3113,13 @@
                 audit_files: 'files',
                 audit_lines: 'lines',
                 audit_findings: 'findings',
+                view_context: 'Context',
+                hide_context: 'Hide',
                 quality_score: 'Quality Score',
                 quality_content: 'Content',
                 quality_maintainability: 'Maintainability',
                 quality_community: 'Community',
-                quality_grace: '🆕 New skill in grace period, using neutral score',
+                quality_grace: '🆕 New skill in grace period ({0} days left), using neutral score',
                 // Detail page
                 detail_files: '📁 File Structure',
                 detail_no_files: 'No file info',
@@ -3054,6 +3132,9 @@
                 detail_no_path: 'No path',
                 detail_no_desc: 'No description',
                 detail_downloads: 'downloads',
+                detail_rating: 'Rating',
+                detail_rate_placeholder: 'Click stars to rate',
+                detail_rate_thanks: 'Thanks for rating!',
                 detail_based_on: 'Based on your search intent',
                 updated_at: 'Updated ',
                 skill_count: '{} Skills',
@@ -3313,6 +3394,30 @@
             const btn = document.getElementById('langToggle');
             if (menu && !menu.contains(e.target) && !btn.contains(e.target)) {
                 menu.classList.remove('show');
+            }
+
+            // 安全审计上下文展开/收起
+            const toggle = e.target.closest('.audit-context-toggle');
+            if (toggle) {
+                e.preventDefault();
+                const ctxId = toggle.getAttribute('data-ctx');
+                const ctx = ctxId && document.getElementById(ctxId);
+                if (ctx) {
+                    const isOpen = ctx.classList.toggle('open');
+                    toggle.textContent = isOpen ? (t('hide_context') || '收起') : (t('view_context') || '上下文');
+                }
+            }
+
+            // Skill 评分
+            const star = e.target.closest('.detail-star');
+            if (star) {
+                e.preventDefault();
+                const container = star.closest('.detail-stars');
+                const name = container && container.getAttribute('data-name');
+                const score = star.getAttribute('data-score');
+                if (name && score) {
+                    submitRating(name, parseInt(score, 10));
+                }
             }
         });
 
@@ -3912,6 +4017,20 @@
                                 ${t('detail_download')}
                             </button>
                         </div>
+                        <div class="detail-rating">
+                            <span class="detail-rating-label">${t('detail_rating')}:</span>
+                            <span class="detail-stars" id="detail-rating-stars" data-name="${escHtml(skill.name)}">
+                                ${[1,2,3,4,5].map(star => `
+                                    <button type="button" class="detail-star ${rating && star <= Math.round(rating) ? 'active' : ''}"
+                                        data-score="${star}" title="${star}">
+                                        ★
+                                    </button>
+                                `).join('')}
+                            </span>
+                            <span class="detail-rating-text" id="detail-rating-text">
+                                ${rating ? `${rating} / 5 (${ratingCount || 0})` : t('detail_rate_placeholder')}
+                            </span>
+                        </div>
                         <div id="securityAuditSection" class="detail-security"></div>
                         <div id="qualityScoreSection" class="detail-quality"></div>
                         <div id="similarSkillsSection" class="detail-similar"></div>
@@ -3954,14 +4073,31 @@
                 const audit = await res.json();
                 if (audit.error) { container.innerHTML = ''; return; }
 
-                const findingsHtml = (audit.findings || []).slice(0, 8).map(f => `
+                const findingsHtml = (audit.findings || []).slice(0, 8).map((f, idx) => {
+                    const ctxId = `audit-ctx-${idx}`;
+                    const before = (f.context_before || []).map(l => `<div class="audit-context-line dim">${escHtml(l || ' ')}</div>`).join('');
+                    const after = (f.context_after || []).map(l => `<div class="audit-context-line dim">${escHtml(l || ' ')}</div>`).join('');
+                    const ctxHtml = (before || after) ? `
+                        <div id="${ctxId}" class="audit-context">
+                            ${before}
+                            <div class="audit-context-line current">${escHtml(f.evidence || ' ')}</div>
+                            ${after}
+                        </div>
+                    ` : '';
+                    return `
                     <div class="audit-finding">
                         <span class="audit-severity audit-severity-${f.severity}">${f.severity}</span>
                         <span class="audit-factor">${f.factor}</span>
                         <span class="audit-desc">${escHtml(f.description)}</span>
                         <span class="audit-loc">${escHtml(f.file)}:${f.line}</span>
+                        <div class="audit-evidence-row">
+                            <code class="audit-evidence">${escHtml(f.evidence || '')}</code>
+                            ${ctxHtml ? `<button type="button" class="audit-context-toggle" data-ctx="${ctxId}">${t('view_context') || '上下文'}</button>` : ''}
+                        </div>
+                        ${ctxHtml}
                     </div>
-                `).join('');
+                    `;
+                }).join('');
 
                 container.innerHTML = `
                     <h4 class="section-title">
@@ -4009,7 +4145,7 @@
                             ${score.grade_emoji} ${score.grade} · ${score.total}
                         </span>
                     </h4>
-                    ${score.in_grace_period ? `<p class="quality-grace">${t('quality_grace')}</p>` : ''}
+                    ${score.in_grace_period ? `<p class="quality-grace">${t('quality_grace', score.days_remaining || 0)}</p>` : ''}
                     <div class="quality-dimensions">
                         ${dimensions.map(d => `
                             <div class="quality-dim">
@@ -4341,6 +4477,8 @@
         async function packageSingle(name) {
             showToast(t('msg_packing_single', name), 'info');
             try {
+                // 先记录下载量
+                await fetch(`/api/skill/${encodeURIComponent(name)}/download`, {method: 'POST'});
                 const res = await fetch('/api/package', {
                     method: 'POST', headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({skills: [name]})
@@ -4349,8 +4487,27 @@
                 if (data.success) {
                     window.location.href = `/download/${data.filename}`;
                     showToast(t('msg_pack_success_single'), 'success');
+                    // 刷新详情页统计数据
+                    showSkillDetail(name);
                 }
             } catch (e) { showToast(t('msg_pack_fail', e.message), 'error'); }
+        }
+
+        async function submitRating(name, score) {
+            try {
+                const res = await fetch(`/api/skill/${encodeURIComponent(name)}/rate`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({score})
+                });
+                const data = await res.json();
+                if (data.error) {
+                    showToast(data.error, 'error');
+                    return;
+                }
+                showToast(t('detail_rate_thanks'), 'success');
+                showSkillDetail(name);
+            } catch (e) { showToast(t('msg_error'), 'error'); }
         }
 
         // ========== 骨架屏 ==========

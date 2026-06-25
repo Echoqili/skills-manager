@@ -10,7 +10,32 @@ Skills Manager - 安全审计引擎
 
 import re
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Set, Tuple
+
+# ========== 依赖风险名单 ==========
+# 基于公开供应链安全事件整理的高风险/恶意包示例
+KNOWN_RISKY_PACKAGES: Set[str] = {
+    # 恶意/仿冒包
+    "requests2", "urllib3-request", "python-dateutil-hijacked", "pyarmour",
+    "pytagora", "colorslib", "libpillow", "pygrata", "pycord-self",
+    "discord-self", "phonenumbers-le", "py passing", "ascii2text",
+    # 高风险能力包
+    "pynput", "keyboard", "mouse", "pyHook", "PyUserInput",
+}
+
+# 依赖文件名模式
+DEPENDENCY_FILES = ("requirements.txt", "pyproject.toml", "package.json", "Pipfile")
+
+# 白名单：常见误报证据片段（大小写不敏感）
+IGNORED_EVIDENCE_PATTERNS: List[Tuple[str, str]] = [
+    # (factor, regex) 匹配 evidence 时忽略该发现
+    ("env_access", r'^\s*#'),
+    ("env_access", r'process\.env\.NODE_ENV'),
+    ("env_access", r'process\.env\.PUBLIC_'),
+    ("env_access", r'os\.environ\.get\("PATH"\)'),
+    ("env_access", r'getenv\("PATH"\)'),
+    ("scripts", r'eval\s*\(\s*JSON\.stringify'),
+]
 
 # ========== 风险模式定义 ==========
 
@@ -67,7 +92,7 @@ RISK_PATTERNS: Dict[str, List[Tuple[str, str, str]]] = {
     ],
 }
 
-# 风险等级权重
+# 风险等级权重（按发现严重度累加）
 RISK_WEIGHTS = {"safe": 0, "low": 1, "medium": 3, "high": 7, "critical": 15}
 
 # 阈值：总分 -> 风险等级
@@ -80,8 +105,27 @@ RISK_THRESHOLDS = [
 ]
 
 
+def _is_whitelisted(factor: str, evidence: str) -> bool:
+    """根据白名单过滤误报"""
+    for white_factor, pattern in IGNORED_EVIDENCE_PATTERNS:
+        if white_factor != factor:
+            continue
+        if re.search(pattern, evidence, re.IGNORECASE):
+            return True
+    return False
+
+
+def _get_context(lines: List[str], line_num: int, radius: int = 3) -> Tuple[List[str], List[str]]:
+    """获取指定行前后的上下文代码行"""
+    start = max(0, line_num - radius - 1)
+    end = min(len(lines), line_num + radius)
+    before = [ln.rstrip() for ln in lines[start:line_num - 1]]
+    after = [ln.rstrip() for ln in lines[line_num:end]]
+    return before, after
+
+
 def scan_file_content(content: str, file_path: str = "") -> List[Dict[str, Any]]:
-    """扫描文件内容，返回所有风险发现"""
+    """扫描文件内容，返回所有风险发现（已过滤白名单）"""
     findings: List[Dict[str, Any]] = []
     lines = content.split("\n")
 
@@ -92,17 +136,92 @@ def scan_file_content(content: str, file_path: str = "") -> List[Dict[str, Any]]
                     # 找到行号
                     line_num = content[:match.start()].count("\n") + 1
                     line_content = lines[line_num - 1].strip() if line_num <= len(lines) else ""
+                    evidence = line_content[:200]
+
+                    # 白名单过滤
+                    if _is_whitelisted(factor, evidence):
+                        continue
+
+                    context_before, context_after = _get_context(lines, line_num)
                     findings.append({
                         "factor": factor,
                         "severity": severity,
                         "description": description,
                         "file": file_path,
                         "line": line_num,
-                        "evidence": line_content[:200],
+                        "evidence": evidence,
+                        "context_before": context_before,
+                        "context_after": context_after,
                     })
             except re.error:
                 continue
 
+    return findings
+
+
+def _parse_requirement(line: str) -> str:
+    """解析 requirements.txt 中的一行包名"""
+    line = line.strip()
+    if not line or line.startswith(('#', '-', '--')):
+        return ""
+    # 去掉版本标记和 extras
+    pkg = re.split(r'[\[<>!=~;\s]', line, maxsplit=1)[0].strip().lower()
+    return pkg
+
+
+def _parse_pyproject_dependencies(content: str) -> List[str]:
+    """简单解析 pyproject.toml 中的依赖包名"""
+    pkgs: List[str] = []
+    # 匹配 dependencies = ["pkg>=1.0", ...]
+    for match in re.finditer(r'"([^"]+)"', content):
+        dep = match.group(1)
+        pkg = re.split(r'[\[<>!=~;\s]', dep, maxsplit=1)[0].strip().lower()
+        if pkg:
+            pkgs.append(pkg)
+    return pkgs
+
+
+def audit_dependencies(skill_dir: Path) -> List[Dict[str, Any]]:
+    """审计依赖文件，返回已知风险包发现"""
+    findings: List[Dict[str, Any]] = []
+    for dep_file in DEPENDENCY_FILES:
+        path = skill_dir / dep_file
+        if not path.exists():
+            continue
+        try:
+            content = path.read_text(encoding="utf-8", errors="ignore")
+        except Exception:
+            continue
+        lines = content.split("\n")
+
+        if dep_file == "requirements.txt":
+            for idx, line in enumerate(lines, start=1):
+                pkg = _parse_requirement(line)
+                if pkg in KNOWN_RISKY_PACKAGES:
+                    findings.append({
+                        "factor": "dependencies",
+                        "severity": "critical",
+                        "description": f"Known risky dependency: {pkg}",
+                        "file": dep_file,
+                        "line": idx,
+                        "evidence": line.strip()[:200],
+                        "context_before": [],
+                        "context_after": [],
+                    })
+        elif dep_file in ("pyproject.toml", "Pipfile", "package.json"):
+            for idx, line in enumerate(lines, start=1):
+                for pkg in KNOWN_RISKY_PACKAGES:
+                    if pkg in line.lower():
+                        findings.append({
+                            "factor": "dependencies",
+                            "severity": "critical",
+                            "description": f"Known risky dependency: {pkg}",
+                            "file": dep_file,
+                            "line": idx,
+                            "evidence": line.strip()[:200],
+                            "context_before": [],
+                            "context_after": [],
+                        })
     return findings
 
 
@@ -137,6 +256,9 @@ def audit_skill(skill_dir: Path) -> Dict[str, Any]:
     all_findings: List[Dict[str, Any]] = []
     files_scanned = 0
     total_lines = 0
+
+    # 依赖审计
+    all_findings.extend(audit_dependencies(skill_dir))
 
     # 扫描所有文本文件
     for f in skill_dir.rglob("*"):

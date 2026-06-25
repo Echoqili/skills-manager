@@ -250,12 +250,27 @@ def calculate_quality_score(skill: Dict[str, Any]) -> Dict[str, Any]:
     else:
         grade = "D"
 
+    # 计算宽限期剩余天数
+    days_remaining = 0
+    if in_grace:
+        mtime = skill.get("mtime", 0)
+        if isinstance(mtime, str):
+            try:
+                dt = datetime.fromisoformat(mtime.replace("Z", "+00:00"))
+                mtime = dt.timestamp()
+            except Exception:
+                mtime = 0
+        if mtime:
+            remaining_seconds = GRACE_PERIOD_SECONDS - (time.time() - mtime)
+            days_remaining = max(0, int(remaining_seconds / 86400))
+
     return {
         "total": round(total, 1),
         "content": round(content, 1),
         "maintainability": round(maintainability, 1),
         "community": round(community, 1),
         "in_grace_period": in_grace,
+        "days_remaining": days_remaining,
         "grade": grade,
     }
 

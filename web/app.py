@@ -29,6 +29,7 @@ except ImportError:
 
 sys.path.insert(0, str(Path(__file__).parent))
 import db as skills_db  # SQLite 索引层
+from db import increment_downloads, submit_rating
 from security_audit import audit_skill, risk_emoji, risk_color
 from quality_score import calculate_quality_score, grade_color, grade_emoji
 
@@ -468,6 +469,7 @@ def enrich_skill(skill: dict) -> dict:
     return enriched
 
 
+@lru_cache(maxsize=1)
 def build_skills_cache():
     """从 SQLite 读取 skills，返回 (all_skills, by_category, by_name)"""
     all_skills = skills_db.list_all()
@@ -936,6 +938,51 @@ def api_skill_report(name):
         },
     }
     return jsonify(report)
+
+
+@app.route('/api/skill/<name>/download', methods=['POST'])
+def api_skill_download(name):
+    """记录一次 skill 下载"""
+    all_skills, _, by_name = build_skills_cache()
+    skill = by_name.get(name.lower())
+    if not skill:
+        for k, v in by_name.items():
+            if name.lower() in k:
+                skill = v
+                break
+    if not skill:
+        return jsonify({"error": "Skill not found"}), 404
+
+    success = increment_downloads(skill["name"])
+    # 刷新缓存使统计即时生效
+    build_skills_cache.cache_clear()
+    return jsonify({"success": success, "name": skill["name"]})
+
+
+@app.route('/api/skill/<name>/rate', methods=['POST'])
+def api_skill_rate(name):
+    """提交 skill 评分"""
+    data = request.get_json() or {}
+    try:
+        score = float(data.get("score", 0))
+    except (TypeError, ValueError):
+        return jsonify({"error": "Invalid score"}), 400
+
+    all_skills, _, by_name = build_skills_cache()
+    skill = by_name.get(name.lower())
+    if not skill:
+        for k, v in by_name.items():
+            if name.lower() in k:
+                skill = v
+                break
+    if not skill:
+        return jsonify({"error": "Skill not found"}), 404
+
+    result = submit_rating(skill["name"], score)
+    if "error" in result:
+        return jsonify(result), 400
+    build_skills_cache.cache_clear()
+    return jsonify(result)
 
 
 @app.route('/api/package', methods=['POST'])
