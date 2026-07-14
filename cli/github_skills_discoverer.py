@@ -469,8 +469,8 @@ class SkillsDiscoverer:
         ai_response = self.call_zhipu_ai(prompt)
 
         if not ai_response:
-            print("AI 推荐失败，使用默认搜索")
-            return self.discover()
+            print("AI 推荐失败，降级返回空列表")
+            return []
 
         new_candidates = []
         existing_urls = {c.url for c in self.candidates}

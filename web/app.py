@@ -830,7 +830,7 @@ def api_discover_ai():
     d.min_stars = min_stars
     try:
         new_candidates = d.discover_with_ai(requirement)
-        return jsonify({
+        response = {
             "success": True,
             "found": len(new_candidates),
             "candidates": [
@@ -844,7 +844,10 @@ def api_discover_ai():
                 }
                 for c in new_candidates[:10]
             ]
-        })
+        }
+        if not new_candidates:
+            response["message"] = "AI 推荐未返回结果，已降级为空列表。请检查 AI 配置或稍后重试。"
+        return jsonify(response)
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
