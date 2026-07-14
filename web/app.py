@@ -160,7 +160,7 @@ def call_ai_api(messages, config=None, stream=False):
     try:
         resp = requests.post(
             f"{base_url}/chat/completions",
-            headers=headers, json=payload, timeout=60,
+            headers=headers, json=payload, timeout=15,
         )
         if resp.status_code == 200:
             data = resp.json()

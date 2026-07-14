@@ -436,7 +436,7 @@ class SkillsDiscoverer:
         }
 
         try:
-            resp = requests.post(url, headers=headers, json=data, timeout=60)
+            resp = requests.post(url, headers=headers, json=data, timeout=15)
             if resp.status_code == 200:
                 result = resp.json()
                 return result.get("choices", [{}])[0].get("message", {}).get("content", "")
