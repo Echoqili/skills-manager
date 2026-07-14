@@ -8,6 +8,7 @@ import os
 import sys
 import json
 import re
+import uuid
 import zipfile
 import requests
 import subprocess
