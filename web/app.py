@@ -34,6 +34,12 @@ skills_db.init_db()
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024
 
+# 后台自动更新任务状态
+_update_tasks = {}
+
+# 后台发现任务状态
+_discover_tasks = {}
+
 PROJECT_ROOT = Path(__file__).parent.parent
 CLI_DIR = PROJECT_ROOT / "cli"
 SKILLS_ROOT = PROJECT_ROOT / "data" / "all-skills"
@@ -792,31 +798,42 @@ def api_discover_stats():
 
 @app.route('/api/discover/run', methods=['POST'])
 def api_discover_run():
-    d = get_discoverer()
-    if not d:
-        return jsonify({"success": False, "error": "Discoverer not available"}), 503
-    data = request.get_json() or {}
-    categories = data.get("categories")
-    min_stars = data.get("min_stars", 50)
-    d.min_stars = min_stars
+    """启动 Skills 发现任务（后台异步执行）"""
     try:
-        new_candidates = d.discover(categories)
+        data = request.get_json() or {}
+        categories = data.get("categories")
+        min_stars = data.get("min_stars", 50)
+        task_id = str(uuid.uuid4())
+        _discover_tasks[task_id] = {
+            "status": "running",
+            "started_at": datetime.now().isoformat(),
+            "categories": categories,
+            "min_stars": min_stars,
+        }
+        thread = threading.Thread(
+            target=_run_discover_task,
+            args=(task_id, categories, min_stars),
+            daemon=True,
+        )
+        thread.start()
         return jsonify({
             "success": True,
-            "found": len(new_candidates),
-            "candidates": [
-                {
-                    "name": c.name,
-                    "full_name": c.full_name,
-                    "stars": c.stars,
-                    "category": c.category,
-                    "quality_score": c.quality_score
-                }
-                for c in new_candidates[:20]
-            ]
+            "task_id": task_id,
+            "status": "running",
+            "message": "发现任务已在后台启动，可通过 /api/discover/task/<task_id> 查询状态",
         })
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        import traceback as _tb
+        return jsonify({"success": False, "error": str(e), "traceback": _tb.format_exc()}), 500
+
+
+@app.route('/api/discover/task/<task_id>')
+def api_discover_task(task_id):
+    """查询发现任务状态"""
+    task = _discover_tasks.get(task_id)
+    if not task:
+        return jsonify({"error": "Task not found"}), 404
+    return jsonify({"task_id": task_id, **task})
 
 
 @app.route('/api/discover/ai', methods=['POST'])
@@ -1465,8 +1482,42 @@ def api_ai_providers():
     ]
     return jsonify(providers)
 
-# 自动更新任务状态（内存中，适合单实例部署）
-_update_tasks: dict[str, dict] = {}
+def _run_discover_task(task_id, categories, min_stars):
+    """在后台线程运行 Skills 发现"""
+    try:
+        d = get_discoverer()
+        if not d:
+            _discover_tasks[task_id].update({
+                "status": "failed",
+                "finished_at": datetime.now().isoformat(),
+                "error": "Discoverer not available",
+            })
+            return
+        d.min_stars = min_stars
+        new_candidates = d.discover(categories)
+        _discover_tasks[task_id].update({
+            "status": "completed",
+            "finished_at": datetime.now().isoformat(),
+            "found": len(new_candidates),
+            "candidates": [
+                {
+                    "name": c.name,
+                    "full_name": c.full_name,
+                    "stars": c.stars,
+                    "category": c.category,
+                    "quality_score": c.quality_score,
+                }
+                for c in new_candidates[:20]
+            ],
+        })
+    except Exception as e:
+        import traceback as _tb
+        _discover_tasks[task_id].update({
+            "status": "failed",
+            "finished_at": datetime.now().isoformat(),
+            "error": str(e),
+            "traceback": _tb.format_exc(),
+        })
 
 
 def _run_update_pipeline(task_id, data):

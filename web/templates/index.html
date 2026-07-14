@@ -4611,14 +4611,36 @@
                     body: JSON.stringify(body)
                 });
                 const data = await res.json();
-                if (data.success) {
-                    showToast(t('msg_discovered', data.found), 'success');
-                    renderDiscoverResults(data.candidates);
-                    loadDiscoverStats();
-                } else {
+                if (!data.success) {
                     showToast(t('msg_packing_fail', data.error || (t('unknown_error'))), 'error');
+                    return;
                 }
+                pollDiscoverTask(data.task_id);
             } catch (e) { showToast(t('msg_packing_fail', e.message), 'error'); }
+        }
+
+        function pollDiscoverTask(taskId, attempt = 0) {
+            const maxAttempts = 120;
+            if (attempt >= maxAttempts) {
+                showToast(t('msg_packing_fail', t('timeout_error') || '发现任务超时'), 'error');
+                return;
+            }
+            fetch(`/api/discover/task/${taskId}`)
+                .then(r => r.json())
+                .then(task => {
+                    if (task.status === 'running') {
+                        setTimeout(() => pollDiscoverTask(taskId, attempt + 1), 2000);
+                        return;
+                    }
+                    if (task.status === 'completed') {
+                        showToast(t('msg_discovered', task.found), 'success');
+                        renderDiscoverResults(task.candidates);
+                        loadDiscoverStats();
+                    } else {
+                        showToast(t('msg_packing_fail', task.error || (t('unknown_error'))), 'error');
+                    }
+                })
+                .catch(e => showToast(t('msg_packing_fail', e.message), 'error'));
         }
 
         async function loadCandidates() {
