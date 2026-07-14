@@ -771,7 +771,11 @@ def api_discover_candidates():
                 "updated_at": c.updated_at,
                 "category": c.category,
                 "quality_score": c.quality_score,
-                "skill_files": c.skill_files
+                "quality_details": c.quality_details,
+                "skill_files": c.skill_files,
+                "license": c.license,
+                "platforms": c.platforms,
+                "discovered_at": c.discovered_at
             }
             for c in pending
         ]

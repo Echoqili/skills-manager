@@ -1458,6 +1458,40 @@
         .btn-approve:hover { background: #10b981; color: white; }
         .btn-reject { background: rgba(239,68,68,0.1); color: #ef4444; }
         .btn-reject:hover { background: #ef4444; color: white; }
+        .btn-preview {
+            display: flex; align-items: center; gap: 5px;
+            padding: 9px 16px; border-radius: var(--radius-md);
+            font-size: 0.88rem; font-weight: 600; cursor: pointer; transition: all 0.2s; border: none;
+            background: rgba(0,212,255,0.1); color: var(--primary);
+        }
+        .btn-preview:hover { background: var(--primary); color: white; }
+        .candidate-preview {
+            margin-top: 16px; padding-top: 16px; border-top: 1px dashed var(--border);
+            display: none;
+            animation: fadeIn 0.25s ease;
+        }
+        .candidate-preview.active { display: block; }
+        .preview-grid {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px;
+        }
+        .preview-section { background: var(--bg-tertiary); border-radius: var(--radius-md); padding: 14px; }
+        .preview-section h4 {
+            font-size: 0.85rem; color: var(--text-secondary); margin: 0 0 10px 0;
+            text-transform: uppercase; letter-spacing: 0.5px;
+        }
+        .preview-section ul { margin: 0; padding-left: 18px; font-size: 0.86rem; color: var(--text); }
+        .preview-section li { margin-bottom: 5px; }
+        .preview-meta { display: flex; flex-wrap: wrap; gap: 10px; }
+        .preview-meta span {
+            font-size: 0.82rem; color: var(--text-secondary);
+            background: var(--bg-secondary); padding: 4px 10px; border-radius: 12px;
+        }
+        .score-bar { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; }
+        .score-bar-label { font-size: 0.82rem; color: var(--text-secondary); width: 90px; flex-shrink: 0; }
+        .score-bar-track { flex: 1; height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
+        .score-bar-fill { height: 100%; background: var(--gradient-primary); border-radius: 3px; }
+        .score-bar-value { font-size: 0.82rem; color: var(--primary); width: 30px; text-align: right; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
         .empty-discover {
             display: flex; flex-direction: column; align-items: center; justify-content: center;
             padding: 56px 20px; background: var(--bg-secondary); border: 2px dashed var(--border);
@@ -1724,7 +1758,7 @@
             .discover-controls { flex-direction: column; align-items: stretch; }
             .candidate-main { flex-direction: column; }
             .candidate-actions { width: 100%; }
-            .btn-approve, .btn-reject { flex: 1; justify-content: center; }
+            .btn-approve, .btn-reject, .btn-preview { flex: 1; justify-content: center; }
             .stats-row { flex-direction: column; }
             .stat-badge { min-width: auto; }
             .release-card { padding: 20px; }
@@ -2537,6 +2571,23 @@
                 rejected: '已拒绝',
                 approve_failed: '批准失败',
                 reject_failed: '拒绝失败',
+                preview: '预览',
+                preview_quality: '质量评分',
+                preview_files: 'Skill 文件',
+                preview_meta: '元数据',
+                no_skill_files: '未检测到 Skill 文件',
+                no_quality_details: '暂无评分详情',
+                no_meta: '暂无元数据',
+                score_stars: 'Stars',
+                score_has_skill_md: 'SKILL.md',
+                score_recency: '最近更新',
+                score_has_description: '描述',
+                score_has_license: '许可证',
+                score_documentation: '文档',
+                score_security: '安全',
+                category: '分类',
+                license: '许可证',
+                discovered_at: '发现于',
                 no_releases: '暂无发布版本',
                 no_releases_desc: '在 GitHub 上创建 Release 来展示您的 Skills 更新历史',
                 create_release: '前往 GitHub 创建 Release',
@@ -2870,6 +2921,23 @@
                 rejected: 'Rejected',
                 approve_failed: 'Approve failed',
                 reject_failed: 'Reject failed',
+                preview: 'Preview',
+                preview_quality: 'Quality Score',
+                preview_files: 'Skill Files',
+                preview_meta: 'Metadata',
+                no_skill_files: 'No Skill files detected',
+                no_quality_details: 'No quality details',
+                no_meta: 'No metadata',
+                score_stars: 'Stars',
+                score_has_skill_md: 'SKILL.md',
+                score_recency: 'Recency',
+                score_has_description: 'Description',
+                score_has_license: 'License',
+                score_documentation: 'Documentation',
+                score_security: 'Security',
+                category: 'Category',
+                license: 'License',
+                discovered_at: 'Discovered',
                 no_releases: 'No Releases Yet',
                 no_releases_desc: 'Create releases on GitHub to show your Skills update history',
                 create_release: 'Go to GitHub to create Release',
@@ -4663,7 +4731,7 @@
                     </div>`;
                 return;
             }
-            container.innerHTML = candidates.map(c => `
+            container.innerHTML = candidates.map((c, idx) => `
                 <div class="candidate-card">
                     <div class="candidate-main">
                         <div class="candidate-info">
@@ -4676,11 +4744,71 @@
                             </div>
                         </div>
                         <div class="candidate-actions">
+                            <button class="btn-preview" onclick="toggleCandidatePreview(${idx})">👁️ ${t('preview')}</button>
                             <button class="btn-approve" onclick="approveCandidate('${escHtml(c.full_name || c.name)}')">✅ ${t('approve')}</button>
                             <button class="btn-reject" onclick="rejectCandidate('${escHtml(c.full_name || c.name)}')">🗑️ ${t('reject')}</button>
                         </div>
                     </div>
+                    <div class="candidate-preview" id="candidate-preview-${idx}">
+                        ${renderCandidatePreview(c)}
+                    </div>
                 </div>`).join('');
+        }
+
+        function renderCandidatePreview(c) {
+            const details = c.quality_details || {};
+            const maxScore = { stars: 40, has_skill_md: 30, recency: 15, has_description: 5, has_license: 5, documentation: 5, security: 5 };
+            const scoreBars = Object.entries(details).map(([key, value]) => {
+                const label = t('score_' + key) || key;
+                const max = maxScore[key] || 30;
+                const pct = Math.min(100, Math.round((value / max) * 100)) || 0;
+                return `<div class="score-bar">
+                    <span class="score-bar-label">${label}</span>
+                    <div class="score-bar-track"><div class="score-bar-fill" style="width:${pct}%"></div></div>
+                    <span class="score-bar-value">${value}</span>
+                </div>`;
+            }).join('');
+
+            const skillFiles = (c.skill_files || []).length
+                ? `<ul>${c.skill_files.map(f => `<li>${escHtml(f)}</li>`).join('')}</ul>`
+                : `<p style="color:var(--text-secondary);font-size:0.85rem;margin:0;">${t('no_skill_files')}</p>`;
+
+            const platforms = (c.platforms || []).map(p => `<span>${escHtml(p)}</span>`).join('');
+            const meta = [];
+            if (c.category) meta.push(`<span>${t('category')}: ${escHtml(c.category)}</span>`);
+            if (c.license) meta.push(`<span>${t('license')}: ${escHtml(c.license)}</span>`);
+            if (c.updated_at) meta.push(`<span>${t('updated_at')}: ${formatDate(c.updated_at)}</span>`);
+            if (c.discovered_at) meta.push(`<span>${t('discovered_at')}: ${formatDate(c.discovered_at)}</span>`);
+
+            return `
+                <div class="preview-grid">
+                    <div class="preview-section">
+                        <h4>📊 ${t('preview_quality')}</h4>
+                        ${scoreBars || `<p style="color:var(--text-secondary);font-size:0.85rem;margin:0;">${t('no_quality_details')}</p>`}
+                    </div>
+                    <div class="preview-section">
+                        <h4>📁 ${t('preview_files')}</h4>
+                        ${skillFiles}
+                    </div>
+                    <div class="preview-section">
+                        <h4>🏷️ ${t('preview_meta')}</h4>
+                        <div class="preview-meta">${meta.join('') || `<span>${t('no_meta')}</span>`}</div>
+                        ${platforms ? `<div style="margin-top:10px;" class="preview-meta">${platforms}</div>` : ''}
+                    </div>
+                </div>`;
+        }
+
+        function toggleCandidatePreview(idx) {
+            const el = document.getElementById('candidate-preview-' + idx);
+            if (el) el.classList.toggle('active');
+        }
+
+        function formatDate(dateStr) {
+            if (!dateStr) return '-';
+            try {
+                const d = new Date(dateStr);
+                return isNaN(d) ? dateStr : d.toLocaleDateString();
+            } catch (e) { return dateStr; }
         }
 
         async function approveCandidate(fullName) {
