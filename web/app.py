@@ -85,7 +85,7 @@ def _default_ai_config():
 
 
 def load_ai_config(ip: str = None):
-    """加载某 IP 的 AI 配置；环境变量为默认，本地配置可覆盖（除 enabled 外）"""
+    """加载某 IP 的 AI 配置；环境变量为默认，本地配置可覆盖 provider/model 等，enabled 由环境变量决定"""
     ip = ip or _get_client_ip()
     config = _default_ai_config()
 
@@ -97,8 +97,7 @@ def load_ai_config(ip: str = None):
             for key in ["provider", "base_url", "model", "api_key", "temperature", "max_tokens"]:
                 if key in local and local[key]:
                     config[key] = local[key]
-            if "enabled" in local:
-                config["enabled"] = bool(local["enabled"])
+            # enabled 由环境变量（_default_ai_config）决定，避免旧本地配置把 AI 关掉
         except Exception:
             pass
 
