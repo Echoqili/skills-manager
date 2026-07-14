@@ -43,39 +43,6 @@
             --radius-full: 100px;
         }
 
-        /* ========== 明亮主题 ========== */
-        :root[data-theme="light"] {
-            --primary: #0891b2;
-            --primary-dark: #0e7490;
-            --primary-light: #06b6d4;
-            --accent: #059669;
-            --accent-secondary: #0284c7;
-            --bg-main: #f8fafc;
-            --bg-card: rgba(255, 255, 255, 0.96);
-            --bg-secondary: rgba(241, 245, 249, 0.98);
-            --bg-glass: rgba(8, 145, 178, 0.04);
-            --bg-glass-hover: rgba(8, 145, 178, 0.08);
-            --text: #0f172a;
-            --text-secondary: #475569;
-            --text-muted: #94a3b8;
-            --border: rgba(8, 145, 178, 0.12);
-            --border-glow: rgba(8, 145, 178, 0.3);
-            --gradient-primary: linear-gradient(135deg, #0891b2 0%, #0284c7 50%, #059669 100%);
-            --gradient-accent: linear-gradient(135deg, #059669 0%, #0891b2 100%);
-            --gradient-bg: linear-gradient(180deg, #f0f9ff 0%, #f8fafc 50%, #f0f9ff 100%);
-            --gradient-card: linear-gradient(145deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 250, 252, 0.98) 100%);
-            --shadow-card: 0 2px 12px rgba(0, 0, 0, 0.06), 0 0 0 1px rgba(8, 145, 178, 0.04);
-            --shadow-glow: 0 0 24px rgba(8, 145, 178, 0.08);
-            --shadow-hover: 0 8px 24px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(8, 145, 178, 0.12);
-        }
-        :root[data-theme="light"] body::before {
-            background-image:
-                linear-gradient(rgba(8, 145, 178, 0.03) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(8, 145, 178, 0.03) 1px, transparent 1px);
-        }
-        :root[data-theme="light"] .tech-scanline { opacity: 0.15; }
-        :root[data-theme="light"] .bg-orb { opacity: 0.08 !important; }
-
         * { margin: 0; padding: 0; box-sizing: border-box; }
         html { scroll-behavior: smooth; }
 
@@ -606,7 +573,7 @@
             transform: scaleX(1);
         }
         .skill-card:hover {
-            transform: translateY(-3px);
+            transform: translateY(-8px) scale(1.01); 
             border-color: var(--border-glow);
             box-shadow: var(--shadow-hover);
         }
@@ -721,34 +688,6 @@
             color: white;
             border-color: var(--error);
         }
-
-        /* ========== 精选徽章 + 标签 + 相对时间 ========== */
-        .skill-card { display: flex; flex-direction: column; }
-        .skill-featured-badge {
-            position: absolute; top: 12px; right: 12px;
-            display: inline-flex; align-items: center; gap: 4px;
-            padding: 3px 8px; border-radius: var(--radius-full);
-            font-size: 0.68rem; font-weight: 600;
-            background: rgba(245, 158, 11, 0.12);
-            color: #fbbf24;
-            border: 1px solid rgba(245, 158, 11, 0.25);
-            z-index: 2;
-        }
-        .skill-featured-badge svg { width: 10px; height: 10px; }
-        .skill-tags {
-            display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px;
-        }
-        .skill-tag {
-            padding: 2px 8px; border-radius: var(--radius-sm);
-            font-size: 0.72rem; color: var(--text-muted);
-            background: var(--bg-glass); border: 1px solid var(--border);
-        }
-        .skill-updated {
-            font-size: 0.72rem; color: var(--text-muted);
-            display: flex; align-items: center; gap: 4px;
-            margin-top: auto; padding-top: 8px;
-        }
-        .skill-updated svg { width: 12px; height: 12px; }
 
         /* ========== GitHub 卡片 ========== */
         .github-grid {
@@ -1203,184 +1142,6 @@
             display: flex; 
             gap: 14px; 
             flex-wrap: wrap; 
-        }
-        .detail-rating {
-            display: flex; align-items: center; gap: 10px;
-            margin-top: 16px; padding: 10px 14px;
-            background: var(--bg-card); border: 1px solid var(--border);
-            border-radius: var(--radius-md);
-        }
-        .detail-rating-label {
-            font-size: 0.85rem; color: var(--text-secondary);
-        }
-        .detail-stars {
-            display: flex; gap: 4px;
-        }
-        .detail-star {
-            background: transparent; border: none;
-            font-size: 1.3rem; color: var(--text-muted);
-            cursor: pointer; transition: 0.15s;
-            padding: 0 2px; line-height: 1;
-        }
-        .detail-star:hover,
-        .detail-star.active {
-            color: #f59e0b; transform: scale(1.1);
-        }
-        .detail-rating-text {
-            font-size: 0.8rem; color: var(--text-muted); margin-left: 6px;
-        }
-
-        /* ========== 类似 Skills ========== */
-        .detail-similar { margin-top: 28px; }
-        .similar-title {
-            font-size: 1rem; font-weight: 600; margin-bottom: 14px;
-            color: var(--text);
-        }
-        .similar-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-            gap: 12px;
-        }
-        .similar-card {
-            background: var(--bg-card); border: 1px solid var(--border);
-            border-radius: var(--radius-md); padding: 14px;
-            cursor: pointer; transition: all 0.3s ease;
-        }
-        .similar-card:hover {
-            border-color: var(--border-glow);
-            transform: translateY(-2px);
-            box-shadow: var(--shadow-card);
-        }
-        .similar-card-header {
-            display: flex; align-items: center; gap: 8px; margin-bottom: 6px;
-        }
-        .similar-emoji { font-size: 1.1rem; }
-        .similar-name {
-            font-weight: 600; font-size: 0.88rem; color: var(--text);
-            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-        }
-        .similar-desc {
-            font-size: 0.78rem; color: var(--text-secondary);
-            line-height: 1.5;
-            display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
-        }
-
-        /* ========== 安全审计 ========== */
-        .detail-security { margin-top: 28px; }
-        .section-title {
-            font-size: 1rem; font-weight: 600; margin-bottom: 14px;
-            color: var(--text); display: flex; align-items: center; gap: 10px;
-        }
-        .audit-badge, .quality-grade {
-            padding: 3px 10px; border-radius: var(--radius-full);
-            font-size: 0.75rem; font-weight: 600;
-        }
-        .audit-summary {
-            display: flex; gap: 16px; margin-bottom: 12px; flex-wrap: wrap;
-        }
-        .audit-stat {
-            font-size: 0.8rem; color: var(--text-secondary);
-        }
-        .audit-factors {
-            display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px;
-        }
-        .audit-factor-tag {
-            padding: 2px 8px; border-radius: var(--radius-sm);
-            font-size: 0.72rem; color: var(--text-muted);
-            background: var(--bg-glass); border: 1px solid var(--border);
-        }
-        .audit-findings {
-            display: flex; flex-direction: column; gap: 6px;
-            max-height: 300px; overflow-y: auto;
-        }
-        .audit-finding {
-            display: grid; grid-template-columns: auto auto 1fr auto;
-            gap: 8px; align-items: center;
-            padding: 6px 10px; border-radius: var(--radius-sm);
-            background: var(--bg-glass); font-size: 0.78rem;
-        }
-        .audit-severity {
-            padding: 1px 6px; border-radius: var(--radius-sm);
-            font-size: 0.68rem; font-weight: 600; text-transform: uppercase;
-        }
-        .audit-severity-critical { background: rgba(239,68,68,0.2); color: #ef4444; }
-        .audit-severity-high { background: rgba(249,115,22,0.2); color: #f97316; }
-        .audit-severity-medium { background: rgba(245,158,11,0.2); color: #f59e0b; }
-        .audit-severity-low { background: rgba(34,197,94,0.2); color: #22c55e; }
-        .audit-factor { color: var(--text-muted); font-size: 0.72rem; }
-        .audit-desc { color: var(--text); }
-        .audit-loc { color: var(--text-muted); font-size: 0.72rem; font-family: monospace; }
-        .audit-evidence-row {
-            grid-column: 1 / -1;
-            display: flex; align-items: center; gap: 8px;
-            margin-top: 2px;
-        }
-        .audit-evidence {
-            flex: 1;
-            font-family: monospace; font-size: 0.72rem;
-            color: var(--text-secondary);
-            background: rgba(0,0,0,0.15);
-            padding: 4px 8px; border-radius: var(--radius-sm);
-            overflow-x: auto; white-space: pre;
-        }
-        .audit-context-toggle {
-            background: transparent; border: 1px solid var(--border-subtle);
-            color: var(--text-muted); font-size: 0.7rem;
-            padding: 2px 8px; border-radius: var(--radius-sm);
-            cursor: pointer; transition: 0.2s;
-        }
-        .audit-context-toggle:hover {
-            border-color: var(--border-glow); color: var(--text);
-            background: var(--bg-glass);
-        }
-        .audit-context {
-            grid-column: 1 / -1;
-            display: none;
-            margin-top: 6px;
-            background: rgba(0,0,0,0.2);
-            border-radius: var(--radius-sm);
-            padding: 8px 10px;
-            font-family: monospace; font-size: 0.72rem;
-            overflow-x: auto;
-        }
-        .audit-context.open { display: block; }
-        .audit-context-line {
-            color: var(--text-muted);
-            white-space: pre;
-            padding: 1px 0;
-        }
-        .audit-context-line.current {
-            color: var(--text);
-            background: rgba(255,255,255,0.06);
-            border-left: 2px solid var(--border-glow);
-            padding-left: 8px; margin-left: -10px;
-        }
-        .audit-context-line.dim { opacity: 0.6; }
-        .audit-summary-text {
-            font-size: 0.82rem; color: var(--text-secondary); margin-top: 8px;
-        }
-
-        /* ========== 质量评分 ========== */
-        .detail-quality { margin-top: 28px; }
-        .quality-grace {
-            font-size: 0.78rem; color: var(--text-muted);
-            margin-bottom: 12px; font-style: italic;
-        }
-        .quality-dimensions {
-            display: flex; flex-direction: column; gap: 12px;
-        }
-        .quality-dim-header {
-            display: flex; justify-content: space-between;
-            font-size: 0.82rem; color: var(--text-secondary); margin-bottom: 4px;
-        }
-        .quality-dim-value { font-weight: 600; color: var(--text); }
-        .quality-bar {
-            height: 6px; background: var(--bg-glass);
-            border-radius: var(--radius-full); overflow: hidden;
-        }
-        .quality-bar-fill {
-            height: 100%; border-radius: var(--radius-full);
-            transition: width 0.6s ease;
         }
 
         /* ========== 加载骨架屏 ========== */
@@ -2010,10 +1771,6 @@
         <span id="langLabel">中</span>
         <span class="lang-arrow">▼</span>
     </button>
-    <!-- 主题切换 -->
-    <button class="lang-toggle" id="themeToggle" onclick="toggleTheme()" title="切换主题" style="margin-right:52px;">
-        <span id="themeIcon">🌙</span>
-    </button>
     <div class="lang-menu" id="langMenu">
         <div class="lang-option active" data-lang="zh" onclick="setLang('zh')">🇨🇳 中文</div>
         <div class="lang-option" data-lang="en" onclick="setLang('en')">🇺🇸 English</div>
@@ -2125,9 +1882,6 @@
                             <option value="default" data-i18n="sort_default">默认</option>
                             <option value="name" data-i18n="sort_name">名称 A-Z</option>
                             <option value="category" data-i18n="sort_category">按分类</option>
-                            <option value="recent" data-i18n="sort_recent">最近更新</option>
-                            <option value="popular" data-i18n="sort_popular">热门</option>
-                            <option value="rating" data-i18n="sort_rating">评分最高</option>
                         </select>
                     </div>
                 </div>
@@ -2744,9 +2498,6 @@
                 sort_default: '默认',
                 sort_name: '名称 A-Z',
                 sort_category: '按分类',
-                sort_recent: '最近更新',
-                sort_popular: '热门',
-                sort_rating: '评分最高',
                 // Pagination
                 prev_page: '← 上一页',
                 next_page: '下一页 →',
@@ -2755,19 +2506,6 @@
                 view_detail: '📄 查看详情',
                 added: '✓ 已加入',
                 add_to_cart: '+ 加入清单',
-                featured: '精选',
-                similar_skills: '类似 Skills',
-                security_audit: '安全审计',
-                audit_files: '个文件',
-                audit_lines: '行代码',
-                audit_findings: '个发现',
-                view_context: '上下文',
-                hide_context: '收起',
-                quality_score: '质量评分',
-                quality_content: '内容质量',
-                quality_maintainability: '维护活跃度',
-                quality_community: '社区人气',
-                quality_grace: '🆕 新 Skill 宽限期内（还剩 {} 天），使用中性评分',
                 // Detail page
                 detail_files: '📁 文件结构',
                 detail_no_files: '暂无文件信息',
@@ -2780,9 +2518,6 @@
                 detail_no_path: '无路径',
                 detail_no_desc: '暂无描述',
                 detail_downloads: '次下载',
-                detail_rating: '评分',
-                detail_rate_placeholder: '点击星星评分',
-                detail_rate_thanks: '感谢评分！',
                 detail_based_on: '基于您的搜索意图',
                 updated_at: '更新于 ',
                 skill_count: '{} 个 Skills',
@@ -3096,9 +2831,6 @@
                 sort_default: 'Default',
                 sort_name: 'Name A-Z',
                 sort_category: 'By Category',
-                sort_recent: 'Recent',
-                sort_popular: 'Popular',
-                sort_rating: 'Top Rated',
                 // Pagination
                 prev_page: '← Prev',
                 next_page: 'Next →',
@@ -3107,19 +2839,6 @@
                 view_detail: '📄 View Detail',
                 added: '✓ Added',
                 add_to_cart: '+ Add to List',
-                featured: 'Featured',
-                similar_skills: 'Similar Skills',
-                security_audit: 'Security Audit',
-                audit_files: 'files',
-                audit_lines: 'lines',
-                audit_findings: 'findings',
-                view_context: 'Context',
-                hide_context: 'Hide',
-                quality_score: 'Quality Score',
-                quality_content: 'Content',
-                quality_maintainability: 'Maintainability',
-                quality_community: 'Community',
-                quality_grace: '🆕 New skill in grace period ({} days left), using neutral score',
                 // Detail page
                 detail_files: '📁 File Structure',
                 detail_no_files: 'No file info',
@@ -3132,9 +2851,6 @@
                 detail_no_path: 'No path',
                 detail_no_desc: 'No description',
                 detail_downloads: 'downloads',
-                detail_rating: 'Rating',
-                detail_rate_placeholder: 'Click stars to rate',
-                detail_rate_thanks: 'Thanks for rating!',
                 detail_based_on: 'Based on your search intent',
                 updated_at: 'Updated ',
                 skill_count: '{} Skills',
@@ -3292,22 +3008,6 @@
             document.getElementById('langMenu').classList.toggle('show');
         }
 
-        // ========== 主题切换 ==========
-        function toggleTheme() {
-            const root = document.documentElement;
-            const current = root.getAttribute('data-theme');
-            const next = current === 'light' ? 'dark' : 'light';
-            root.setAttribute('data-theme', next);
-            localStorage.setItem('theme', next);
-            document.getElementById('themeIcon').textContent = next === 'light' ? '☀️' : '🌙';
-        }
-        (function initTheme() {
-            const saved = localStorage.getItem('theme') || 'dark';
-            document.documentElement.setAttribute('data-theme', saved);
-            const icon = document.getElementById('themeIcon');
-            if (icon) icon.textContent = saved === 'light' ? '☀️' : '🌙';
-        })();
-
         function setLang(lang) {
             currentLang = lang;
             localStorage.setItem('lang', lang);
@@ -3394,30 +3094,6 @@
             const btn = document.getElementById('langToggle');
             if (menu && !menu.contains(e.target) && !btn.contains(e.target)) {
                 menu.classList.remove('show');
-            }
-
-            // 安全审计上下文展开/收起
-            const toggle = e.target.closest('.audit-context-toggle');
-            if (toggle) {
-                e.preventDefault();
-                const ctxId = toggle.getAttribute('data-ctx');
-                const ctx = ctxId && document.getElementById(ctxId);
-                if (ctx) {
-                    const isOpen = ctx.classList.toggle('open');
-                    toggle.textContent = isOpen ? (t('hide_context') || '收起') : (t('view_context') || '上下文');
-                }
-            }
-
-            // Skill 评分
-            const star = e.target.closest('.detail-star');
-            if (star) {
-                e.preventDefault();
-                const container = star.closest('.detail-stars');
-                const name = container && container.getAttribute('data-name');
-                const score = star.getAttribute('data-score');
-                if (name && score) {
-                    submitRating(name, parseInt(score, 10));
-                }
             }
         });
 
@@ -3705,16 +3381,6 @@
                 copy.sort((a, b) => a.name.localeCompare(b.name));
             } else if (sort === 'category') {
                 copy.sort((a, b) => (a.category || '').localeCompare(b.category || '') || a.name.localeCompare(b.name));
-            } else if (sort === 'recent') {
-                copy.sort((a, b) => {
-                    const ta = parseFloat(a.mtime) || 0;
-                    const tb = parseFloat(b.mtime) || 0;
-                    return tb - ta;
-                });
-            } else if (sort === 'popular') {
-                copy.sort((a, b) => (b.downloads || 0) - (a.downloads || 0));
-            } else if (sort === 'rating') {
-                copy.sort((a, b) => (b.rating || 0) - (a.rating || 0));
             }
             return copy;
         }
@@ -4017,28 +3683,7 @@
                                 ${t('detail_download')}
                             </button>
                         </div>
-                        <div class="detail-rating">
-                            <span class="detail-rating-label">${t('detail_rating')}:</span>
-                            <span class="detail-stars" id="detail-rating-stars" data-name="${escHtml(skill.name)}">
-                                ${[1,2,3,4,5].map(star => `
-                                    <button type="button" class="detail-star ${rating && star <= Math.round(rating) ? 'active' : ''}"
-                                        data-score="${star}" title="${star}">
-                                        ★
-                                    </button>
-                                `).join('')}
-                            </span>
-                            <span class="detail-rating-text" id="detail-rating-text">
-                                ${rating ? `${rating} / 5 (${ratingCount || 0})` : t('detail_rate_placeholder')}
-                            </span>
-                        </div>
-                        <div id="securityAuditSection" class="detail-security"></div>
-                        <div id="qualityScoreSection" class="detail-quality"></div>
-                        <div id="similarSkillsSection" class="detail-similar"></div>
                     </div>`;
-                // 异步加载安全审计+质量评分+类似 Skills
-                loadSecurityAudit(skill.name);
-                loadQualityScore(skill.name);
-                loadSimilarSkills(skill.name);
             } catch (e) {
                 showToast(t('msg_packing_fail', e.message), 'error');
                 document.getElementById('skillDetail').innerHTML = `
@@ -4061,137 +3706,6 @@
                 btn.className = 'btn btn-primary';
                 btn.onclick = () => { addToCart(name); updateDetailBtn(name, true); };
                 btn.textContent = t('detail_add_cart');
-            }
-        }
-
-        async function loadSecurityAudit(name) {
-            const container = document.getElementById('securityAuditSection');
-            if (!container) return;
-            try {
-                const res = await fetch(`/api/skill/${encodeURIComponent(name)}/audit`);
-                if (!res.ok) { container.innerHTML = ''; return; }
-                const audit = await res.json();
-                if (audit.error) { container.innerHTML = ''; return; }
-
-                const findingsHtml = (audit.findings || []).slice(0, 8).map((f, idx) => {
-                    const ctxId = `audit-ctx-${idx}`;
-                    const before = (f.context_before || []).map(l => `<div class="audit-context-line dim">${escHtml(l || ' ')}</div>`).join('');
-                    const after = (f.context_after || []).map(l => `<div class="audit-context-line dim">${escHtml(l || ' ')}</div>`).join('');
-                    const ctxHtml = (before || after) ? `
-                        <div id="${ctxId}" class="audit-context">
-                            ${before}
-                            <div class="audit-context-line current">${escHtml(f.evidence || ' ')}</div>
-                            ${after}
-                        </div>
-                    ` : '';
-                    return `
-                    <div class="audit-finding">
-                        <span class="audit-severity audit-severity-${f.severity}">${f.severity}</span>
-                        <span class="audit-factor">${f.factor}</span>
-                        <span class="audit-desc">${escHtml(f.description)}</span>
-                        <span class="audit-loc">${escHtml(f.file)}:${f.line}</span>
-                        <div class="audit-evidence-row">
-                            <code class="audit-evidence">${escHtml(f.evidence || '')}</code>
-                            ${ctxHtml ? `<button type="button" class="audit-context-toggle" data-ctx="${ctxId}">${t('view_context') || '上下文'}</button>` : ''}
-                        </div>
-                        ${ctxHtml}
-                    </div>
-                    `;
-                }).join('');
-
-                container.innerHTML = `
-                    <h4 class="section-title">
-                        <span>${t('security_audit')}</span>
-                        <span class="audit-badge" style="background:${audit.risk_color}22;color:${audit.risk_color};border:1px solid ${audit.risk_color}44">
-                            ${audit.risk_emoji} ${audit.risk_level.toUpperCase()}
-                        </span>
-                    </h4>
-                    <div class="audit-summary">
-                        <span class="audit-stat">📁 ${audit.files_scanned} ${t('audit_files')}</span>
-                        <span class="audit-stat">📝 ${audit.total_lines} ${t('audit_lines')}</span>
-                        <span class="audit-stat">⚠️ ${audit.findings_count || 0} ${t('audit_findings')}</span>
-                    </div>
-                    ${audit.risk_factors && audit.risk_factors.length ? `
-                    <div class="audit-factors">
-                        ${audit.risk_factors.map(f => `<span class="audit-factor-tag">${f}</span>`).join('')}
-                    </div>` : ''}
-                    ${findingsHtml ? `<div class="audit-findings">${findingsHtml}</div>` : ''}
-                    <p class="audit-summary-text">${escHtml(audit.summary)}</p>
-                `;
-            } catch(e) {
-                container.innerHTML = '';
-            }
-        }
-
-        async function loadQualityScore(name) {
-            const container = document.getElementById('qualityScoreSection');
-            if (!container) return;
-            try {
-                const res = await fetch(`/api/skill/${encodeURIComponent(name)}/quality`);
-                if (!res.ok) { container.innerHTML = ''; return; }
-                const score = await res.json();
-                if (score.error) { container.innerHTML = ''; return; }
-
-                const dimensions = [
-                    { key: 'content', label: t('quality_content'), value: score.content },
-                    { key: 'maintainability', label: t('quality_maintainability'), value: score.maintainability },
-                    { key: 'community', label: t('quality_community'), value: score.community },
-                ];
-
-                container.innerHTML = `
-                    <h4 class="section-title">
-                        <span>${t('quality_score')}</span>
-                        <span class="quality-grade" style="background:${score.grade_color}22;color:${score.grade_color};border:1px solid ${score.grade_color}44">
-                            ${score.grade_emoji} ${score.grade} · ${score.total}
-                        </span>
-                    </h4>
-                    ${score.in_grace_period ? `<p class="quality-grace">${t('quality_grace', score.days_remaining || 0)}</p>` : ''}
-                    <div class="quality-dimensions">
-                        ${dimensions.map(d => `
-                            <div class="quality-dim">
-                                <div class="quality-dim-header">
-                                    <span>${d.label}</span>
-                                    <span class="quality-dim-value">${d.value}</span>
-                                </div>
-                                <div class="quality-bar">
-                                    <div class="quality-bar-fill" style="width:${d.value}%;background:${score.grade_color}"></div>
-                                </div>
-                            </div>
-                        `).join('')}
-                    </div>
-                `;
-            } catch(e) {
-                container.innerHTML = '';
-            }
-        }
-
-        async function loadSimilarSkills(name) {
-            const container = document.getElementById('similarSkillsSection');
-            if (!container) return;
-            try {
-                const res = await fetch(`/api/skill/${encodeURIComponent(name)}/similar`);
-                if (!res.ok) { container.innerHTML = ''; return; }
-                const data = await res.json();
-                const skills = data.skills || [];
-                if (!skills.length) { container.innerHTML = ''; return; }
-                container.innerHTML = `
-                    <h4 class="similar-title">${t('similar_skills')}</h4>
-                    <div class="similar-grid">
-                        ${skills.map(s => {
-                            const dn = (currentLang === 'zh' ? s.name_zh : s.name_en) || s.name;
-                            const desc = (currentLang === 'zh' ? s.description_zh : s.description_en) || s.description || '';
-                            return `
-                            <div class="similar-card" onclick="showSkillDetail('${escHtml(s.name)}')">
-                                <div class="similar-card-header">
-                                    <span class="similar-emoji">${s.category_emoji || '📦'}</span>
-                                    <span class="similar-name">${dn}</span>
-                                </div>
-                                <p class="similar-desc">${escHtml(desc).substring(0, 80)}${desc.length > 80 ? '...' : ''}</p>
-                            </div>`;
-                        }).join('')}
-                    </div>`;
-            } catch(e) {
-                container.innerHTML = '';
             }
         }
 
@@ -4300,12 +3814,8 @@
                 const ratingCount = skill.rating_count;
                 const hasStats = downloads || rating || ratingCount;
                 const safeName = escHtml(skill.name).replace(/[^a-z0-9]/gi, '_');
-                const isFeatured = (rating && rating >= 4.5) || (downloads && downloads >= 100);
-                const tags = (skill.tags || '').split(',').map(t => t.trim()).filter(Boolean).slice(0, 3);
-                const updatedStr = formatRelativeTime(skill.updated_at || skill.mtime);
                 return `
                 <div class="skill-card">
-                    ${isFeatured ? `<span class="skill-featured-badge"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"/></svg>${t('featured')}</span>` : ''}
                     <div class="skill-card-header">
                         <div class="skill-emoji">${skill.category_emoji || '📦'}</div>
                         <div class="skill-info">
@@ -4314,7 +3824,6 @@
                         </div>
                     </div>
                     <p class="skill-desc">${(currentLang === 'zh' ? skill.description_zh : skill.description_en) || skill.description || t('detail_no_desc')}</p>
-                    ${tags.length ? `<div class="skill-tags">${tags.map(tg => `<span class="skill-tag">${escHtml(tg)}</span>`).join('')}</div>` : ''}
                     ${hasStats ? `<div class="skill-stats">
                         <span class="skill-stat">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -4329,7 +3838,6 @@
                             ${rating ? rating + ' (' + (ratingCount || 0) + ')' : '—'}
                         </span>
                     </div>` : ''}
-                    ${updatedStr ? `<div class="skill-updated"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>${updatedStr}</div>` : ''}
                     <div class="skill-actions">
                         <button class="skill-action secondary" onclick="showSkillDetail('${escHtml(skill.name)}')">${t('view_detail')}</button>
                         <button class="skill-action ${inCart ? 'danger' : 'primary'}"
@@ -4477,8 +3985,6 @@
         async function packageSingle(name) {
             showToast(t('msg_packing_single', name), 'info');
             try {
-                // 先记录下载量
-                await fetch(`/api/skill/${encodeURIComponent(name)}/download`, {method: 'POST'});
                 const res = await fetch('/api/package', {
                     method: 'POST', headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({skills: [name]})
@@ -4487,27 +3993,8 @@
                 if (data.success) {
                     window.location.href = `/download/${data.filename}`;
                     showToast(t('msg_pack_success_single'), 'success');
-                    // 刷新详情页统计数据
-                    showSkillDetail(name);
                 }
             } catch (e) { showToast(t('msg_pack_fail', e.message), 'error'); }
-        }
-
-        async function submitRating(name, score) {
-            try {
-                const res = await fetch(`/api/skill/${encodeURIComponent(name)}/rate`, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({score})
-                });
-                const data = await res.json();
-                if (data.error) {
-                    showToast(data.error, 'error');
-                    return;
-                }
-                showToast(t('detail_rate_thanks'), 'success');
-                showSkillDetail(name);
-            } catch (e) { showToast(t('msg_error'), 'error'); }
         }
 
         // ========== 骨架屏 ==========
@@ -5023,25 +4510,6 @@
             if (downloads >= 1000000) return (downloads / 1000000).toFixed(1) + 'M';
             if (downloads >= 1000) return (downloads / 1000).toFixed(1) + 'k';
             return downloads;
-        }
-
-        function formatRelativeTime(input) {
-            if (!input) return '';
-            let ts;
-            if (typeof input === 'number') {
-                ts = input > 1e12 ? input : input * 1000;
-            } else {
-                ts = new Date(input).getTime();
-            }
-            if (isNaN(ts)) return '';
-            const diff = Date.now() - ts;
-            if (diff < 0) return '';
-            const days = Math.floor(diff / 86400000);
-            if (days === 0) return currentLang === 'zh' ? '今天更新' : 'Updated today';
-            if (days === 1) return currentLang === 'zh' ? '昨天更新' : 'Updated yesterday';
-            if (days < 30) return currentLang === 'zh' ? days + ' 天前更新' : days + ' days ago';
-            if (days < 365) return currentLang === 'zh' ? Math.floor(days / 30) + ' 个月前更新' : Math.floor(days / 30) + ' months ago';
-            return currentLang === 'zh' ? Math.floor(days / 365) + ' 年前更新' : Math.floor(days / 365) + ' years ago';
         }
 
         async function copyToClipboard(text, btn) {

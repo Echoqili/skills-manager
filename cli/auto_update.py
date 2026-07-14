@@ -13,8 +13,8 @@ import os
 import sys
 import json
 import time
-import subprocess
 import tempfile
+import subprocess
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, List, Optional
@@ -99,9 +99,6 @@ class UpdatePipeline:
 
             stdout_text = Path(out_path).read_text(encoding='utf-8') if out_path else ""
             stderr_text = Path(err_path).read_text(encoding='utf-8') if err_path else ""
-
-            if self.verbose and stdout_text:
-                print(stdout_text[-500:])
 
             success = result.returncode == 0
             step["success"] = success

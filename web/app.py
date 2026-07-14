@@ -12,8 +12,6 @@ import zipfile
 import requests
 import subprocess
 import threading
-import time
-import uuid
 from pathlib import Path
 from datetime import datetime
 from functools import lru_cache
@@ -29,18 +27,12 @@ except ImportError:
 
 sys.path.insert(0, str(Path(__file__).parent))
 import db as skills_db  # SQLite 索引层
-from db import increment_downloads, submit_rating
-from security_audit import audit_skill, risk_emoji, risk_color
-from quality_score import calculate_quality_score, grade_color, grade_emoji
 
 # 启动时建表 + 全量重建
 skills_db.init_db()
 
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024
-
-# 后台自动更新任务状态
-_update_tasks = {}
 
 PROJECT_ROOT = Path(__file__).parent.parent
 CLI_DIR = PROJECT_ROOT / "cli"
@@ -73,33 +65,12 @@ def _ai_config_file(ip: str):
 
 
 def _load_env_ai_config():
-    """从 Render 环境变量读取默认 AI 配置，并根据 URL 自动识别 provider"""
-    api_key = os.environ.get("ZHIPU_API_KEY", "")
-    base_url = os.environ.get("ZHIPU_API_URL", DEFAULT_AI_BASE_URL)
-    model = os.environ.get("ZHIPU_MODEL", DEFAULT_AI_MODEL)
-
-    # 根据 base_url 自动判断 provider
-    url_lower = base_url.lower()
-    if "nvidia.com" in url_lower or "integrate.api.nvidia" in url_lower:
-        provider = "nvidia"
-    elif "open.bigmodel.cn" in url_lower or "zhipu" in url_lower:
-        provider = "glm"
-    elif "openai.com" in url_lower:
-        provider = "openai"
-    elif "deepseek" in url_lower:
-        provider = "deepseek"
-    elif "moonshot" in url_lower:
-        provider = "moonshot"
-    elif "dashscope" in url_lower or "aliyun" in url_lower:
-        provider = "qwen"
-    else:
-        provider = "custom"
-
+    """从 Render 环境变量读取默认 AI 配置"""
     return {
-        "provider": provider,
-        "api_key": api_key,
-        "base_url": base_url,
-        "model": model,
+        "provider": "glm",
+        "api_key": os.environ.get("ZHIPU_API_KEY", ""),
+        "base_url": os.environ.get("ZHIPU_API_URL", DEFAULT_AI_BASE_URL),
+        "model": os.environ.get("ZHIPU_MODEL", DEFAULT_AI_MODEL),
     }
 
 
@@ -113,27 +84,22 @@ def _default_ai_config():
 
 
 def load_ai_config(ip: str = None):
-    """加载 AI 配置；环境变量为默认，本地配置可覆盖。
-    若本地从未保存过且环境变量配置完整，则默认启用 AI。"""
+    """加载某 IP 的 AI 配置；环境变量为默认，本地配置可覆盖（除 enabled 外）"""
     ip = ip or _get_client_ip()
     config = _default_ai_config()
 
     cfg_file = _ai_config_file(ip)
-    has_local = False
     if cfg_file.exists():
         try:
             local = json.loads(cfg_file.read_text(encoding="utf-8"))
-            has_local = True
-            # 本地覆盖所有字段
-            for key in ["provider", "base_url", "model", "api_key", "temperature", "max_tokens", "enabled"]:
-                if key in local:
+            # 本地覆盖：provider/base_url/model/api_key/temperature/max_tokens
+            for key in ["provider", "base_url", "model", "api_key", "temperature", "max_tokens"]:
+                if key in local and local[key]:
                     config[key] = local[key]
+            if "enabled" in local:
+                config["enabled"] = bool(local["enabled"])
         except Exception:
             pass
-
-    # 如果本地没有保存过，且环境变量配置完整，默认启用 AI
-    if not has_local and config.get("api_key") and config.get("base_url") and config.get("model"):
-        config["enabled"] = True
 
     return config
 
@@ -144,9 +110,8 @@ def save_ai_config(config, ip: str = None):
     cfg_file = _ai_config_file(ip)
 
     current = load_ai_config(ip)
-    # api_key 传 ******** 或包含 **** 的脱敏值时不覆盖
-    new_key = config.get("api_key", "")
-    if new_key == "********" or "****" in new_key:
+    # api_key 传 ******** 时不覆盖
+    if config.get("api_key") == "********":
         config["api_key"] = current.get("api_key", "")
 
     to_save = {
@@ -180,11 +145,6 @@ def call_ai_api(messages, config=None, stream=False):
     base_url = config.get("base_url", DEFAULT_AI_BASE_URL).rstrip("/")
     model = config.get("model", DEFAULT_AI_MODEL)
 
-    # 统一处理 base_url：去掉可能存在的 /chat/completions 后缀，再拼接标准 endpoint
-    if base_url.endswith("/chat/completions"):
-        base_url = base_url[: -len("/chat/completions")]
-    endpoint = f"{base_url}/chat/completions"
-
     headers = {
         "Authorization": f"Bearer {config['api_key']}",
         "Content-Type": "application/json",
@@ -199,7 +159,7 @@ def call_ai_api(messages, config=None, stream=False):
 
     try:
         resp = requests.post(
-            endpoint,
+            f"{base_url}/chat/completions",
             headers=headers, json=payload, timeout=60,
         )
         if resp.status_code == 200:
@@ -241,8 +201,7 @@ def get_ai_recommendation(query: str, local_results: list):
 
 {skills_context}
 
-请分析用户需求，并严格只返回一个 JSON 对象，不要包含 markdown 代码块、注释或任何其他文字。
-JSON 必须包含以下字段且格式如下：
+请分析用户需求，返回 JSON 格式推荐结果（不要包含其他内容）:
 {{
   "recommendation": "一句话说明推荐理由",
   "category": "推荐分类名称",
@@ -250,23 +209,17 @@ JSON 必须包含以下字段且格式如下：
   "suggestions": ["推荐的skill名称1", "推荐的skill名称2"]
 }}"""
 
-        # 使用更低的 temperature 提高 JSON 输出稳定性
-        ai_config = dict(config)
-        ai_config["temperature"] = 0.1
-
         result = call_ai_api([
-            {"role": "system", "content": "你是 AI Agent Skills 推荐专家。你的回复必须且只能是一个合法 JSON 对象，不要添加 markdown、解释或其他内容。"},
+            {"role": "system", "content": "你是 AI Agent Skills 推荐专家。只返回 JSON，不要包含其他内容。"},
             {"role": "user", "content": prompt},
-        ], config=ai_config)
+        ], config=config)
 
         if result and isinstance(result, str):
             import re as _re
-            # 先尝试直接解析
-            for candidate in [result, _re.search(r'\{{.*\}}', result, _re.DOTALL).group() if _re.search(r'\{{.*\}}', result, _re.DOTALL) else ""]:
-                if not candidate:
-                    continue
+            json_match = _re.search(r'\{.*\}', result, _re.DOTALL)
+            if json_match:
                 try:
-                    parsed = json.loads(candidate)
+                    parsed = json.loads(json_match.group())
                     if "recommendation" in parsed:
                         return {
                             "recommendation": f"⚙️ {parsed['recommendation']}",
@@ -276,16 +229,7 @@ JSON 必须包含以下字段且格式如下：
                             "source": "ai",
                         }
                 except Exception:
-                    continue
-            # 若解析失败但拿到有效文本，返回原始输出便于排查（同时保留规则降级）
-            if result.strip():
-                return {
-                    "recommendation": f"⚙️ {result.strip()[:200]}",
-                    "category": "AI 原始输出",
-                    "emoji": "🤖",
-                    "suggestions": [],
-                    "source": "ai-raw",
-                }
+                    pass
 
     # 降级: 规则匹配
     if not query:
@@ -469,7 +413,6 @@ def enrich_skill(skill: dict) -> dict:
     return enriched
 
 
-@lru_cache(maxsize=1)
 def build_skills_cache():
     """从 SQLite 读取 skills，返回 (all_skills, by_category, by_name)"""
     all_skills = skills_db.list_all()
@@ -479,6 +422,11 @@ def build_skills_cache():
         by_category.setdefault(s["category"], []).append(s)
         by_name[s["name"].lower()] = s
     return all_skills, by_category, by_name
+
+
+def _strip_content(skills):
+    """列表接口去掉 content 字段，减少响应体积"""
+    return [{k: v for k, v in s.items() if k != "content"} for s in skills]
 
 
 def search_skills(query, top_k=20):
@@ -576,7 +524,7 @@ def api_categories():
 
 @app.route('/api/skills/all')
 def api_skills_all():
-    """返回所有技能列表（分页，不包含正文内容以减小体积）"""
+    """返回所有技能列表（分页）"""
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 20, type=int)
     all_skills, _, _ = build_skills_cache()
@@ -591,43 +539,12 @@ def api_skills_all():
     })
 
 
-def _strip_content(skills):
-    """移除 skill 列表中的正文内容，减小 API 响应体积"""
-    out = []
-    for s in skills:
-        s = dict(s)
-        s.pop("content", None)
-        out.append(s)
-    return out
-
-
 @app.route('/api/search')
 def api_search():
     query = request.args.get('q', '')
     top_k = request.args.get('top_k', 20, type=int)
     results = search_skills(query, top_k)
     return jsonify({"query": query, "count": len(results), "results": _strip_content(results)})
-
-
-@app.route('/api/debug/github')
-def api_debug_github():
-    """调试用：检查 GITHUB_TOKEN 状态和 GitHub API 速率限制"""
-    try:
-        resp = requests.get(
-            "https://api.github.com/rate_limit",
-            headers=GITHUB_HEADERS,
-            timeout=10,
-        )
-        data = resp.json()
-        return jsonify({
-            "github_token_configured": bool(GITHUB_TOKEN),
-            "token_prefix": GITHUB_TOKEN[:4] + "****" if GITHUB_TOKEN else None,
-            "rate_limit_status_code": resp.status_code,
-            "rate_limit": data.get("resources", {}).get("search", {}),
-            "headers": dict(resp.headers),
-        })
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
 
 
 @app.route('/api/search/github')
@@ -652,16 +569,7 @@ def api_search_github():
         }
         for r in repos
     ]
-    return jsonify({
-        "query": query,
-        "count": len(formatted),
-        "repos": formatted,
-        "debug": {
-            "github_token_configured": bool(GITHUB_TOKEN),
-            "token_prefix": GITHUB_TOKEN[:4] + "****" if GITHUB_TOKEN else None,
-            "enhanced_query": enhanced_query,
-        }
-    })
+    return jsonify({"query": query, "count": len(formatted), "repos": formatted})
 
 
 @app.route('/api/search/ai')
@@ -694,7 +602,7 @@ def api_search_all():
     return jsonify({
         "query": query,
         "recommendation": recommendation,
-        "local": {"count": len(local_results), "results": local_results[:10]},
+        "local": {"count": len(local_results), "results": _strip_content(local_results[:10])},
         "github": {"count": len(github_data), "repos": github_data}
     })
 
@@ -772,217 +680,8 @@ def api_skill(name):
         "files": files,
         "downloads": skill.get("downloads"),
         "rating": skill.get("rating"),
-        "rating_count": skill.get("rating_count"),
-        "tags": [t.strip() for t in (skill.get("tags") or "").split(",") if t.strip()],
-        "version": skill.get("version", ""),
-        "author": skill.get("author", ""),
-        "updated_at": skill.get("updated_at", ""),
-        "mtime": skill.get("mtime", 0),
+        "rating_count": skill.get("rating_count")
     })
-
-
-@app.route('/api/skill/<name>/similar')
-def api_skill_similar(name):
-    """返回同分类的类似 Skills（最多 6 个）"""
-    all_skills, _, by_name = build_skills_cache()
-    skill = by_name.get(name.lower())
-    if not skill:
-        for k, v in by_name.items():
-            if name.lower() in k:
-                skill = v
-                break
-    if not skill:
-        return jsonify({"error": "Skill not found"}), 404
-
-    cat = skill.get("category", "other")
-    similar = [
-        {
-            "name": s["name"],
-            "name_zh": s.get("name_zh", ""),
-            "name_en": s.get("name_en", ""),
-            "description": s.get("description", ""),
-            "description_zh": s.get("description_zh", ""),
-            "description_en": s.get("description_en", ""),
-            "category": s.get("category", ""),
-            "category_emoji": s.get("category_emoji", "📦"),
-            "category_name": s.get("category_name", ""),
-            "tags": s.get("tags", ""),
-            "downloads": s.get("downloads"),
-            "rating": s.get("rating"),
-        }
-        for s in all_skills
-        if s.get("category") == cat and s["name"] != skill["name"]
-    ][:6]
-    return jsonify({"skills": similar})
-
-
-@app.route('/api/skill/<name>/audit')
-def api_skill_audit(name):
-    """返回 skill 的安全审计报告"""
-    all_skills, _, by_name = build_skills_cache()
-    skill = by_name.get(name.lower())
-    if not skill:
-        for k, v in by_name.items():
-            if name.lower() in k:
-                skill = v
-                break
-    if not skill:
-        return jsonify({"error": "Skill not found"}), 404
-
-    skill_path = skill.get("path", "")
-    if not skill_path:
-        return jsonify({"error": "Skill path not available"}), 400
-
-    skill_path_obj = Path(skill_path)
-    if not skill_path_obj.is_absolute():
-        skill_path_obj = PROJECT_ROOT / skill_path_obj
-    skill_dir = skill_path_obj.parent
-
-    report = audit_skill(skill_dir)
-    report["risk_emoji"] = risk_emoji(report["risk_level"])
-    report["risk_color"] = risk_color(report["risk_level"])
-    return jsonify(report)
-
-
-@app.route('/api/skill/<name>/quality')
-def api_skill_quality(name):
-    """返回 skill 的质量评分"""
-    all_skills, _, by_name = build_skills_cache()
-    skill = by_name.get(name.lower())
-    if not skill:
-        for k, v in by_name.items():
-            if name.lower() in k:
-                skill = v
-                break
-    if not skill:
-        return jsonify({"error": "Skill not found"}), 404
-
-    score = calculate_quality_score(skill)
-    score["grade_color"] = grade_color(score["grade"])
-    score["grade_emoji"] = grade_emoji(score["grade"])
-    return jsonify(score)
-
-
-@app.route('/api/skill/<name>/report')
-def api_skill_report(name):
-    """返回完整的 skill-report（安全审计+质量评分+元数据）"""
-    all_skills, _, by_name = build_skills_cache()
-    skill = by_name.get(name.lower())
-    if not skill:
-        for k, v in by_name.items():
-            if name.lower() in k:
-                skill = v
-                break
-    if not skill:
-        return jsonify({"error": "Skill not found"}), 404
-
-    skill_path = skill.get("path", "")
-    skill_path_obj = Path(skill_path) if skill_path else None
-    if skill_path_obj and not skill_path_obj.is_absolute():
-        skill_path_obj = PROJECT_ROOT / skill_path_obj
-    skill_dir = skill_path_obj.parent if skill_path_obj else None
-
-    # 安全审计
-    if skill_dir and skill_dir.exists():
-        security = audit_skill(skill_dir)
-    else:
-        security = {
-            "risk_level": "safe", "is_blocked": False, "safe_to_publish": True,
-            "summary": "Directory not found", "findings": [], "risk_factors": [],
-            "files_scanned": 0, "total_lines": 0, "score": 0,
-        }
-
-    # 质量评分
-    quality = calculate_quality_score(skill)
-
-    # 结构化元数据
-    tags = [t.strip() for t in (skill.get("tags") or "").split(",") if t.strip()]
-    report = {
-        "schema_version": "1.0",
-        "meta": {
-            "slug": skill.get("name", ""),
-            "generated_at": datetime.now().isoformat(),
-            "source_url": skill.get("path", ""),
-        },
-        "skill": {
-            "name": skill.get("name", ""),
-            "name_zh": skill.get("name_zh", ""),
-            "name_en": skill.get("name_en", ""),
-            "description": skill.get("description", ""),
-            "description_zh": skill.get("description_zh", ""),
-            "description_en": skill.get("description_en", ""),
-            "category": skill.get("category", "other"),
-            "category_name": skill.get("category_name", ""),
-            "category_emoji": skill.get("category_emoji", "📦"),
-            "tags": tags,
-            "version": skill.get("version", ""),
-            "author": skill.get("author", ""),
-            "license": skill.get("license", ""),
-            "updated_at": skill.get("updated_at", ""),
-            "mtime": skill.get("mtime", 0),
-        },
-        "security_audit": {
-            **security,
-            "risk_emoji": risk_emoji(security["risk_level"]),
-            "risk_color": risk_color(security["risk_level"]),
-        },
-        "quality_score": {
-            **quality,
-            "grade_color": grade_color(quality["grade"]),
-            "grade_emoji": grade_emoji(quality["grade"]),
-        },
-        "stats": {
-            "downloads": skill.get("downloads", 0),
-            "rating": skill.get("rating", 0),
-            "rating_count": skill.get("rating_count", 0),
-        },
-    }
-    return jsonify(report)
-
-
-@app.route('/api/skill/<name>/download', methods=['POST'])
-def api_skill_download(name):
-    """记录一次 skill 下载"""
-    all_skills, _, by_name = build_skills_cache()
-    skill = by_name.get(name.lower())
-    if not skill:
-        for k, v in by_name.items():
-            if name.lower() in k:
-                skill = v
-                break
-    if not skill:
-        return jsonify({"error": "Skill not found"}), 404
-
-    success = increment_downloads(skill["name"])
-    # 刷新缓存使统计即时生效
-    build_skills_cache.cache_clear()
-    return jsonify({"success": success, "name": skill["name"]})
-
-
-@app.route('/api/skill/<name>/rate', methods=['POST'])
-def api_skill_rate(name):
-    """提交 skill 评分"""
-    data = request.get_json() or {}
-    try:
-        score = float(data.get("score", 0))
-    except (TypeError, ValueError):
-        return jsonify({"error": "Invalid score"}), 400
-
-    all_skills, _, by_name = build_skills_cache()
-    skill = by_name.get(name.lower())
-    if not skill:
-        for k, v in by_name.items():
-            if name.lower() in k:
-                skill = v
-                break
-    if not skill:
-        return jsonify({"error": "Skill not found"}), 404
-
-    result = submit_rating(skill["name"], score)
-    if "error" in result:
-        return jsonify(result), 400
-    build_skills_cache.cache_clear()
-    return jsonify(result)
 
 
 @app.route('/api/package', methods=['POST'])
@@ -1749,12 +1448,6 @@ def api_ai_providers():
             "models": ["glm-4", "glm-4-plus", "glm-4-flash"],
         },
         {
-            "id": "nvidia",
-            "name": "NVIDIA NIM",
-            "base_url": "https://integrate.api.nvidia.com/v1",
-            "models": ["meta/llama-3.1-8b-instruct", "meta/llama-3.1-70b-instruct", "meta/llama-3.3-70b-instruct"],
-        },
-        {
             "id": "custom",
             "name": "自定义 (OpenAI 兼容)",
             "base_url": "",
@@ -1768,6 +1461,10 @@ def api_ai_providers():
         },
     ]
     return jsonify(providers)
+
+# 自动更新任务状态（内存中，适合单实例部署）
+_update_tasks: dict[str, dict] = {}
+
 
 def _run_update_pipeline(task_id, data):
     """在后台线程运行自动更新流水线（直接调用 Python 类，避免子进程输出丢失）"""
@@ -1806,47 +1503,32 @@ def _run_update_pipeline(task_id, data):
 
 @app.route('/api/auto-update/run', methods=['POST'])
 def api_auto_update_run():
-    """启动自动更新流水线（后台异步执行）"""
+    """异步启动自动更新流水线，返回 task_id 用于轮询"""
     try:
         data = request.get_json() or {}
-        task_id = str(uuid.uuid4())
+        task_id = f"update_{datetime.now().strftime('%Y%m%d%H%M%S')}"
         _update_tasks[task_id] = {
             "status": "running",
             "started_at": datetime.now().isoformat(),
             "params": data,
         }
-        thread = threading.Thread(
-            target=_run_update_pipeline,
-            args=(task_id, data),
-            daemon=True,
-        )
+        thread = threading.Thread(target=_run_update_pipeline, args=(task_id, data), daemon=True)
         thread.start()
-        return jsonify({
-            "success": True,
-            "task_id": task_id,
-            "status": "running",
-            "message": "自动更新已在后台启动，可通过 /api/auto-update/task/<task_id> 查询状态",
-        })
+        return jsonify({"success": True, "task_id": task_id, "status": "running"})
     except Exception as e:
-        import traceback as _tb
-        return jsonify({"success": False, "error": str(e), "traceback": _tb.format_exc()}), 500
-
-
-@app.route('/api/auto-update/task/<task_id>')
-def api_auto_update_task(task_id):
-    """查询自动更新任务状态"""
-    task = _update_tasks.get(task_id)
-    if not task:
-        return jsonify({"error": "Task not found"}), 404
-    return jsonify({"task_id": task_id, **task})
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 @app.route('/api/auto-update/status')
 def api_auto_update_status():
-    """获取自动更新状态"""
+    """获取自动更新状态；支持 ?task_id=xxx 查询指定任务"""
     try:
         sys.path.insert(0, str(CLI_DIR))
         from auto_update import UpdatePipeline
+
+        task_id = request.args.get('task_id')
+        if task_id and task_id in _update_tasks:
+            return jsonify(_update_tasks[task_id])
 
         pipeline = UpdatePipeline(verbose=False)
         stats = pipeline.get_index_stats()

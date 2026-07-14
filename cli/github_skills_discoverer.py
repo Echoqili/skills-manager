@@ -197,8 +197,7 @@ class SkillsDiscoverer:
         params = {
             "q": query,
             "per_page": min(per_page, 100),
-            "sort": "stars",
-            "order": "desc"
+            # 按 GitHub 默认相关度排序，避免高星但无关仓库占据结果
         }
 
         headers_to_use = dict(GITHUB_HEADERS)
@@ -499,7 +498,7 @@ class SkillsDiscoverer:
 
                     has_skill, has_plugin, skill_files = self.check_skill_files(full_name)
 
-                    quality_score, quality_details = self.evaluate_quality(repo, skill_files)
+                    quality_score = self.evaluate_quality(repo, skill_files)
 
                     candidate = CandidateRepo(
                         name=repo.get("name", ""),
@@ -512,7 +511,6 @@ class SkillsDiscoverer:
                         category="ai_agent",
                         discovered_at=datetime.now().strftime("%Y-%m-%d"),
                         quality_score=quality_score,
-                        quality_details=quality_details,
                         skill_files=skill_files
                     )
 
