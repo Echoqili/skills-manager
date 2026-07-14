@@ -12,6 +12,7 @@
       "discovered_at": "2026-05-06",
       "status": "approved",
       "quality_score": 85,
+      "quality_details": {},
       "skill_files": [
         "SKILL.md",
         "README.md"
@@ -43,6 +44,7 @@
       "discovered_at": "2026-05-06",
       "status": "approved",
       "quality_score": 92,
+      "quality_details": {},
       "skill_files": [
         "SKILL.md"
       ],
@@ -71,6 +73,7 @@
       "discovered_at": "2026-05-06",
       "status": "approved",
       "quality_score": 88,
+      "quality_details": {},
       "skill_files": [
         "SKILL.md",
         "prompts/review.md"
@@ -88,7 +91,1416 @@
       "reviewed_by": "",
       "reviewed_at": "",
       "notes": ""
+    },
+    {
+      "name": "skills",
+      "full_name": "huggingface/skills",
+      "description": "Give your agents the power of the Hugging Face ecosystem",
+      "stars": 10812,
+      "url": "https://github.com/huggingface/skills",
+      "language": "Python",
+      "updated_at": "2026-07-14",
+      "category": "ai_agent",
+      "discovered_at": "2026-07-14",
+      "status": "pending",
+      "quality_score": 70,
+      "quality_details": {
+        "stars": 40,
+        "has_skill_md": 0,
+        "recency": 15,
+        "has_description": 5,
+        "has_license": 5,
+        "documentation": 5,
+        "security": 0
+      },
+      "skill_files": [
+        ".claude-plugin",
+        ".cursor-plugin",
+        "skills"
+      ],
+      "rejection_reason": "",
+      "security_audited": false,
+      "security_report_url": "",
+      "license": "",
+      "platforms": [
+        "claude-code",
+        "claude",
+        "codex"
+      ],
+      "version": "1.0.0",
+      "submitted_by": "",
+      "reviewed_by": "",
+      "reviewed_at": "",
+      "notes": ""
+    },
+    {
+      "name": "ECC",
+      "full_name": "affaan-m/ECC",
+      "description": "The agent harness performance optimization system. Skills, instincts, memory, security, and research-first development for Claude Code, Codex, Opencode, Cursor and beyond.",
+      "stars": 229370,
+      "url": "https://github.com/affaan-m/ECC",
+      "language": "JavaScript",
+      "updated_at": "2026-07-14",
+      "category": "ai_agent",
+      "discovered_at": "2026-07-14",
+      "status": "pending",
+      "quality_score": 70,
+      "quality_details": {
+        "stars": 40,
+        "has_skill_md": 0,
+        "recency": 15,
+        "has_description": 5,
+        "has_license": 5,
+        "documentation": 5,
+        "security": 0
+      },
+      "skill_files": [
+        ".claude-plugin",
+        ".claude",
+        ".cursor",
+        "skills"
+      ],
+      "rejection_reason": "",
+      "security_audited": false,
+      "security_report_url": "",
+      "license": "",
+      "platforms": [
+        "claude-code",
+        "claude",
+        "codex"
+      ],
+      "version": "1.0.0",
+      "submitted_by": "",
+      "reviewed_by": "",
+      "reviewed_at": "",
+      "notes": ""
+    },
+    {
+      "name": "superpowers",
+      "full_name": "obra/superpowers",
+      "description": "An agentic skills framework & software development methodology that works.",
+      "stars": 254146,
+      "url": "https://github.com/obra/superpowers",
+      "language": "Shell",
+      "updated_at": "2026-07-14",
+      "category": "ai_agent",
+      "discovered_at": "2026-07-14",
+      "status": "pending",
+      "quality_score": 70,
+      "quality_details": {
+        "stars": 40,
+        "has_skill_md": 0,
+        "recency": 15,
+        "has_description": 5,
+        "has_license": 5,
+        "documentation": 5,
+        "security": 0
+      },
+      "skill_files": [
+        ".claude-plugin",
+        ".cursor-plugin",
+        "skills"
+      ],
+      "rejection_reason": "",
+      "security_audited": false,
+      "security_report_url": "",
+      "license": "",
+      "platforms": [
+        "claude-code",
+        "claude",
+        "codex"
+      ],
+      "version": "1.0.0",
+      "submitted_by": "",
+      "reviewed_by": "",
+      "reviewed_at": "",
+      "notes": ""
+    },
+    {
+      "name": "gstack",
+      "full_name": "garrytan/gstack",
+      "description": "Use Garry Tan's exact Claude Code setup: 23 opinionated tools that serve as CEO, Designer, Eng Manager, Release Manager, Doc Engineer, and QA",
+      "stars": 121752,
+      "url": "https://github.com/garrytan/gstack",
+      "language": "TypeScript",
+      "updated_at": "2026-07-14",
+      "category": "ai_agent",
+      "discovered_at": "2026-07-14",
+      "status": "pending",
+      "quality_score": 70,
+      "quality_details": {
+        "stars": 40,
+        "has_skill_md": 0,
+        "recency": 15,
+        "has_description": 5,
+        "has_license": 5,
+        "documentation": 5,
+        "security": 0
+      },
+      "skill_files": [
+        "SKILL.md",
+        "browser-skills"
+      ],
+      "rejection_reason": "",
+      "security_audited": false,
+      "security_report_url": "",
+      "license": "",
+      "platforms": [
+        "claude-code",
+        "claude",
+        "codex"
+      ],
+      "version": "1.0.0",
+      "submitted_by": "",
+      "reviewed_by": "",
+      "reviewed_at": "",
+      "notes": ""
+    },
+    {
+      "name": "ralph",
+      "full_name": "snarktank/ralph",
+      "description": "Ralph is an autonomous AI agent loop that runs repeatedly until all PRD items are complete. ",
+      "stars": 21051,
+      "url": "https://github.com/snarktank/ralph",
+      "language": "TypeScript",
+      "updated_at": "2026-07-14",
+      "category": "product",
+      "discovered_at": "2026-07-14",
+      "status": "pending",
+      "quality_score": 70,
+      "quality_details": {
+        "stars": 40,
+        "has_skill_md": 0,
+        "recency": 15,
+        "has_description": 5,
+        "has_license": 5,
+        "documentation": 5,
+        "security": 0
+      },
+      "skill_files": [
+        ".claude-plugin",
+        "skills"
+      ],
+      "rejection_reason": "",
+      "security_audited": false,
+      "security_report_url": "",
+      "license": "",
+      "platforms": [
+        "claude-code",
+        "claude",
+        "codex"
+      ],
+      "version": "1.0.0",
+      "submitted_by": "",
+      "reviewed_by": "",
+      "reviewed_at": "",
+      "notes": ""
+    },
+    {
+      "name": "claude-skills",
+      "full_name": "alirezarezvani/claude-skills",
+      "description": "345 Claude Code skills & agent skills & plugins (30+ Agents, 70+ custom commands, 330+ skills, customizable references, scripts)for Claude Code, Codex, Gemini CLI, Cursor, and 8 more coding agents — engineering, marketing, product, compliance, C-level advisory, research, business operations, commercial & finance, and your daily productivity skills.",
+      "stars": 22536,
+      "url": "https://github.com/alirezarezvani/claude-skills",
+      "language": "Python",
+      "updated_at": "2026-07-14",
+      "category": "agile",
+      "discovered_at": "2026-07-14",
+      "status": "pending",
+      "quality_score": 70,
+      "quality_details": {
+        "stars": 40,
+        "has_skill_md": 0,
+        "recency": 15,
+        "has_description": 5,
+        "has_license": 5,
+        "documentation": 5,
+        "security": 0
+      },
+      "skill_files": [
+        ".claude-plugin",
+        ".claude"
+      ],
+      "rejection_reason": "",
+      "security_audited": false,
+      "security_report_url": "",
+      "license": "",
+      "platforms": [
+        "claude-code",
+        "claude",
+        "codex"
+      ],
+      "version": "1.0.0",
+      "submitted_by": "",
+      "reviewed_by": "",
+      "reviewed_at": "",
+      "notes": ""
+    },
+    {
+      "name": "BMAD-METHOD",
+      "full_name": "bmad-code-org/BMAD-METHOD",
+      "description": "Breakthrough Method for Agile Ai Driven Development",
+      "stars": 50557,
+      "url": "https://github.com/bmad-code-org/BMAD-METHOD",
+      "language": "JavaScript",
+      "updated_at": "2026-07-14",
+      "category": "agile",
+      "discovered_at": "2026-07-14",
+      "status": "pending",
+      "quality_score": 70,
+      "quality_details": {
+        "stars": 40,
+        "has_skill_md": 0,
+        "recency": 15,
+        "has_description": 5,
+        "has_license": 5,
+        "documentation": 5,
+        "security": 0
+      },
+      "skill_files": [
+        ".claude-plugin"
+      ],
+      "rejection_reason": "",
+      "security_audited": false,
+      "security_report_url": "",
+      "license": "",
+      "platforms": [
+        "claude-code",
+        "claude",
+        "codex"
+      ],
+      "version": "1.0.0",
+      "submitted_by": "",
+      "reviewed_by": "",
+      "reviewed_at": "",
+      "notes": ""
+    },
+    {
+      "name": "career-ops",
+      "full_name": "santifer/career-ops",
+      "description": "Open-source AI job search: scan job portals, score listings A-F, tailor your CV, track applications — runs locally in your AI coding CLI (Claude Code, Gemini, Codex, OpenCode…)",
+      "stars": 59962,
+      "url": "https://github.com/santifer/career-ops",
+      "language": "JavaScript",
+      "updated_at": "2026-07-14",
+      "category": "qa_testing",
+      "discovered_at": "2026-07-14",
+      "status": "pending",
+      "quality_score": 70,
+      "quality_details": {
+        "stars": 40,
+        "has_skill_md": 0,
+        "recency": 15,
+        "has_description": 5,
+        "has_license": 5,
+        "documentation": 5,
+        "security": 0
+      },
+      "skill_files": [
+        ".claude-plugin",
+        ".claude"
+      ],
+      "rejection_reason": "",
+      "security_audited": false,
+      "security_report_url": "",
+      "license": "",
+      "platforms": [
+        "claude-code",
+        "claude",
+        "codex"
+      ],
+      "version": "1.0.0",
+      "submitted_by": "",
+      "reviewed_by": "",
+      "reviewed_at": "",
+      "notes": ""
+    },
+    {
+      "name": "claude-code-templates",
+      "full_name": "davila7/claude-code-templates",
+      "description": "CLI tool for configuring and monitoring Claude Code",
+      "stars": 29436,
+      "url": "https://github.com/davila7/claude-code-templates",
+      "language": "Python",
+      "updated_at": "2026-07-14",
+      "category": "qa_testing",
+      "discovered_at": "2026-07-14",
+      "status": "pending",
+      "quality_score": 70,
+      "quality_details": {
+        "stars": 40,
+        "has_skill_md": 0,
+        "recency": 15,
+        "has_description": 5,
+        "has_license": 5,
+        "documentation": 5,
+        "security": 0
+      },
+      "skill_files": [
+        ".claude-plugin",
+        ".claude"
+      ],
+      "rejection_reason": "",
+      "security_audited": false,
+      "security_report_url": "",
+      "license": "",
+      "platforms": [
+        "claude-code",
+        "claude",
+        "codex"
+      ],
+      "version": "1.0.0",
+      "submitted_by": "",
+      "reviewed_by": "",
+      "reviewed_at": "",
+      "notes": ""
+    },
+    {
+      "name": "CleanArchitecture",
+      "full_name": "ardalis/CleanArchitecture",
+      "description": "Clean Architecture Solution Template: A proven Clean Architecture Template for ASP.NET Core 10",
+      "stars": 18336,
+      "url": "https://github.com/ardalis/CleanArchitecture",
+      "language": "C#",
+      "updated_at": "2026-07-14",
+      "category": "architecture",
+      "discovered_at": "2026-07-14",
+      "status": "pending",
+      "quality_score": 70,
+      "quality_details": {
+        "stars": 40,
+        "has_skill_md": 0,
+        "recency": 15,
+        "has_description": 5,
+        "has_license": 5,
+        "documentation": 5,
+        "security": 0
+      },
+      "skill_files": [
+        ".claude"
+      ],
+      "rejection_reason": "",
+      "security_audited": false,
+      "security_report_url": "",
+      "license": "",
+      "platforms": [
+        "claude-code",
+        "claude",
+        "codex"
+      ],
+      "version": "1.0.0",
+      "submitted_by": "",
+      "reviewed_by": "",
+      "reviewed_at": "",
+      "notes": ""
+    },
+    {
+      "name": "GitNexus",
+      "full_name": "abhigyanpatwari/GitNexus",
+      "description": "GitNexus: The Zero-Server Code Intelligence Engine -       GitNexus is a client-side knowledge graph creator that runs entirely in your browser. Drop in a git repository (Github, Gitlab, Azure, Local) or ZIP file, and get an interactive knowledge graph with a built in Graph RAG Agent. Perfect for code exploration",
+      "stars": 44092,
+      "url": "https://github.com/abhigyanpatwari/GitNexus",
+      "language": "TypeScript",
+      "updated_at": "2026-07-14",
+      "category": "dev_workflow",
+      "discovered_at": "2026-07-14",
+      "status": "pending",
+      "quality_score": 70,
+      "quality_details": {
+        "stars": 40,
+        "has_skill_md": 0,
+        "recency": 15,
+        "has_description": 5,
+        "has_license": 5,
+        "documentation": 5,
+        "security": 0
+      },
+      "skill_files": [
+        ".claude-plugin",
+        ".claude",
+        ".cursor",
+        ".cursorrules",
+        "skills.mdm"
+      ],
+      "rejection_reason": "",
+      "security_audited": false,
+      "security_report_url": "",
+      "license": "",
+      "platforms": [
+        "claude-code",
+        "claude",
+        "codex"
+      ],
+      "version": "1.0.0",
+      "submitted_by": "",
+      "reviewed_by": "",
+      "reviewed_at": "",
+      "notes": ""
+    },
+    {
+      "name": "skills",
+      "full_name": "mattpocock/skills",
+      "description": "Skills for Real Engineers. Straight from my .claude directory.",
+      "stars": 168946,
+      "url": "https://github.com/mattpocock/skills",
+      "language": "Shell",
+      "updated_at": "2026-07-14",
+      "category": "ai_agent",
+      "discovered_at": "2026-07-14",
+      "status": "pending",
+      "quality_score": 65,
+      "quality_details": {
+        "stars": 40,
+        "has_skill_md": 0,
+        "recency": 15,
+        "has_description": 5,
+        "has_license": 5,
+        "documentation": 0,
+        "security": 0
+      },
+      "skill_files": [
+        ".claude-plugin",
+        "skills"
+      ],
+      "rejection_reason": "",
+      "security_audited": false,
+      "security_report_url": "",
+      "license": "",
+      "platforms": [
+        "claude-code",
+        "claude",
+        "codex"
+      ],
+      "version": "1.0.0",
+      "submitted_by": "",
+      "reviewed_by": "",
+      "reviewed_at": "",
+      "notes": ""
+    },
+    {
+      "name": "skills",
+      "full_name": "vercel-labs/skills",
+      "description": "The open agent skills tool - npx skills",
+      "stars": 26071,
+      "url": "https://github.com/vercel-labs/skills",
+      "language": "TypeScript",
+      "updated_at": "2026-07-14",
+      "category": "ai_agent",
+      "discovered_at": "2026-07-14",
+      "status": "pending",
+      "quality_score": 65,
+      "quality_details": {
+        "stars": 40,
+        "has_skill_md": 0,
+        "recency": 15,
+        "has_description": 5,
+        "has_license": 0,
+        "documentation": 5,
+        "security": 0
+      },
+      "skill_files": [
+        "skills"
+      ],
+      "rejection_reason": "",
+      "security_audited": false,
+      "security_report_url": "",
+      "license": "",
+      "platforms": [
+        "claude-code",
+        "claude",
+        "codex"
+      ],
+      "version": "1.0.0",
+      "submitted_by": "",
+      "reviewed_by": "",
+      "reviewed_at": "",
+      "notes": ""
+    },
+    {
+      "name": "skills",
+      "full_name": "MiniMax-AI/skills",
+      "description": "",
+      "stars": 13049,
+      "url": "https://github.com/MiniMax-AI/skills",
+      "language": "C#",
+      "updated_at": "2026-07-14",
+      "category": "ai_agent",
+      "discovered_at": "2026-07-14",
+      "status": "pending",
+      "quality_score": 65,
+      "quality_details": {
+        "stars": 40,
+        "has_skill_md": 0,
+        "recency": 15,
+        "has_description": 0,
+        "has_license": 5,
+        "documentation": 5,
+        "security": 0
+      },
+      "skill_files": [
+        ".claude-plugin",
+        ".claude",
+        ".cursor-plugin",
+        "skills"
+      ],
+      "rejection_reason": "",
+      "security_audited": false,
+      "security_report_url": "",
+      "license": "",
+      "platforms": [
+        "claude-code",
+        "claude",
+        "codex"
+      ],
+      "version": "1.0.0",
+      "submitted_by": "",
+      "reviewed_by": "",
+      "reviewed_at": "",
+      "notes": ""
+    },
+    {
+      "name": "andrej-karpathy-skills",
+      "full_name": "multica-ai/andrej-karpathy-skills",
+      "description": "A single CLAUDE.md file to improve Claude Code behavior, derived from Andrej Karpathy's observations on LLM coding pitfalls.",
+      "stars": 191777,
+      "url": "https://github.com/multica-ai/andrej-karpathy-skills",
+      "language": "",
+      "updated_at": "2026-07-14",
+      "category": "ai_agent",
+      "discovered_at": "2026-07-14",
+      "status": "pending",
+      "quality_score": 65,
+      "quality_details": {
+        "stars": 40,
+        "has_skill_md": 0,
+        "recency": 15,
+        "has_description": 5,
+        "has_license": 0,
+        "documentation": 5,
+        "security": 0
+      },
+      "skill_files": [
+        ".claude-plugin",
+        ".cursor",
+        "skills"
+      ],
+      "rejection_reason": "",
+      "security_audited": false,
+      "security_report_url": "",
+      "license": "",
+      "platforms": [
+        "claude-code",
+        "claude",
+        "codex"
+      ],
+      "version": "1.0.0",
+      "submitted_by": "",
+      "reviewed_by": "",
+      "reviewed_at": "",
+      "notes": ""
+    },
+    {
+      "name": "awesome-claude-skills",
+      "full_name": "ComposioHQ/awesome-claude-skills",
+      "description": "A curated list of awesome Claude Skills, resources, and tools for customizing Claude AI workflows",
+      "stars": 67671,
+      "url": "https://github.com/ComposioHQ/awesome-claude-skills",
+      "language": "Python",
+      "updated_at": "2026-07-14",
+      "category": "ai_agent",
+      "discovered_at": "2026-07-14",
+      "status": "pending",
+      "quality_score": 65,
+      "quality_details": {
+        "stars": 40,
+        "has_skill_md": 0,
+        "recency": 15,
+        "has_description": 5,
+        "has_license": 0,
+        "documentation": 5,
+        "security": 0
+      },
+      "skill_files": [
+        "composio-skills",
+        "document-skills"
+      ],
+      "rejection_reason": "",
+      "security_audited": false,
+      "security_report_url": "",
+      "license": "",
+      "platforms": [
+        "claude-code",
+        "claude",
+        "codex"
+      ],
+      "version": "1.0.0",
+      "submitted_by": "",
+      "reviewed_by": "",
+      "reviewed_at": "",
+      "notes": ""
+    },
+    {
+      "name": "ui-ux-pro-max-skill",
+      "full_name": "nextlevelbuilder/ui-ux-pro-max-skill",
+      "description": "An AI SKILL that provide design intelligence for building professional UI/UX multiple platforms",
+      "stars": 105298,
+      "url": "https://github.com/nextlevelbuilder/ui-ux-pro-max-skill",
+      "language": "Python",
+      "updated_at": "2026-07-14",
+      "category": "ai_agent",
+      "discovered_at": "2026-07-14",
+      "status": "pending",
+      "quality_score": 65,
+      "quality_details": {
+        "stars": 40,
+        "has_skill_md": 0,
+        "recency": 15,
+        "has_description": 5,
+        "has_license": 5,
+        "documentation": 0,
+        "security": 0
+      },
+      "skill_files": [
+        ".claude-plugin",
+        ".claude"
+      ],
+      "rejection_reason": "",
+      "security_audited": false,
+      "security_report_url": "",
+      "license": "",
+      "platforms": [
+        "claude-code",
+        "claude",
+        "codex"
+      ],
+      "version": "1.0.0",
+      "submitted_by": "",
+      "reviewed_by": "",
+      "reviewed_at": "",
+      "notes": ""
+    },
+    {
+      "name": "skills",
+      "full_name": "google/skills",
+      "description": "Agent Skills for Google products and technologies",
+      "stars": 14711,
+      "url": "https://github.com/google/skills",
+      "language": "Python",
+      "updated_at": "2026-07-14",
+      "category": "product",
+      "discovered_at": "2026-07-14",
+      "status": "pending",
+      "quality_score": 65,
+      "quality_details": {
+        "stars": 40,
+        "has_skill_md": 0,
+        "recency": 15,
+        "has_description": 5,
+        "has_license": 5,
+        "documentation": 0,
+        "security": 0
+      },
+      "skill_files": [
+        "skills"
+      ],
+      "rejection_reason": "",
+      "security_audited": false,
+      "security_report_url": "",
+      "license": "",
+      "platforms": [
+        "claude-code",
+        "claude",
+        "codex"
+      ],
+      "version": "1.0.0",
+      "submitted_by": "",
+      "reviewed_by": "",
+      "reviewed_at": "",
+      "notes": ""
+    },
+    {
+      "name": "storybook",
+      "full_name": "storybookjs/storybook",
+      "description": "Storybook is the industry standard workshop for building, documenting, and testing UI components in isolation",
+      "stars": 90685,
+      "url": "https://github.com/storybookjs/storybook",
+      "language": "TypeScript",
+      "updated_at": "2026-07-14",
+      "category": "product",
+      "discovered_at": "2026-07-14",
+      "status": "pending",
+      "quality_score": 65,
+      "quality_details": {
+        "stars": 40,
+        "has_skill_md": 0,
+        "recency": 15,
+        "has_description": 5,
+        "has_license": 5,
+        "documentation": 0,
+        "security": 0
+      },
+      "skill_files": [
+        ".claude",
+        ".cursor",
+        ".cursorrules"
+      ],
+      "rejection_reason": "",
+      "security_audited": false,
+      "security_report_url": "",
+      "license": "",
+      "platforms": [
+        "claude-code",
+        "claude",
+        "codex"
+      ],
+      "version": "1.0.0",
+      "submitted_by": "",
+      "reviewed_by": "",
+      "reviewed_at": "",
+      "notes": ""
+    },
+    {
+      "name": "Claude-Code-Game-Studios",
+      "full_name": "Donchitos/Claude-Code-Game-Studios",
+      "description": "Turn Claude Code into a full game dev studio — 49 AI agents, 72 workflow skills, and a complete coordination system mirroring real studio hierarchy.",
+      "stars": 22960,
+      "url": "https://github.com/Donchitos/Claude-Code-Game-Studios",
+      "language": "Shell",
+      "updated_at": "2026-07-14",
+      "category": "agile",
+      "discovered_at": "2026-07-14",
+      "status": "pending",
+      "quality_score": 65,
+      "quality_details": {
+        "stars": 40,
+        "has_skill_md": 0,
+        "recency": 15,
+        "has_description": 5,
+        "has_license": 5,
+        "documentation": 0,
+        "security": 0
+      },
+      "skill_files": [
+        ".claude"
+      ],
+      "rejection_reason": "",
+      "security_audited": false,
+      "security_report_url": "",
+      "license": "",
+      "platforms": [
+        "claude-code",
+        "claude",
+        "codex"
+      ],
+      "version": "1.0.0",
+      "submitted_by": "",
+      "reviewed_by": "",
+      "reviewed_at": "",
+      "notes": ""
+    },
+    {
+      "name": "skills",
+      "full_name": "anthropics/skills",
+      "description": "Public repository for Agent Skills",
+      "stars": 160966,
+      "url": "https://github.com/anthropics/skills",
+      "language": "Python",
+      "updated_at": "2026-07-14",
+      "category": "ai_agent",
+      "discovered_at": "2026-07-14",
+      "status": "pending",
+      "quality_score": 60,
+      "quality_details": {
+        "stars": 40,
+        "has_skill_md": 0,
+        "recency": 15,
+        "has_description": 5,
+        "has_license": 0,
+        "documentation": 0,
+        "security": 0
+      },
+      "skill_files": [
+        ".claude-plugin",
+        "skills"
+      ],
+      "rejection_reason": "",
+      "security_audited": false,
+      "security_report_url": "",
+      "license": "",
+      "platforms": [
+        "claude-code",
+        "claude",
+        "codex"
+      ],
+      "version": "1.0.0",
+      "submitted_by": "",
+      "reviewed_by": "",
+      "reviewed_at": "",
+      "notes": ""
+    },
+    {
+      "name": "skills",
+      "full_name": "dotnet/skills",
+      "description": "Repository for skills to assist AI coding agents with .NET and C#",
+      "stars": 4601,
+      "url": "https://github.com/dotnet/skills",
+      "language": "C#",
+      "updated_at": "2026-07-14",
+      "category": "ai_agent",
+      "discovered_at": "2026-07-14",
+      "status": "pending",
+      "quality_score": 60,
+      "quality_details": {
+        "stars": 30,
+        "has_skill_md": 0,
+        "recency": 15,
+        "has_description": 5,
+        "has_license": 5,
+        "documentation": 5,
+        "security": 0
+      },
+      "skill_files": [
+        ".claude-plugin",
+        ".cursor-plugin",
+        "dotnet-skills.experiment.yaml"
+      ],
+      "rejection_reason": "",
+      "security_audited": false,
+      "security_report_url": "",
+      "license": "",
+      "platforms": [
+        "claude-code",
+        "claude",
+        "codex"
+      ],
+      "version": "1.0.0",
+      "submitted_by": "",
+      "reviewed_by": "",
+      "reviewed_at": "",
+      "notes": ""
+    },
+    {
+      "name": "Skills",
+      "full_name": "MengTo/Skills",
+      "description": "Agent skills for designers and builders using Codex, Claude, Cursor, and other AI coding agents",
+      "stars": 2053,
+      "url": "https://github.com/MengTo/Skills",
+      "language": "Python",
+      "updated_at": "2026-07-14",
+      "category": "ai_agent",
+      "discovered_at": "2026-07-14",
+      "status": "pending",
+      "quality_score": 60,
+      "quality_details": {
+        "stars": 30,
+        "has_skill_md": 0,
+        "recency": 15,
+        "has_description": 5,
+        "has_license": 5,
+        "documentation": 5,
+        "security": 0
+      },
+      "skill_files": [
+        "agent-skills"
+      ],
+      "rejection_reason": "",
+      "security_audited": false,
+      "security_report_url": "",
+      "license": "",
+      "platforms": [
+        "claude-code",
+        "claude",
+        "codex"
+      ],
+      "version": "1.0.0",
+      "submitted_by": "",
+      "reviewed_by": "",
+      "reviewed_at": "",
+      "notes": ""
+    },
+    {
+      "name": "skills",
+      "full_name": "cloudflare/skills",
+      "description": "Skills for teaching agents how to build on Cloudflare.",
+      "stars": 2143,
+      "url": "https://github.com/cloudflare/skills",
+      "language": "Shell",
+      "updated_at": "2026-07-14",
+      "category": "ai_agent",
+      "discovered_at": "2026-07-14",
+      "status": "pending",
+      "quality_score": 60,
+      "quality_details": {
+        "stars": 30,
+        "has_skill_md": 0,
+        "recency": 15,
+        "has_description": 5,
+        "has_license": 5,
+        "documentation": 5,
+        "security": 0
+      },
+      "skill_files": [
+        ".claude-plugin",
+        ".cursor-plugin",
+        "skills"
+      ],
+      "rejection_reason": "",
+      "security_audited": false,
+      "security_report_url": "",
+      "license": "",
+      "platforms": [
+        "claude-code",
+        "claude",
+        "codex"
+      ],
+      "version": "1.0.0",
+      "submitted_by": "",
+      "reviewed_by": "",
+      "reviewed_at": "",
+      "notes": ""
+    },
+    {
+      "name": "skills",
+      "full_name": "AlphaGBM/skills",
+      "description": "Real-data options intelligence for AI agents — 29 Skills for Claude Code, Cursor & beyond",
+      "stars": 1359,
+      "url": "https://github.com/AlphaGBM/skills",
+      "language": "Python",
+      "updated_at": "2026-07-14",
+      "category": "ai_agent",
+      "discovered_at": "2026-07-14",
+      "status": "pending",
+      "quality_score": 60,
+      "quality_details": {
+        "stars": 30,
+        "has_skill_md": 0,
+        "recency": 15,
+        "has_description": 5,
+        "has_license": 5,
+        "documentation": 5,
+        "security": 0
+      },
+      "skill_files": [
+        "skills"
+      ],
+      "rejection_reason": "",
+      "security_audited": false,
+      "security_report_url": "",
+      "license": "",
+      "platforms": [
+        "claude-code",
+        "claude",
+        "codex"
+      ],
+      "version": "1.0.0",
+      "submitted_by": "",
+      "reviewed_by": "",
+      "reviewed_at": "",
+      "notes": ""
+    },
+    {
+      "name": "skills",
+      "full_name": "vuejs-ai/skills",
+      "description": "Agent skills for Vue 3 development",
+      "stars": 2699,
+      "url": "https://github.com/vuejs-ai/skills",
+      "language": "",
+      "updated_at": "2026-07-14",
+      "category": "qa_testing",
+      "discovered_at": "2026-07-14",
+      "status": "pending",
+      "quality_score": 60,
+      "quality_details": {
+        "stars": 30,
+        "has_skill_md": 0,
+        "recency": 15,
+        "has_description": 5,
+        "has_license": 5,
+        "documentation": 5,
+        "security": 0
+      },
+      "skill_files": [
+        ".claude-plugin",
+        "skills"
+      ],
+      "rejection_reason": "",
+      "security_audited": false,
+      "security_report_url": "",
+      "license": "",
+      "platforms": [
+        "claude-code",
+        "claude",
+        "codex"
+      ],
+      "version": "1.0.0",
+      "submitted_by": "",
+      "reviewed_by": "",
+      "reviewed_at": "",
+      "notes": ""
+    },
+    {
+      "name": "skills",
+      "full_name": "wondelai/skills",
+      "description": "Agent skills for Claude, Claude Code, Claude Cowork, Codex, Cursor, OpenClaw, Hermes Agent and other agentskills.io-compatible agents. See https://developertoolkit.ai to learn more how to use skills properly and create new ones.",
+      "stars": 1629,
+      "url": "https://github.com/wondelai/skills",
+      "language": "Shell",
+      "updated_at": "2026-07-14",
+      "category": "architecture",
+      "discovered_at": "2026-07-14",
+      "status": "pending",
+      "quality_score": 60,
+      "quality_details": {
+        "stars": 30,
+        "has_skill_md": 0,
+        "recency": 15,
+        "has_description": 5,
+        "has_license": 5,
+        "documentation": 5,
+        "security": 0
+      },
+      "skill_files": [
+        ".claude-plugin",
+        ".claude",
+        ".cursor",
+        ".cursorrules"
+      ],
+      "rejection_reason": "",
+      "security_audited": false,
+      "security_report_url": "",
+      "license": "",
+      "platforms": [
+        "claude-code",
+        "claude",
+        "codex"
+      ],
+      "version": "1.0.0",
+      "submitted_by": "",
+      "reviewed_by": "",
+      "reviewed_at": "",
+      "notes": ""
+    },
+    {
+      "name": "skills",
+      "full_name": "trailofbits/skills",
+      "description": "Trail of Bits Claude Code skills for security research, vulnerability detection, and audit workflows",
+      "stars": 6116,
+      "url": "https://github.com/trailofbits/skills",
+      "language": "Python",
+      "updated_at": "2026-07-14",
+      "category": "ai_agent",
+      "discovered_at": "2026-07-14",
+      "status": "pending",
+      "quality_score": 55,
+      "quality_details": {
+        "stars": 30,
+        "has_skill_md": 0,
+        "recency": 15,
+        "has_description": 5,
+        "has_license": 5,
+        "documentation": 0,
+        "security": 0
+      },
+      "skill_files": [
+        ".claude-plugin"
+      ],
+      "rejection_reason": "",
+      "security_audited": false,
+      "security_report_url": "",
+      "license": "",
+      "platforms": [
+        "claude-code",
+        "claude",
+        "codex"
+      ],
+      "version": "1.0.0",
+      "submitted_by": "",
+      "reviewed_by": "",
+      "reviewed_at": "",
+      "notes": ""
+    },
+    {
+      "name": "skills",
+      "full_name": "browserbase/skills",
+      "description": "Browserbase's official collection of agent skills to access the web.",
+      "stars": 3646,
+      "url": "https://github.com/browserbase/skills",
+      "language": "JavaScript",
+      "updated_at": "2026-07-13",
+      "category": "ai_agent",
+      "discovered_at": "2026-07-14",
+      "status": "pending",
+      "quality_score": 55,
+      "quality_details": {
+        "stars": 30,
+        "has_skill_md": 0,
+        "recency": 15,
+        "has_description": 5,
+        "has_license": 0,
+        "documentation": 5,
+        "security": 0
+      },
+      "skill_files": [
+        ".claude-plugin",
+        "skills"
+      ],
+      "rejection_reason": "",
+      "security_audited": false,
+      "security_report_url": "",
+      "license": "",
+      "platforms": [
+        "claude-code",
+        "claude",
+        "codex"
+      ],
+      "version": "1.0.0",
+      "submitted_by": "",
+      "reviewed_by": "",
+      "reviewed_at": "",
+      "notes": ""
+    },
+    {
+      "name": "skills",
+      "full_name": "BuilderIO/skills",
+      "description": "Skills for coding agents",
+      "stars": 3634,
+      "url": "https://github.com/BuilderIO/skills",
+      "language": "JavaScript",
+      "updated_at": "2026-07-14",
+      "category": "ai_agent",
+      "discovered_at": "2026-07-14",
+      "status": "pending",
+      "quality_score": 55,
+      "quality_details": {
+        "stars": 30,
+        "has_skill_md": 0,
+        "recency": 15,
+        "has_description": 5,
+        "has_license": 5,
+        "documentation": 0,
+        "security": 0
+      },
+      "skill_files": [
+        ".claude-plugin",
+        "skills"
+      ],
+      "rejection_reason": "",
+      "security_audited": false,
+      "security_report_url": "",
+      "license": "",
+      "platforms": [
+        "claude-code",
+        "claude",
+        "codex"
+      ],
+      "version": "1.0.0",
+      "submitted_by": "",
+      "reviewed_by": "",
+      "reviewed_at": "",
+      "notes": ""
+    },
+    {
+      "name": "skills",
+      "full_name": "NVIDIA/skills",
+      "description": "AI agent skills published by NVIDIA",
+      "stars": 2475,
+      "url": "https://github.com/NVIDIA/skills",
+      "language": "Python",
+      "updated_at": "2026-07-14",
+      "category": "ai_agent",
+      "discovered_at": "2026-07-14",
+      "status": "pending",
+      "quality_score": 55,
+      "quality_details": {
+        "stars": 30,
+        "has_skill_md": 0,
+        "recency": 15,
+        "has_description": 5,
+        "has_license": 5,
+        "documentation": 0,
+        "security": 0
+      },
+      "skill_files": [
+        ".claude-plugin",
+        ".cursor-plugin",
+        "skills.sh.json",
+        "skills"
+      ],
+      "rejection_reason": "",
+      "security_audited": false,
+      "security_report_url": "",
+      "license": "",
+      "platforms": [
+        "claude-code",
+        "claude",
+        "codex"
+      ],
+      "version": "1.0.0",
+      "submitted_by": "",
+      "reviewed_by": "",
+      "reviewed_at": "",
+      "notes": ""
+    },
+    {
+      "name": "skills",
+      "full_name": "expo/skills",
+      "description": "A collection of AI agent skills for working with Expo projects and Expo Application Services",
+      "stars": 2205,
+      "url": "https://github.com/expo/skills",
+      "language": "JavaScript",
+      "updated_at": "2026-07-14",
+      "category": "ai_agent",
+      "discovered_at": "2026-07-14",
+      "status": "pending",
+      "quality_score": 55,
+      "quality_details": {
+        "stars": 30,
+        "has_skill_md": 0,
+        "recency": 15,
+        "has_description": 5,
+        "has_license": 5,
+        "documentation": 0,
+        "security": 0
+      },
+      "skill_files": [
+        ".claude-plugin",
+        ".claude",
+        ".cursor-plugin",
+        "skills.sh.json"
+      ],
+      "rejection_reason": "",
+      "security_audited": false,
+      "security_report_url": "",
+      "license": "",
+      "platforms": [
+        "claude-code",
+        "claude",
+        "codex"
+      ],
+      "version": "1.0.0",
+      "submitted_by": "",
+      "reviewed_by": "",
+      "reviewed_at": "",
+      "notes": ""
+    },
+    {
+      "name": "claude-code-ultimate-guide",
+      "full_name": "FlorianBruniaux/claude-code-ultimate-guide",
+      "description": "The most comprehensive Claude Code guide: agentic workflows, hooks, skills, MCP servers, quizzes, and production-ready templates. 430K+ lines.",
+      "stars": 5442,
+      "url": "https://github.com/FlorianBruniaux/claude-code-ultimate-guide",
+      "language": "Python",
+      "updated_at": "2026-07-14",
+      "category": "dev_workflow",
+      "discovered_at": "2026-07-14",
+      "status": "pending",
+      "quality_score": 55,
+      "quality_details": {
+        "stars": 30,
+        "has_skill_md": 0,
+        "recency": 15,
+        "has_description": 5,
+        "has_license": 5,
+        "documentation": 0,
+        "security": 0
+      },
+      "skill_files": [
+        ".claude"
+      ],
+      "rejection_reason": "",
+      "security_audited": false,
+      "security_report_url": "",
+      "license": "",
+      "platforms": [
+        "claude-code",
+        "claude",
+        "codex"
+      ],
+      "version": "1.0.0",
+      "submitted_by": "",
+      "reviewed_by": "",
+      "reviewed_at": "",
+      "notes": ""
+    },
+    {
+      "name": "skills",
+      "full_name": "slavingia/skills",
+      "description": "Based on The Minimalist Entrepreneur by Sahil Lavingia",
+      "stars": 9520,
+      "url": "https://github.com/slavingia/skills",
+      "language": "",
+      "updated_at": "2026-07-14",
+      "category": "ai_agent",
+      "discovered_at": "2026-07-14",
+      "status": "pending",
+      "quality_score": 50,
+      "quality_details": {
+        "stars": 30,
+        "has_skill_md": 0,
+        "recency": 15,
+        "has_description": 5,
+        "has_license": 0,
+        "documentation": 0,
+        "security": 0
+      },
+      "skill_files": [
+        ".claude-plugin",
+        "skills"
+      ],
+      "rejection_reason": "",
+      "security_audited": false,
+      "security_report_url": "",
+      "license": "",
+      "platforms": [
+        "claude-code",
+        "claude",
+        "codex"
+      ],
+      "version": "1.0.0",
+      "submitted_by": "",
+      "reviewed_by": "",
+      "reviewed_at": "",
+      "notes": ""
+    },
+    {
+      "name": "code",
+      "full_name": "PostHog/code",
+      "description": "The era of self-driving development is here",
+      "stars": 160,
+      "url": "https://github.com/PostHog/code",
+      "language": "TypeScript",
+      "updated_at": "2026-07-14",
+      "category": "dev_workflow",
+      "discovered_at": "2026-07-14",
+      "status": "pending",
+      "quality_score": 45,
+      "quality_details": {
+        "stars": 20,
+        "has_skill_md": 0,
+        "recency": 15,
+        "has_description": 5,
+        "has_license": 5,
+        "documentation": 0,
+        "security": 0
+      },
+      "skill_files": [
+        ".claude"
+      ],
+      "rejection_reason": "",
+      "security_audited": false,
+      "security_report_url": "",
+      "license": "",
+      "platforms": [
+        "claude-code",
+        "claude",
+        "codex"
+      ],
+      "version": "1.0.0",
+      "submitted_by": "",
+      "reviewed_by": "",
+      "reviewed_at": "",
+      "notes": ""
     }
   ],
-  "last_updated": "2026-06-21T23:26:00.533882"
+  "last_updated": "2026-07-14T07:20:58.523678"
 }
