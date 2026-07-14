@@ -17,7 +17,7 @@ import time
 import requests
 from pathlib import Path
 from datetime import datetime
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, asdict, field
 from typing import List, Optional, Dict
 from enum import Enum
 
@@ -69,34 +69,34 @@ SKILLS_ROOT = PROJECT_ROOT / "data" / "all-skills"
 
 SEARCH_QUERIES = {
     "ai_agent": [
-        "claude skills site:github.com",
-        "cursor skills site:github.com",
-        "agent skills claude site:github.com",
+        "claude skills in:name,description,readme",
+        "cursor skills in:name,description,readme",
+        "agent skills claude in:name,description,readme",
     ],
     "product": [
-        "product manager skills site:github.com",
-        "prd template site:github.com",
-        "user story skills site:github.com",
+        "product manager skills in:name,description,readme",
+        "prd template in:name,description,readme",
+        "user story skills in:name,description,readme",
     ],
     "agile": [
-        "scrum skills site:github.com",
-        "sprint planning template site:github.com",
-        "agile workflow site:github.com",
+        "scrum skills in:name,description,readme",
+        "sprint planning template in:name,description,readme",
+        "agile workflow in:name,description,readme",
     ],
     "qa_testing": [
-        "playwright template site:github.com",
-        "e2e testing skills site:github.com",
-        "automation testing template site:github.com",
+        "playwright template in:name,description,readme",
+        "e2e testing skills in:name,description,readme",
+        "automation testing template in:name,description,readme",
     ],
     "architecture": [
-        "ddd skills site:github.com",
-        "architecture template site:github.com",
-        "hexagonal architecture site:github.com",
+        "ddd skills in:name,description,readme",
+        "architecture template in:name,description,readme",
+        "hexagonal architecture in:name,description,readme",
     ],
     "dev_workflow": [
-        "tdd template site:github.com",
-        "clean code guidelines site:github.com",
-        "git workflow site:github.com",
+        "tdd template in:name,description,readme",
+        "clean code guidelines in:name,description,readme",
+        "git workflow in:name,description,readme",
     ],
 }
 
@@ -120,6 +120,7 @@ class CandidateRepo:
     discovered_at: str
     status: str = CandidateStatus.PENDING.value
     quality_score: int = 0
+    quality_details: Dict = field(default_factory=dict)
     skill_files: List[str] = None
     rejection_reason: str = ""
     # 新增字段：与 AI Skillstore Marketplace 保持一致
@@ -196,8 +197,7 @@ class SkillsDiscoverer:
         params = {
             "q": query,
             "per_page": min(per_page, 100),
-            "sort": "stars",
-            "order": "desc"
+            # 按 GitHub 默认相关度排序，避免高星但无关仓库占据结果
         }
 
         headers_to_use = dict(GITHUB_HEADERS)
@@ -278,8 +278,8 @@ class SkillsDiscoverer:
 
         return has_skill_md, has_plugin, skill_files
 
-    def evaluate_quality(self, repo: Dict, skill_files: List[str]) -> Dict[str, int]:
-        """增强版质量评估，返回详细评分"""
+    def evaluate_quality(self, repo: Dict, skill_files: List[str]) -> tuple[int, Dict]:
+        """增强版质量评估，返回 (总分, 详细评分)"""
         score = 0
         details = {
             "stars": 0,
@@ -290,7 +290,7 @@ class SkillsDiscoverer:
             "documentation": 0,
             "security": 0,
         }
-        
+
         stars = repo.get("stargazers_count", 0)
         if stars >= 10000:
             score += 40
@@ -304,14 +304,14 @@ class SkillsDiscoverer:
         elif stars >= 50:
             score += 10
             details["stars"] = 10
-        
+
         # SKILL.md 文件存在性（参照 AI Skillstore）
         if skill_files:
             skill_md_count = sum(1 for f in skill_files if 'SKILL.md' in f.upper())
             if skill_md_count > 0:
                 score += 30
                 details["has_skill_md"] = 30
-        
+
         # 最近更新
         updated_at = repo.get("updated_at", "")
         if updated_at:
@@ -329,25 +329,25 @@ class SkillsDiscoverer:
                     details["recency"] = 5
             except Exception:
                 pass
-        
+
         # 有描述
         has_description = bool(repo.get("description"))
         if has_description:
             score += 5
             details["has_description"] = 5
-        
+
         # 有许可证
         has_license = bool(repo.get("license"))
         if has_license:
             score += 5
             details["has_license"] = 5
-        
+
         # 文档完善度（README 等）
         if repo.get("has_wiki") or repo.get("has_pages"):
             score += 5
             details["documentation"] = 5
-        
-        return {"total": min(score, 100), "details": details}
+
+        return min(score, 100), details
 
     def discover(self, categories: List[str] = None, max_per_category: int = 20) -> List[CandidateRepo]:
         if categories is None:
@@ -377,7 +377,7 @@ class SkillsDiscoverer:
                     if not has_skill and not has_plugin:
                         continue
 
-                    quality_score = self.evaluate_quality(repo, skill_files)
+                    quality_score, quality_details = self.evaluate_quality(repo, skill_files)
 
                     candidate = CandidateRepo(
                         name=repo.get("name", ""),
@@ -390,6 +390,7 @@ class SkillsDiscoverer:
                         category=cat_key,
                         discovered_at=datetime.now().strftime("%Y-%m-%d"),
                         quality_score=quality_score,
+                        quality_details=quality_details,
                         skill_files=skill_files
                     )
 

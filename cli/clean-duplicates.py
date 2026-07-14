@@ -61,13 +61,21 @@ def select_best_version(duplicates):
 
 
 def delete_duplicate(skill_name, item):
-    """删除重复技能"""
-    for skill_dir in ALL_SKILLS_DIR.iterdir():
-        target_path = skill_dir / skill_name
-        if target_path.exists():
-            print(f"删除重复: {skill_dir.name}/{skill_name}")
-            shutil.rmtree(target_path)
-            return True
+    """删除重复技能（只删除指定 source 目录下的版本）"""
+    source = item["source"]
+    # source 名称与目录名的映射：索引中的 source 可能带 -skills 后缀
+    source_dir = ALL_SKILLS_DIR / source
+    if not source_dir.exists():
+        # 兼容旧目录命名，如 superpowers -> superpowers-skills
+        for skill_dir in ALL_SKILLS_DIR.iterdir():
+            if skill_dir.name.startswith(source) or source in skill_dir.name:
+                source_dir = skill_dir
+                break
+    target_path = source_dir / skill_name
+    if target_path.exists():
+        print(f"删除重复: {source_dir.name}/{skill_name}")
+        shutil.rmtree(target_path)
+        return True
     return False
 
 

@@ -11,6 +11,7 @@ import re
 import zipfile
 import requests
 import subprocess
+import threading
 from pathlib import Path
 from datetime import datetime
 from functools import lru_cache
@@ -164,7 +165,17 @@ def call_ai_api(messages, config=None, stream=False):
         if resp.status_code == 200:
             data = resp.json()
             return data["choices"][0]["message"]["content"]
-        error_msg = resp.json().get("error", {}).get("message", str(resp.status_code))
+        try:
+            err_data = resp.json()
+        except Exception:
+            err_data = {}
+        # 兼容 OpenAI 风格 error.message 与 NVIDIA 风格 detail/title
+        error_msg = (
+            err_data.get("error", {}).get("message")
+            or err_data.get("detail")
+            or err_data.get("title")
+            or str(resp.status_code)
+        )
         return {"error": f"API 错误 ({resp.status_code}): {error_msg}"}
     except requests.exceptions.ConnectionError:
         return {"error": f"无法连接到 {base_url}，请检查地址是否正确"}
@@ -413,6 +424,11 @@ def build_skills_cache():
     return all_skills, by_category, by_name
 
 
+def _strip_content(skills):
+    """列表接口去掉 content 字段，减少响应体积"""
+    return [{k: v for k, v in s.items() if k != "content"} for s in skills]
+
+
 def search_skills(query, top_k=20):
     """走 DB 搜索"""
     if not query:
@@ -422,7 +438,8 @@ def search_skills(query, top_k=20):
 
 def search_github_repos(query: str, per_page: int = 10):
     url = "https://api.github.com/search/repositories"
-    params = {"q": query, "per_page": per_page, "sort": "stars", "order": "desc"}
+    # 默认按 GitHub 相关度排序，比按 stars 排序更能命中目标仓库
+    params = {"q": query, "per_page": per_page}
     try:
         resp = requests.get(url, headers=GITHUB_HEADERS, params=params, timeout=30)
         if resp.status_code == 200:
@@ -518,7 +535,7 @@ def api_skills_all():
         "total": total,
         "page": page,
         "per_page": per_page,
-        "results": all_skills[start:end]
+        "results": _strip_content(all_skills[start:end])
     })
 
 
@@ -527,7 +544,7 @@ def api_search():
     query = request.args.get('q', '')
     top_k = request.args.get('top_k', 20, type=int)
     results = search_skills(query, top_k)
-    return jsonify({"query": query, "count": len(results), "results": results})
+    return jsonify({"query": query, "count": len(results), "results": _strip_content(results)})
 
 
 @app.route('/api/search/github')
@@ -536,7 +553,8 @@ def api_search_github():
     per_page = request.args.get('per_page', 10, type=int)
     if not query:
         return jsonify({"error": "Query is required"}), 400
-    enhanced_query = f"{query} skills site:github.com"
+    # GitHub API 使用 in: 语法；site:github.com 会被忽略并返回大量不相关高星仓库
+    enhanced_query = f"{query} in:name,description,readme"
     repos = search_github_repos(enhanced_query, per_page)
     if isinstance(repos, dict) and "error" in repos:
         return jsonify(repos), 429 if repos["error"] == "rate_limited" else 400
@@ -569,7 +587,8 @@ def api_search_all():
         return jsonify({"error": "Query is required"}), 400
     local_results = search_skills(query)
     recommendation = get_ai_recommendation(query, local_results)
-    enhanced_query = f"{query} skills site:github.com"
+    # GitHub API 使用 in: 语法；site:github.com 会被忽略并返回大量不相关高星仓库
+    enhanced_query = f"{query} in:name,description,readme"
     github_repos = search_github_repos(enhanced_query, 5)
     github_data = [
         {
@@ -583,7 +602,7 @@ def api_search_all():
     return jsonify({
         "query": query,
         "recommendation": recommendation,
-        "local": {"count": len(local_results), "results": local_results[:10]},
+        "local": {"count": len(local_results), "results": _strip_content(local_results[:10])},
         "github": {"count": len(github_data), "repos": github_data}
     })
 
@@ -597,7 +616,7 @@ def api_category(cat_key):
         "name": CATEGORIES_NAME.get(cat_key, cat_key.title()),
         "emoji": CATEGORIES_EMOJI.get(cat_key, '📦'),
         "count": len(skills),
-        "skills": skills
+        "skills": _strip_content(skills)
     })
 
 
@@ -622,7 +641,7 @@ def api_scenario(scenario_key):
         "name": scenario.get("name", scenario_key),
         "emoji": scenario.get("emoji", "📦"),
         "count": len(matched),
-        "skills": matched[:20]
+        "skills": _strip_content(matched[:20])
     })
 
 
@@ -1369,9 +1388,10 @@ def api_ai_test():
     try:
         data = request.get_json() or {}
         config = load_ai_config()
-        # 用请求中的值覆盖临时测试
-        if data.get("api_key") and data["api_key"] != "********":
-            config["api_key"] = data["api_key"]
+        # 用请求中的值覆盖临时测试；如果传入的是脱敏 key，则继续使用本地存储的真实 key
+        test_key = data.get("api_key", "")
+        if test_key and test_key != "********" and "****" not in test_key:
+            config["api_key"] = test_key
         if data.get("base_url"):
             config["base_url"] = data["base_url"]
         if data.get("model"):
@@ -1442,14 +1462,16 @@ def api_ai_providers():
     ]
     return jsonify(providers)
 
-@app.route('/api/auto-update/run', methods=['POST'])
-def api_auto_update_run():
-    """运行完整的自动更新流水线"""
+# 自动更新任务状态（内存中，适合单实例部署）
+_update_tasks: dict[str, dict] = {}
+
+
+def _run_update_pipeline(task_id, data):
+    """在后台线程运行自动更新流水线（直接调用 Python 类，避免子进程输出丢失）"""
     try:
         sys.path.insert(0, str(CLI_DIR))
         from auto_update import UpdatePipeline
-        
-        data = request.get_json() or {}
+
         skip_discover = data.get('skip_discover', False)
         skip_scan = data.get('skip_scan', False)
         skip_clean = data.get('skip_clean', False)
@@ -1464,17 +1486,49 @@ def api_auto_update_run():
             skip_scan=skip_scan,
             skip_clean=skip_clean,
         )
-        return jsonify(result)
+        _update_tasks[task_id].update({
+            "status": "completed",
+            "finished_at": datetime.now().isoformat(),
+            "result": result,
+        })
+    except Exception as e:
+        import traceback as _tb
+        _update_tasks[task_id].update({
+            "status": "failed",
+            "finished_at": datetime.now().isoformat(),
+            "error": str(e),
+            "traceback": _tb.format_exc(),
+        })
+
+
+@app.route('/api/auto-update/run', methods=['POST'])
+def api_auto_update_run():
+    """异步启动自动更新流水线，返回 task_id 用于轮询"""
+    try:
+        data = request.get_json() or {}
+        task_id = f"update_{datetime.now().strftime('%Y%m%d%H%M%S')}"
+        _update_tasks[task_id] = {
+            "status": "running",
+            "started_at": datetime.now().isoformat(),
+            "params": data,
+        }
+        thread = threading.Thread(target=_run_update_pipeline, args=(task_id, data), daemon=True)
+        thread.start()
+        return jsonify({"success": True, "task_id": task_id, "status": "running"})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
 
 @app.route('/api/auto-update/status')
 def api_auto_update_status():
-    """获取自动更新状态"""
+    """获取自动更新状态；支持 ?task_id=xxx 查询指定任务"""
     try:
         sys.path.insert(0, str(CLI_DIR))
         from auto_update import UpdatePipeline
+
+        task_id = request.args.get('task_id')
+        if task_id and task_id in _update_tasks:
+            return jsonify(_update_tasks[task_id])
 
         pipeline = UpdatePipeline(verbose=False)
         stats = pipeline.get_index_stats()
