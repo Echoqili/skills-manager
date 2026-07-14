@@ -498,7 +498,7 @@ class SkillsDiscoverer:
 
                     has_skill, has_plugin, skill_files = self.check_skill_files(full_name)
 
-                    quality_score = self.evaluate_quality(repo, skill_files)
+                    quality_score, quality_details = self.evaluate_quality(repo, skill_files)
 
                     candidate = CandidateRepo(
                         name=repo.get("name", ""),
@@ -511,6 +511,7 @@ class SkillsDiscoverer:
                         category="ai_agent",
                         discovered_at=datetime.now().strftime("%Y-%m-%d"),
                         quality_score=quality_score,
+                        quality_details=quality_details,
                         skill_files=skill_files
                     )
 

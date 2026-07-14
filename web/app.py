@@ -79,7 +79,8 @@ def _default_ai_config():
     config = _load_env_ai_config()
     config["temperature"] = 0.7
     config["max_tokens"] = 1024
-    config["enabled"] = False
+    # 环境变量已配置 API key 时默认启用 AI
+    config["enabled"] = bool(config.get("api_key"))
     return config
 
 
