@@ -3260,7 +3260,7 @@
         function showManage(section) {
             document.getElementById('manageMenu').classList.remove('show');
             showSection(section);
-            if (section === 'discover') loadDiscoverStats();
+            if (section === 'discover') { loadDiscoverStats(); loadCandidates(); }
             if (section === 'releases') loadReleases();
             if (section === 'update') loadUpdateStatus();
             if (section === 'ai') loadAiConfig();
