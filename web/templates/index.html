@@ -2195,7 +2195,7 @@
                         <form id="aiConfigForm" onsubmit="event.preventDefault()">
                             <div class="ai-config-header">
                                 <div class="ai-config-title" data-i18n="ai_config_title">API 配置</div>
-                                <div class="ai-config-desc" data-i18n="ai_config_desc">默认使用 Render 环境变量中的智谱配置，每个 IP 可独立覆盖</div>
+                                <div class="ai-config-desc" data-i18n="ai_config_desc">默认使用 Render 环境变量中的大模型配置，每个 IP 可独立覆盖</div>
                             </div>
 
                             <div class="form-group">
@@ -2216,6 +2216,7 @@
                             <div class="form-group">
                                 <label for="aiModel" data-i18n="ai_label_model">模型</label>
                                 <select id="aiModel"></select>
+                                <input type="text" id="aiModelCustom" class="select-input" style="display:none;" placeholder="输入模型名，如 gpt-4o" onchange="onAiConfigChanged()">
                             </div>
 
                             <div class="form-group">
@@ -2397,7 +2398,7 @@
                 sec_ai: '⚙️ 智能设置',
                 tag_ai: '配置智能 API，启用智能推荐',
                 ai_config_title: 'API 配置',
-                ai_config_desc: '默认使用 Render 环境变量中的智谱配置，每个 IP 可独立覆盖',
+                ai_config_desc: '默认使用 Render 环境变量中的大模型配置，每个 IP 可独立覆盖',
                 ai_label_enable: '启用智能',
                 ai_label_provider: '智能提供商',
                 ai_label_model: '模型',
@@ -2410,7 +2411,7 @@
                 btn_show: '显示',
                 btn_hide: '隐藏',
                 ai_info_title: '📡 使用说明',
-                ai_info_1: '默认加载 Render 环境变量中的 ZHIPU_* 配置',
+                ai_info_1: '默认加载 Render 环境变量中的 AI_* 配置，未设置时回退到 ZHIPU_*',
                 ai_info_2: '每个 IP 可在此页面独立覆盖默认配置',
                 ai_info_3: '配置并启用后，搜索时将自动调用智能模型进行推荐',
                 ai_info_4: '如果智能服务调用失败，会自动降级为规则匹配推荐',
@@ -2747,7 +2748,7 @@
                 sec_ai: '⚙️ Smart Settings',
                 tag_ai: 'Configure smart API for recommendations',
                 ai_config_title: 'API Configuration',
-                ai_config_desc: 'Default uses ZHIPU_* env vars from Render; each IP can override independently',
+                ai_config_desc: 'Default uses large model config from Render environment variables; each IP can override independently',
                 ai_label_enable: 'Enable Smart',
                 ai_label_provider: 'Smart Provider',
                 ai_label_model: 'Model',
@@ -2760,7 +2761,7 @@
                 btn_show: 'Show',
                 btn_hide: 'Hide',
                 ai_info_title: '📡 Instructions',
-                ai_info_1: 'Default loads ZHIPU_* environment variables from Render',
+                ai_info_1: 'By default loads AI_* environment variables from Render, falls back to ZHIPU_*',
                 ai_info_2: 'Each IP can override the default config on this page',
                 ai_info_3: 'After config and enable, search will call smart service for recommendations',
                 ai_info_4: 'Falls back to rule matching if smart service call fails',
@@ -4340,7 +4341,7 @@
                     selectedProvider = providerSelect.options[0].value;
                 }
 
-                // 更新模型下拉
+                // 更新模型输入
                 const modelSelect = document.getElementById('aiModel');
                 const selectedOpt = providerSelect.options[providerSelect.selectedIndex];
                 let models = [];
@@ -4352,6 +4353,8 @@
                 modelSelect.innerHTML = models.map(m =>
                     `<option value="${m}" ${m === config.model ? 'selected' : ''}>${m}</option>`
                 ).join('');
+                updateModelInputVisibility();
+                setAiModelValue(config.model || '');
 
                 // 设置其他字段
                 document.getElementById('aiEnabled').checked = config.enabled || false;
@@ -4370,6 +4373,42 @@
             }
         }
 
+        function isCustomProvider() {
+            return document.getElementById('aiProvider').value === 'custom';
+        }
+
+        function getAiModelValue() {
+            if (isCustomProvider()) {
+                return document.getElementById('aiModelCustom').value.trim();
+            }
+            return document.getElementById('aiModel').value;
+        }
+
+        function setAiModelValue(value) {
+            if (isCustomProvider()) {
+                document.getElementById('aiModelCustom').value = value || '';
+            } else {
+                const modelSelect = document.getElementById('aiModel');
+                let found = false;
+                for (let i = 0; i < modelSelect.options.length; i++) {
+                    if (modelSelect.options[i].value === value) {
+                        modelSelect.selectedIndex = i;
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found && modelSelect.options.length > 0) {
+                    modelSelect.selectedIndex = 0;
+                }
+            }
+        }
+
+        function updateModelInputVisibility() {
+            const isCustom = isCustomProvider();
+            document.getElementById('aiModel').style.display = isCustom ? 'none' : 'block';
+            document.getElementById('aiModelCustom').style.display = isCustom ? 'block' : 'none';
+        }
+
         function onAiProviderChange() {
             const provider = document.getElementById('aiProvider');
             const idx = provider.selectedIndex;
@@ -4378,7 +4417,7 @@
             // 更新 API 地址
             const url = selected.dataset.url || '';
             document.getElementById('aiBaseUrl').value = url;
-            // 更新模型下拉
+            // 更新模型输入：自定义 provider 使用文本框，其他使用下拉框
             const modelSelect = document.getElementById('aiModel');
             let models = [];
             try {
@@ -4389,6 +4428,10 @@
             modelSelect.innerHTML = models.map(m =>
                 `<option value="${m}">${m}</option>`
             ).join('');
+            updateModelInputVisibility();
+            if (!isCustomProvider() && modelSelect.options.length > 0) {
+                modelSelect.selectedIndex = 0;
+            }
             onAiConfigChanged();
         }
 
@@ -4433,7 +4476,7 @@
             try {
                 const config = {
                     provider: document.getElementById('aiProvider').value,
-                    model: document.getElementById('aiModel').value,
+                    model: getAiModelValue(),
                     base_url: document.getElementById('aiBaseUrl').value,
                     api_key: document.getElementById('aiApiKey').value,
                     temperature: parseFloat(document.getElementById('aiTemperature').value),
@@ -4472,7 +4515,7 @@
             try {
                 const config = {
                     provider: document.getElementById('aiProvider').value,
-                    model: document.getElementById('aiModel').value,
+                    model: getAiModelValue(),
                     base_url: document.getElementById('aiBaseUrl').value,
                     api_key: document.getElementById('aiApiKey').value,
                     temperature: parseFloat(document.getElementById('aiTemperature').value),
