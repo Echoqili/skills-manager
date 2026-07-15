@@ -887,7 +887,7 @@ def api_discover_ai():
             ]
         }
         if not new_candidates:
-            response["message"] = "AI 推荐未返回结果，已降级为空列表。请检查 AI 配置或稍后重试。"
+            response["message"] = "未找到匹配的 GitHub 仓库。建议：1) 尝试英文关键词如 'skills'、'claude skills'；2) 降低最低 Stars；3) 检查 AI 配置。"
         return jsonify(response)
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500

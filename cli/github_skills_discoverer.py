@@ -468,41 +468,25 @@ class SkillsDiscoverer:
 
         ai_response = self.call_zhipu_ai(prompt)
 
-        if not ai_response:
-            print("AI 推荐失败，降级返回空列表")
-            return []
-
         new_candidates = []
         existing_urls = {c.url for c in self.candidates}
 
-        repo_patterns = [
-            r'([a-zA-Z0-9_-]+)/([a-zA-Z0-9_-]+)',
-        ]
-
-        import re
-        for match in re.finditer(r'([a-zA-Z0-9_-]+)/([a-zA-Z0-9_-]+)', ai_response):
-            full_name = match.group(0)
-
-            if full_name in existing_urls:
-                continue
-
-            try:
-                url = f"https://api.github.com/repos/{full_name}"
-                resp = requests.get(url, headers=GITHUB_HEADERS, timeout=10)
-                if resp.status_code == 200:
-                    repo = resp.json()
-                    stars = repo.get("stargazers_count", 0)
-
-                    if stars < self.min_stars:
-                        continue
-
+        if not ai_response:
+            print("AI 推荐不可用，降级使用 GitHub 关键词搜索")
+            repos = self.search_github(user_requirement, per_page=10)
+            for repo in repos:
+                full_name = repo.get("full_name", "")
+                if not full_name or repo.get("html_url", "") in existing_urls:
+                    continue
+                stars = repo.get("stargazers_count", 0)
+                if stars < self.min_stars:
+                    continue
+                try:
                     has_skill, has_plugin, skill_files = self.check_skill_files(full_name)
-
                     quality_score, quality_details = self.evaluate_quality(repo, skill_files)
-
                     candidate = CandidateRepo(
                         name=repo.get("name", ""),
-                        full_name=repo.get("full_name", ""),
+                        full_name=full_name,
                         description=repo.get("description", "") or "",
                         stars=stars,
                         url=repo.get("html_url", ""),
@@ -514,13 +498,54 @@ class SkillsDiscoverer:
                         quality_details=quality_details,
                         skill_files=skill_files
                     )
-
                     new_candidates.append(candidate)
-                    existing_urls.add(full_name)
+                    existing_urls.add(candidate.url)
+                except Exception as e:
+                    print(f"Error processing {full_name}: {e}")
+                    continue
+        else:
+            import re
+            for match in re.finditer(r'([a-zA-Z0-9_-]+)/([a-zA-Z0-9_-]+)', ai_response):
+                full_name = match.group(0)
 
-            except Exception as e:
-                print(f"Error fetching {full_name}: {e}")
-                continue
+                if full_name in existing_urls:
+                    continue
+
+                try:
+                    url = f"https://api.github.com/repos/{full_name}"
+                    resp = requests.get(url, headers=GITHUB_HEADERS, timeout=10)
+                    if resp.status_code == 200:
+                        repo = resp.json()
+                        stars = repo.get("stargazers_count", 0)
+
+                        if stars < self.min_stars:
+                            continue
+
+                        has_skill, has_plugin, skill_files = self.check_skill_files(full_name)
+
+                        quality_score, quality_details = self.evaluate_quality(repo, skill_files)
+
+                        candidate = CandidateRepo(
+                            name=repo.get("name", ""),
+                            full_name=repo.get("full_name", ""),
+                            description=repo.get("description", "") or "",
+                            stars=stars,
+                            url=repo.get("html_url", ""),
+                            language=repo.get("language", "") or "",
+                            updated_at=repo.get("updated_at", "")[:10],
+                            category="ai_agent",
+                            discovered_at=datetime.now().strftime("%Y-%m-%d"),
+                            quality_score=quality_score,
+                            quality_details=quality_details,
+                            skill_files=skill_files
+                        )
+
+                        new_candidates.append(candidate)
+                        existing_urls.add(full_name)
+
+                except Exception as e:
+                    print(f"Error fetching {full_name}: {e}")
+                    continue
 
         if new_candidates:
             new_candidates.sort(key=lambda x: -x.quality_score)
