@@ -1458,6 +1458,14 @@
         .btn-approve:hover { background: #10b981; color: white; }
         .btn-reject { background: rgba(239,68,68,0.1); color: #ef4444; }
         .btn-reject:hover { background: #ef4444; color: white; }
+        .candidate-toolbar {
+            display: flex; align-items: center; justify-content: space-between;
+            gap: 12px; margin: 18px 0 14px 0; padding: 12px 16px;
+            background: var(--bg-secondary); border: 1px solid var(--border); border-radius: var(--radius-md);
+        }
+        .candidate-toolbar input { flex: 1; min-width: 180px; }
+        .candidate-toolbar-info { display: flex; align-items: center; gap: 10px; color: var(--text-secondary); font-size: 0.86rem; }
+        .candidate-count { font-weight: 600; color: var(--primary); }
         .btn-preview {
             display: flex; align-items: center; gap: 5px;
             padding: 9px 16px; border-radius: var(--radius-md);
@@ -1760,6 +1768,8 @@
             .candidate-actions { width: 100%; }
             .btn-approve, .btn-reject, .btn-preview { flex: 1; justify-content: center; }
             .stats-row { flex-direction: column; }
+            .candidate-toolbar { flex-direction: column; align-items: stretch; }
+            .candidate-toolbar-info { justify-content: space-between; }
             .stat-badge { min-width: auto; }
             .release-card { padding: 20px; }
             .release-header { flex-direction: column; align-items: flex-start; gap: 10px; }
@@ -2032,7 +2042,15 @@
                     </div>
                 </div>
                 <div id="discoverStats"></div>
+                <div class="candidate-toolbar" id="candidateToolbar" style="display:none;">
+                    <input type="text" id="candidateFilter" class="select-input" placeholder="" oninput="filterCandidates()" data-i18n-placeholder="filter_candidates">
+                    <div class="candidate-toolbar-info">
+                        <span id="candidateCount"></span>
+                        <button class="btn btn-ghost btn-sm" onclick="clearCandidateFilter()" data-i18n="clear_filter">清空</button>
+                    </div>
+                </div>
                 <div id="discoverResults" class="repo-list"></div>
+                <div class="pagination" id="candidatePagination" style="display:none;"></div>
             </section>
 
             <!-- 版本发布页面 -->
@@ -2519,7 +2537,12 @@
                 discover_cat_dev: '⚡ 开发工作流',
                 discover_min_stars: '最低 Stars',
                 discover_run: '▶️ 开始发现',
+                discover_running: '发现中...',
                 discover_list: '📋 候选列表',
+                filter_candidates: '过滤候选...',
+                clear_filter: '清空',
+                showing: '显示',
+                candidates: '个候选',
                 ai_title: '智能推荐',
                 ai_placeholder: '描述你需要的 Skills，例如：\n• 我需要一个帮助代码审查的 Skill\n• 想要提高团队敏捷开发效率\n• 需要产品需求文档编写的最佳实践',
                 ai_min_stars: '最低 Stars',
@@ -2869,7 +2892,12 @@
                 discover_cat_dev: '⚡ Dev Workflow',
                 discover_min_stars: 'Min Stars',
                 discover_run: '▶️ Start Discovery',
+                discover_running: 'Discovering...',
                 discover_list: '📋 Candidate List',
+                filter_candidates: 'Filter candidates...',
+                clear_filter: 'Clear',
+                showing: 'Showing',
+                candidates: 'candidates',
                 ai_title: 'Smart Recommendation',
                 ai_placeholder: 'Describe the Skills you need, e.g.:\n• I need a Skill for code review\n• Want to improve team agile efficiency\n• Need best practices for PRD writing',
                 ai_min_stars: 'Min Stars',
@@ -4710,12 +4738,53 @@
             } catch (e) { showToast(t('msg_packing_fail', e.message), 'error'); }
         }
 
+        let _currentCandidates = [];
+        let _currentTaskId = null;
+        let _candidatePage = 1;
+        let _candidatesPerPage = 10;
+
+        function setDiscoverLoading(loading) {
+            const runBtn = Array.from(document.querySelectorAll('button')).find(b => b.getAttribute('onclick') === 'runDiscovery()');
+            if (runBtn) {
+                runBtn.disabled = loading;
+                runBtn.innerHTML = loading ? `⏳ ${t('discover_running')}` : `▶️ ${t('discover_run')}`;
+                runBtn.style.opacity = loading ? '0.7' : '1';
+                runBtn.style.cursor = loading ? 'not-allowed' : 'pointer';
+            }
+            const container = document.getElementById('discoverResults');
+            if (loading) {
+                container.innerHTML = renderCandidateSkeleton(3);
+            }
+        }
+
+        function renderCandidateSkeleton(count) {
+            return Array(count).fill(0).map(() => `
+                <div class="candidate-card skeleton-card">
+                    <div class="candidate-main">
+                        <div class="candidate-info" style="flex:1;">
+                            <div class="skeleton skeleton-title" style="width:220px;height:18px;margin-bottom:10px;"></div>
+                            <div class="skeleton skeleton-text" style="width:100%;height:14px;margin-bottom:8px;"></div>
+                            <div class="skeleton skeleton-text" style="width:60%;height:14px;"></div>
+                            <div style="display:flex;gap:8px;margin-top:12px;">
+                                <div class="skeleton" style="width:60px;height:22px;border-radius:12px;"></div>
+                                <div class="skeleton" style="width:60px;height:22px;border-radius:12px;"></div>
+                            </div>
+                        </div>
+                        <div class="candidate-actions" style="flex-shrink:0;">
+                            <div class="skeleton" style="width:80px;height:36px;border-radius:8px;"></div>
+                            <div class="skeleton" style="width:80px;height:36px;border-radius:8px;"></div>
+                        </div>
+                    </div>
+                </div>`).join('');
+        }
+
         async function runDiscovery() {
             const category = document.getElementById('discoverCategory').value;
             const minStars = parseInt(document.getElementById('minStars').value) || 50;
             const body = {min_stars: minStars};
             if (category) body.categories = [category];
             showToast(t('msg_discovering'), 'info');
+            setDiscoverLoading(true);
             try {
                 const res = await fetch('/api/discover/run', {
                     method: 'POST', headers: {'Content-Type': 'application/json'},
@@ -4724,16 +4793,22 @@
                 const data = await res.json();
                 if (!data.success) {
                     showToast(t('msg_packing_fail', data.error || (t('unknown_error'))), 'error');
+                    setDiscoverLoading(false);
                     return;
                 }
+                _currentTaskId = data.task_id;
                 pollDiscoverTask(data.task_id);
-            } catch (e) { showToast(t('msg_packing_fail', e.message), 'error'); }
+            } catch (e) {
+                showToast(t('msg_packing_fail', e.message), 'error');
+                setDiscoverLoading(false);
+            }
         }
 
         function pollDiscoverTask(taskId, attempt = 0) {
             const maxAttempts = 120;
             if (attempt >= maxAttempts) {
                 showToast(t('msg_packing_fail', t('timeout_error') || '发现任务超时'), 'error');
+                setDiscoverLoading(false);
                 return;
             }
             fetch(`/api/discover/task/${taskId}`)
@@ -4743,30 +4818,55 @@
                         setTimeout(() => pollDiscoverTask(taskId, attempt + 1), 2000);
                         return;
                     }
+                    setDiscoverLoading(false);
                     if (task.status === 'completed') {
                         showToast(t('msg_discovered', task.found), 'success');
-                        renderDiscoverResults(task.candidates);
+                        loadCandidates();
                         loadDiscoverStats();
                     } else {
                         showToast(t('msg_packing_fail', task.error || (t('unknown_error'))), 'error');
                     }
                 })
-                .catch(e => showToast(t('msg_packing_fail', e.message), 'error'));
+                .catch(e => {
+                    showToast(t('msg_packing_fail', e.message), 'error');
+                    setDiscoverLoading(false);
+                });
         }
 
         async function loadCandidates() {
+            const container = document.getElementById('discoverResults');
+            container.innerHTML = renderCandidateSkeleton(4);
             try {
                 const res = await fetch('/api/discover/candidates');
                 const data = await res.json();
-                renderDiscoverResults(data.candidates);
+                _currentCandidates = data.candidates || [];
+                renderDiscoverResults(_currentCandidates);
                 showToast(t('msg_load_candidates', data.count), 'info');
             } catch (e) { showToast(t('msg_packing_fail', e.message), 'error'); }
         }
 
+        function getFilteredCandidates() {
+            const filterInput = document.getElementById('candidateFilter');
+            const query = filterInput ? filterInput.value.trim().toLowerCase() : '';
+            if (!query) return _currentCandidates;
+            return _currentCandidates.filter(c =>
+                (c.full_name || c.name || '').toLowerCase().includes(query) ||
+                (c.description || '').toLowerCase().includes(query) ||
+                (c.language || '').toLowerCase().includes(query) ||
+                (c.category || '').toLowerCase().includes(query)
+            );
+        }
+
         function renderDiscoverResults(candidates) {
-            const container = document.getElementById('discoverResults');
-            if (!candidates || candidates.length === 0) {
-                container.innerHTML = `
+            _currentCandidates = candidates || [];
+            const toolbar = document.getElementById('candidateToolbar');
+            const pagination = document.getElementById('candidatePagination');
+            const countEl = document.getElementById('candidateCount');
+
+            if (_currentCandidates.length === 0) {
+                if (toolbar) toolbar.style.display = 'none';
+                if (pagination) pagination.style.display = 'none';
+                document.getElementById('discoverResults').innerHTML = `
                     <div class="empty-discover">
                         <div class="empty-icon" style="font-size:3rem;margin-bottom:14px;opacity:0.5;">🔍</div>
                         <div class="empty-title">${t('empty_no_candidates')}</div>
@@ -4774,7 +4874,21 @@
                     </div>`;
                 return;
             }
-            container.innerHTML = candidates.map((c, idx) => `
+
+            if (toolbar) toolbar.style.display = 'flex';
+            const filtered = getFilteredCandidates();
+            const total = filtered.length;
+            const totalPages = Math.max(1, Math.ceil(total / _candidatesPerPage));
+            _candidatePage = Math.min(_candidatePage, totalPages);
+            const start = (_candidatePage - 1) * _candidatesPerPage;
+            const pageItems = filtered.slice(start, start + _candidatesPerPage);
+
+            if (countEl) {
+                countEl.innerHTML = `${t('showing')} <span class="candidate-count">${start + 1}-${Math.min(start + _candidatesPerPage, total)}</span> / ${total} ${t('candidates')}`;
+            }
+
+            const globalStart = start;
+            document.getElementById('discoverResults').innerHTML = pageItems.map((c, idx) => `
                 <div class="candidate-card">
                     <div class="candidate-main">
                         <div class="candidate-info">
@@ -4787,15 +4901,59 @@
                             </div>
                         </div>
                         <div class="candidate-actions">
-                            <button class="btn-preview" onclick="toggleCandidatePreview(${idx})">👁️ ${t('preview')}</button>
+                            <button class="btn-preview" onclick="toggleCandidatePreview(${globalStart + idx})">👁️ ${t('preview')}</button>
                             <button class="btn-approve" onclick="approveCandidate('${escHtml(c.full_name || c.name)}')">✅ ${t('approve')}</button>
                             <button class="btn-reject" onclick="rejectCandidate('${escHtml(c.full_name || c.name)}')">🗑️ ${t('reject')}</button>
                         </div>
                     </div>
-                    <div class="candidate-preview" id="candidate-preview-${idx}">
+                    <div class="candidate-preview" id="candidate-preview-${globalStart + idx}">
                         ${renderCandidatePreview(c)}
                     </div>
                 </div>`).join('');
+
+            renderCandidatePagination(totalPages, total);
+        }
+
+        function filterCandidates() {
+            _candidatePage = 1;
+            renderDiscoverResults(_currentCandidates);
+        }
+
+        function clearCandidateFilter() {
+            const input = document.getElementById('candidateFilter');
+            if (input) input.value = '';
+            filterCandidates();
+        }
+
+        function renderCandidatePagination(totalPages, total) {
+            const pagination = document.getElementById('candidatePagination');
+            if (!pagination) return;
+            if (totalPages <= 1) {
+                pagination.style.display = 'none';
+                return;
+            }
+            pagination.style.display = 'flex';
+            let html = '';
+            if (_candidatePage > 1) {
+                html += `<button class="page-btn" onclick="goToCandidatePage(${_candidatePage - 1})">${t('prev_page')}</button>`;
+            }
+            for (let i = 1; i <= totalPages;  i++) {
+                if (i === 1 || i === totalPages || Math.abs(i - _candidatePage) <= 1) {
+                    html += `<button class="page-btn ${i === _candidatePage ? 'active' : ''}" onclick="goToCandidatePage(${i})">${i}</button>`;
+                } else if (Math.abs(i - _candidatePage) === 2) {
+                    html += `<span class="page-info">...</span>`;
+                }
+            }
+            if (_candidatePage < totalPages) {
+                html += `<button class="page-btn" onclick="goToCandidatePage(${_candidatePage + 1})">${t('next_page')}</button>`;
+            }
+            pagination.innerHTML = html;
+        }
+
+        function goToCandidatePage(page) {
+            _candidatePage = page;
+            renderDiscoverResults(_currentCandidates);
+            document.getElementById('discoverResults').scrollIntoView({behavior: 'smooth', block: 'start'});
         }
 
         function renderCandidatePreview(c) {
