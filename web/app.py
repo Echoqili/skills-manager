@@ -774,6 +774,7 @@ def api_discover_candidates():
     d = get_discoverer()
     if not d:
         return jsonify({"count": 0, "candidates": [], "error": "Discoverer not available"})
+    d._load_candidates()
     pending = d.get_pending()
     return jsonify({
         "count": len(pending),
@@ -804,6 +805,7 @@ def api_discover_stats():
     d = get_discoverer()
     if not d:
         return jsonify({"total": 0, "by_status": {"pending": 0, "approved": 0, "rejected": 0}, "by_category": {}})
+    d._load_candidates()
     all_cands = d.candidates
     by_status = {"pending": 0, "approved": 0, "rejected": 0}
     by_category = {}
@@ -900,6 +902,7 @@ def api_discover_approve():
     full_name = data.get("full_name")
     if not full_name:
         return jsonify({"error": "full_name required"}), 400
+    d._load_candidates()
     result = d.approve(full_name)
     if result:
         return jsonify({"success": True, "message": f"Approved: {full_name}", "candidate": {"name": result.name, "full_name": result.full_name, "url": result.url}})
@@ -916,6 +919,7 @@ def api_discover_reject():
     reason = data.get("reason", "")
     if not full_name:
         return jsonify({"error": "full_name required"}), 400
+    d._load_candidates()
     if d.reject(full_name, reason):
         return jsonify({"success": True, "message": f"Rejected: {full_name}"})
     return jsonify({"error": "Not found"}), 404
