@@ -36,7 +36,10 @@ def _load_ai_config():
     env_model = os.environ.get("ZHIPU_MODEL", "")
 
     if env_key:
-        return env_url or "https://ark.cn-beijing.volces.com/api/coding/v3/chat/completions", env_key, env_model or "kimi-k2.6"
+        url = env_url or "https://ark.cn-beijing.volces.com/api/coding/v3/chat/completions"
+        if url and not url.endswith("/chat/completions"):
+            url = url.rstrip("/") + "/chat/completions"
+        return url, env_key, env_model or "kimi-k2.6"
 
     if AI_CONFIG_FILE.exists():
         try:
