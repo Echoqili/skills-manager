@@ -325,7 +325,11 @@
             border: 1px solid var(--border);
             border-radius: var(--radius-xl);
             -webkit-overflow-scrolling: touch;
+            cursor: grab;
+            user-select: none;
+            position: relative;
         }
+        .category-filter-bar.grabbing { cursor: grabbing; }
         .category-filter-bar::-webkit-scrollbar { height: 0; }
         .category-filter {
             padding: 8px 16px;
@@ -3221,6 +3225,7 @@
             console.log('[init] start');
             loadCart();
             setupTabs();
+            setupCategoryFilterBarScroll();
             setupManageMenu();
             console.log('[init] before applyI18n');
             applyI18n();  // 应用初始语言
@@ -3239,6 +3244,83 @@
                     if (section === 'scenarios') loadScenarios();
                 });
             });
+        }
+
+        function setupCategoryFilterBarScroll() {
+            const bar = document.getElementById('categoryFilterBar');
+            if (!bar) return;
+
+            let autoScrollId = null;
+            let direction = 1;
+            let isDragging = false;
+            let startX = 0;
+            let startScrollLeft = 0;
+            const speed = 0.6;
+
+            function stopAutoScroll() {
+                if (autoScrollId) {
+                    cancelAnimationFrame(autoScrollId);
+                    autoScrollId = null;
+                }
+            }
+
+            function startAutoScroll() {
+                stopAutoScroll();
+                if (bar.scrollWidth <= bar.clientWidth) return;
+                function step() {
+                    if (isDragging) {
+                        autoScrollId = requestAnimationFrame(step);
+                        return;
+                    }
+                    bar.scrollLeft += direction * speed;
+                    if (bar.scrollLeft + bar.clientWidth >= bar.scrollWidth - 1) {
+                        direction = -1;
+                    } else if (bar.scrollLeft <= 0) {
+                        direction = 1;
+                    }
+                    autoScrollId = requestAnimationFrame(step);
+                }
+                autoScrollId = requestAnimationFrame(step);
+            }
+
+            bar.addEventListener('mouseenter', () => {
+                if (!isDragging) startAutoScroll();
+            });
+            bar.addEventListener('mouseleave', () => {
+                stopAutoScroll();
+                if (isDragging) {
+                    isDragging = false;
+                    bar.classList.remove('grabbing');
+                }
+            });
+
+            bar.addEventListener('mousedown', (e) => {
+                // 点击分类按钮时不进入拖拽模式
+                if (e.target.closest('.category-filter')) return;
+                isDragging = true;
+                startX = e.pageX;
+                startScrollLeft = bar.scrollLeft;
+                bar.classList.add('grabbing');
+                stopAutoScroll();
+            });
+
+            bar.addEventListener('mousemove', (e) => {
+                if (!isDragging) return;
+                e.preventDefault();
+                const dx = e.pageX - startX;
+                bar.scrollLeft = startScrollLeft - dx;
+            });
+
+            bar.addEventListener('mouseup', () => {
+                if (!isDragging) return;
+                isDragging = false;
+                bar.classList.remove('grabbing');
+            });
+
+            // 滚轮/触控板水平滚动不冲突
+            bar.addEventListener('wheel', () => {
+                stopAutoScroll();
+            }, { passive: true });
         }
 
         function setupManageMenu() {
@@ -3435,6 +3517,11 @@
             // Hide nav highlight for detail page
             if (section === 'detail') {
                 document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+            }
+            // 分类筛选条只在浏览 Skills 展示
+            const catBar = document.getElementById('categoryFilterBar');
+            if (catBar) {
+                catBar.style.display = section === 'search' ? 'flex' : 'none';
             }
             // Update section tags
             const tagMap = {
