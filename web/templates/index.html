@@ -16,30 +16,40 @@
             --primary-light: #7dd3fc;
             --accent: #10b981;
             --accent-secondary: #0ea5e9;
+            --violet: #8b5cf6;
+            --pink: #f472b6;
+            --orange: #fb923c;
+            --lime: #a3e635;
             --bg-main: #05070a;
-            --bg-card: rgba(8, 14, 24, 0.96);
+            --bg-card: rgba(11, 16, 28, 0.95);
             --bg-secondary: rgba(5, 9, 16, 0.98);
-            --bg-glass: rgba(0, 212, 255, 0.04);
-            --bg-glass-hover: rgba(0, 212, 255, 0.1);
-            --text: #e2f3f8;
-            --text-secondary: #8daab8;
-            --text-muted: #516b7a;
-            --border: rgba(0, 212, 255, 0.1);
+            --bg-glass: rgba(0, 212, 255, 0.05);
+            --bg-glass-hover: rgba(0, 212, 255, 0.12);
+            --text: #eef7fb;
+            --text-secondary: #9ab6c4;
+            --text-muted: #5f7a8a;
+            --border: rgba(255, 255, 255, 0.08);
             --border-glow: rgba(0, 212, 255, 0.35);
             --success: #10b981;
             --warning: #f59e0b;
             --error: #ef4444;
             --gradient-primary: linear-gradient(135deg, #00d4ff 0%, #0ea5e9 50%, #10b981 100%);
             --gradient-accent: linear-gradient(135deg, #10b981 0%, #00d4ff 100%);
-            --gradient-bg: linear-gradient(180deg, #020305 0%, #050a12 50%, #020305 100%);
-            --gradient-card: linear-gradient(145deg, rgba(8, 20, 36, 0.96) 0%, rgba(4, 10, 18, 0.98) 100%);
-            --shadow-card: 0 4px 24px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(0, 212, 255, 0.06);
-            --shadow-glow: 0 0 40px rgba(0, 212, 255, 0.15);
-            --shadow-hover: 0 12px 32px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(0, 212, 255, 0.18);
-            --radius-sm: 4px;
-            --radius-md: 6px;
-            --radius-lg: 8px;
-            --radius-xl: 12px;
+            --gradient-vibrant: linear-gradient(135deg, #00d4ff 0%, #8b5cf6 50%, #f472b6 100%);
+            --gradient-bg: radial-gradient(ellipse at 0% 0%, rgba(0, 212, 255, 0.08) 0%, transparent 40%),
+                            radial-gradient(ellipse at 100% 20%, rgba(139, 92, 246, 0.08) 0%, transparent 45%),
+                            radial-gradient(ellipse at 50% 100%, rgba(16, 185, 129, 0.06) 0%, transparent 40%),
+                            #05070a;
+            --gradient-card: linear-gradient(145deg, rgba(16, 24, 42, 0.96) 0%, rgba(8, 14, 26, 0.98) 100%);
+            --shadow-card: 0 4px 24px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.05);
+            --shadow-glow: 0 0 40px rgba(0, 212, 255, 0.18);
+            --shadow-hover: 0 16px 40px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(0, 212, 255, 0.2);
+            --sidebar-width: 260px;
+            --topbar-height: 72px;
+            --radius-sm: 6px;
+            --radius-md: 10px;
+            --radius-lg: 14px;
+            --radius-xl: 18px;
             --radius-full: 100px;
         }
 
@@ -55,6 +65,7 @@
             overflow-x: hidden;
             position: relative;
         }
+        body.dashboard-open { overflow: hidden; }
         body::before {
             content: '';
             position: fixed; inset: 0;
@@ -113,81 +124,473 @@
         /* ========== 容器布局 ========== */
         .app-container {
             position: relative; z-index: 1;
-            max-width: 1400px; margin: 0 auto;
-            padding: 40px 24px;
+            min-height: 100vh;
+            display: flex;
         }
 
-        /* ========== Hero 区域 (SkillStore 风格) ========== */
-        .hero {
-            text-align: center; padding: 70px 0 50px; margin-bottom: 48px;
-        }
-        .hero-badge {
-            display: inline-flex; align-items: center; gap: 10px;
-            padding: 10px 20px; 
-            background: rgba(0, 212, 255, 0.08);
-            border: 1px solid rgba(0, 212, 255, 0.22);
-            border-radius: var(--radius-full);
-            font-size: 0.85rem; 
-            color: var(--primary-light); 
+        /* ========== Hero 区域（紧凑彩色欢迎横幅） ========== */
+        .hero-compact {
+            position: relative;
+            border-radius: var(--radius-xl);
+            padding: 32px 36px;
             margin-bottom: 28px;
-            backdrop-filter: blur(16px); 
-            animation: fadeInDown 0.6s ease-out;
-            font-weight: 500;
+            overflow: hidden;
+            background:
+                linear-gradient(135deg, rgba(0, 212, 255, 0.14) 0%, rgba(139, 92, 246, 0.12) 45%, rgba(244, 114, 182, 0.12) 100%),
+                var(--gradient-card);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow:
+                0 8px 32px rgba(0, 0, 0, 0.35),
+                inset 0 1px 0 rgba(255, 255, 255, 0.08),
+                0 0 60px rgba(0, 212, 255, 0.06);
+            animation: fadeInUp 0.6s ease-out;
         }
-        .hero-badge .dot {
-            width: 10px; 
-            height: 10px; 
-            background: var(--success);
-            border-radius: 50%; 
-            animation: pulse 2s ease-in-out infinite;
-            box-shadow: 0 0 12px rgba(16, 185, 129, 0.5);
+        .hero-compact::before {
+            content: '';
+            position: absolute; inset: 0;
+            background: var(--gradient-vibrant);
+            opacity: 0.08;
+            mask-image: radial-gradient(ellipse at 80% 20%, black 0%, transparent 60%);
+            pointer-events: none;
         }
-        @keyframes pulse { 
-            0%, 100% { opacity: 1; transform: scale(1); } 
-            50% { opacity: 0.6; transform: scale(1.3); } 
+        .hero-compact::after {
+            content: '';
+            position: absolute; inset: 0;
+            background-image:
+                linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+            background-size: 40px 40px;
+            mask-image: radial-gradient(ellipse at 30% 0%, black 0%, transparent 70%);
+            pointer-events: none;
+            opacity: 0.6;
         }
-        .hero h1 {
-            font-size: 4rem; 
-            font-weight: 800;
-            background: var(--gradient-primary);
-            -webkit-background-clip: text; 
-            -webkit-text-fill-color: transparent;
-            background-clip: text; 
-            margin-bottom: 20px;
-            animation: fadeInUp 0.6s ease-out 0.1s both;
-            letter-spacing: -1px;
-            text-shadow: 0 0 50px rgba(0, 212, 255, 0.25);
+        .hero-compact-inner {
+            position: relative; z-index: 1;
+            display: flex; align-items: center; justify-content: space-between;
+            gap: 28px; flex-wrap: wrap;
         }
-        .hero p {
-            font-size: 1.25rem; 
-            color: var(--text-secondary);
-            max-width: 650px; 
-            margin: 0 auto;
-            animation: fadeInUp 0.6s ease-out 0.2s both;
-            line-height: 1.7;
-            letter-spacing: -0.3px;
+        .hero-compact-main { flex: 1; min-width: 260px; }
+        .hero-compact h1 {
+            font-size: 2.1rem; font-weight: 800;
+            background: var(--gradient-vibrant);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+            margin-bottom: 10px; letter-spacing: -0.6px;
+            filter: drop-shadow(0 2px 12px rgba(139, 92, 246, 0.25));
         }
-
-        @keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
-        @keyframes fadeInDown { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: translateY(0); } }
-
-        /* ========== 统计条 ========== */
-        .stats-bar {
-            display: flex; gap: 16px; justify-content: center; flex-wrap: wrap;
-            margin-top: 24px; animation: fadeInUp 0.6s ease-out 0.3s both;
+        .hero-compact p {
+            font-size: 1rem; color: var(--text-secondary); max-width: 520px;
+            line-height: 1.65; letter-spacing: -0.2px;
+        }
+        .hero-compact .stats-bar {
+            display: flex; gap: 12px; flex-wrap: wrap;
         }
         .stats-bar-item {
             display: flex; align-items: center; gap: 8px;
-            padding: 8px 20px; background: var(--bg-glass);
-            border: 1px solid var(--border); border-radius: 100px;
-            font-size: 0.9rem; backdrop-filter: blur(10px);
+            padding: 10px 18px;
+            background: rgba(5, 9, 16, 0.55);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 100px;
+            font-size: 0.88rem;
+            backdrop-filter: blur(14px);
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+            transition: all 0.3s ease;
         }
-        .stats-bar-item strong { color: var(--primary-light); }
+        .stats-bar-item:hover {
+            transform: translateY(-2px);
+            border-color: rgba(0, 212, 255, 0.25);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25), 0 0 20px rgba(0, 212, 255, 0.08);
+        }
+        .stats-bar-item strong { color: var(--primary-light); font-weight: 700; }
+        .hero-badge {
+            display: inline-flex; align-items: center; gap: 8px;
+            padding: 6px 14px;
+            background: rgba(0, 212, 255, 0.12);
+            border: 1px solid rgba(0, 212, 255, 0.25);
+            border-radius: var(--radius-full);
+            font-size: 0.78rem; color: var(--primary-light);
+            margin-bottom: 14px; backdrop-filter: blur(12px);
+            font-weight: 600;
+            box-shadow: 0 0 20px rgba(0, 212, 255, 0.1);
+        }
+        .hero-badge .dot {
+            width: 8px; height: 8px; background: var(--success);
+            border-radius: 50%; animation: pulse 2s ease-in-out infinite;
+            box-shadow: 0 0 10px rgba(16, 185, 129, 0.7);
+        }
+        @keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.6; transform: scale(1.4); } }
+        @keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes fadeInDown { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: translateY(0); } }
 
-        /* ========== 搜索区域 (SkillStore 风格) ========== */
+        /* ========== 仪表盘布局 ========== */
+        .dashboard-layout {
+            display: flex;
+            width: 100%;
+            min-height: 100vh;
+        }
+        .sidebar {
+            position: fixed;
+            left: 0; top: 0; bottom: 0;
+            width: var(--sidebar-width);
+            background: rgba(5, 7, 10, 0.85);
+            border-right: 1px solid var(--border);
+            backdrop-filter: blur(24px);
+            display: flex;
+            flex-direction: column;
+            z-index: 900;
+            transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .sidebar-header {
+            padding: 22px 20px;
+            border-bottom: 1px solid var(--border);
+        }
+        .sidebar-brand {
+            display: flex; align-items: center; gap: 12px;
+            text-decoration: none; color: var(--text);
+        }
+        .sidebar-brand-icon {
+            width: 44px; height: 44px;
+            display: flex; align-items: center; justify-content: center;
+            border-radius: var(--radius-md);
+            background: var(--gradient-vibrant);
+            font-size: 1.55rem;
+            box-shadow:
+                0 4px 22px rgba(139, 92, 246, 0.4),
+                0 0 0 1px rgba(255, 255, 255, 0.1),
+                inset 0 1px 0 rgba(255, 255, 255, 0.2);
+            transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .sidebar-brand:hover .sidebar-brand-icon {
+            transform: scale(1.05) rotate(-4deg);
+            box-shadow:
+                0 6px 28px rgba(139, 92, 246, 0.5),
+                0 0 0 1px rgba(255, 255, 255, 0.15),
+                inset 0 1px 0 rgba(255, 255, 255, 0.25);
+        }
+        .sidebar-brand-text {
+            display: flex; flex-direction: column; gap: 2px;
+        }
+        .sidebar-brand-name {
+            font-size: 1.15rem; font-weight: 800;
+            background: var(--gradient-vibrant);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+            letter-spacing: -0.4px;
+        }
+        .sidebar-brand-sub {
+            font-size: 0.72rem; color: var(--text-muted); font-weight: 500;
+        }
+        .sidebar-nav {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px 12px;
+            display: flex; flex-direction: column; gap: 20px;
+        }
+        .sidebar-nav-section {
+            display: flex; flex-direction: column; gap: 4px;
+        }
+        .sidebar-nav-label {
+            padding: 0 10px;
+            font-size: 0.7rem; font-weight: 700;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+            margin-bottom: 4px;
+        }
+        .nav-tab {
+            width: 100%;
+            padding: 11px 14px;
+            background: transparent;
+            border: none;
+            border-radius: var(--radius-md);
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            white-space: nowrap;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            letter-spacing: -0.2px;
+            position: relative;
+            text-align: left;
+            overflow: hidden;
+        }
+        .nav-tab::before {
+            content: '';
+            position: absolute; inset: 0;
+            border-radius: var(--radius-md);
+            background: var(--gradient-primary);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            z-index: 0;
+        }
+        .nav-tab::after {
+            content: '';
+            position: absolute;
+            left: 0; top: 50%;
+            width: 3px; height: 0;
+            background: var(--gradient-vibrant);
+            border-radius: 0 4px 4px 0;
+            transform: translateY(-50%);
+            transition: height 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            z-index: 2;
+        }
+        .nav-tab > * { position: relative; z-index: 1; }
+        .nav-tab:hover {
+            background: var(--bg-glass-hover);
+            color: var(--text);
+            transform: translateX(2px);
+        }
+        .nav-tab.active {
+            background: transparent;
+            color: white;
+            box-shadow:
+                0 0 0 1px rgba(0, 212, 255, 0.25),
+                0 8px 28px rgba(0, 212, 255, 0.18),
+                inset 0 1px 0 rgba(255, 255, 255, 0.1);
+        }
+        .nav-tab.active::before { opacity: 1; }
+        .nav-tab.active::after { height: 20px; }
+        .nav-tab.active .nav-icon { transform: scale(1.15); }
+        .nav-tab .count {
+            margin-left: auto;
+            padding: 2px 8px;
+            background: rgba(255,255,255,0.15);
+            border-radius: var(--radius-full);
+            font-size: 0.7rem; font-weight: 700;
+            min-width: 20px; text-align: center;
+        }
+        .nav-tab.active .count { background: rgba(255,255,255,0.3); }
+        .nav-tab .nav-icon {
+            width: 22px; height: 22px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.05rem;
+            transition: transform 0.3s ease;
+        }
+        .sidebar-footer {
+            padding: 14px 12px;
+            border-top: 1px solid var(--border);
+        }
+        .sidebar-cart-btn {
+            width: 100%;
+            padding: 12px 16px;
+            background: rgba(11, 16, 28, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: var(--radius-md);
+            color: var(--text-secondary);
+            font-size: 0.9rem; font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex; align-items: center; gap: 10px;
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+        }
+        .sidebar-cart-btn:hover {
+            background: rgba(0, 212, 255, 0.1);
+            border-color: rgba(0, 212, 255, 0.25);
+            color: var(--text);
+            transform: translateY(-2px);
+            box-shadow:
+                0 6px 20px rgba(0, 0, 0, 0.25),
+                0 0 20px rgba(0, 212, 255, 0.08);
+        }
+        .sidebar-cart-btn .count {
+            margin-left: auto;
+            padding: 2px 10px;
+            background: var(--gradient-vibrant);
+            border-radius: var(--radius-full);
+            font-size: 0.7rem; font-weight: 700; color: white;
+            box-shadow: 0 2px 8px rgba(139, 92, 246, 0.35);
+        }
+
+        .main-area {
+            flex: 1;
+            margin-left: var(--sidebar-width);
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+        }
+        .topbar {
+            position: sticky;
+            top: 0;
+            height: var(--topbar-height);
+            background: rgba(5, 7, 10, 0.72);
+            border-bottom: 1px solid var(--border);
+            backdrop-filter: blur(24px);
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 0 28px;
+            z-index: 800;
+        }
+        .topbar-search {
+            flex: 1;
+            min-width: 220px;
+            max-width: 560px;
+            position: relative;
+        }
+        .topbar-search input {
+            width: 100%;
+            padding: 12px 14px 12px 44px;
+            font-size: 0.95rem;
+            background: rgba(11, 16, 28, 0.7);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            color: var(--text);
+            outline: none;
+            transition: all 0.3s ease;
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+        }
+        .topbar-search input:hover { border-color: rgba(0, 212, 255, 0.3); background: rgba(11, 16, 28, 0.85); }
+        .topbar-search input:focus {
+            border-color: var(--primary);
+            background: rgba(11, 16, 28, 0.95);
+            box-shadow:
+                0 0 0 3px rgba(0, 212, 255, 0.12),
+                0 0 24px rgba(0, 212, 255, 0.12);
+        }
+        .topbar-search input::placeholder { color: var(--text-muted); }
+        .topbar-search-icon {
+            position: absolute; left: 15px; top: 50%;
+            transform: translateY(-50%);
+            width: 18px; height: 18px;
+            color: var(--text-muted);
+            transition: color 0.3s ease;
+        }
+        .topbar-search:focus-within .topbar-search-icon { color: var(--primary); }
+        .topbar-source {
+            display: flex; align-items: center;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-full);
+            padding: 4px;
+        }
+        .search-source {
+            padding: 7px 14px;
+            background: transparent;
+            border: none;
+            border-radius: var(--radius-full);
+            color: var(--text-secondary);
+            font-size: 0.8rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.25s ease;
+        }
+        .search-source:hover { color: var(--text); }
+        .search-source.active {
+            background: var(--gradient-primary);
+            color: white;
+            box-shadow: 0 4px 14px rgba(0, 212, 255, 0.25);
+        }
+        .topbar-actions {
+            display: flex; align-items: center; gap: 10px;
+            margin-left: auto;
+        }
+        .topbar-btn {
+            display: flex; align-items: center; justify-content: center;
+            width: 40px; height: 40px;
+            background: rgba(11, 16, 28, 0.7);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            color: var(--text-secondary);
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            position: relative;
+        }
+        .topbar-btn:hover {
+            background: var(--bg-glass-hover);
+            border-color: var(--border-glow);
+            color: var(--text);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
+        }
+        .topbar-btn.primary {
+            background: var(--gradient-primary);
+            border-color: transparent;
+            color: white;
+            box-shadow: 0 4px 16px rgba(0, 212, 255, 0.25);
+        }
+        .topbar-btn.primary:hover {
+            box-shadow: 0 8px 24px rgba(0, 212, 255, 0.4);
+            transform: translateY(-2px);
+        }
+        .topbar-btn .count {
+            position: absolute; top: -4px; right: -4px;
+            min-width: 18px; height: 18px;
+            padding: 0 5px;
+            background: var(--gradient-vibrant); color: white;
+            border-radius: 100px;
+            font-size: 0.65rem; font-weight: 700;
+            display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 2px 8px rgba(139, 92, 246, 0.4);
+        }
+
+        .lang-toggle {
+            display: flex; align-items: center; gap: 6px;
+            padding: 8px 14px;
+            background: var(--bg-card);
+            border: 1px solid var(--border); border-radius: 100px;
+            color: var(--text-secondary); font-size: 0.85rem; font-weight: 600;
+            cursor: pointer; transition: all 0.3s; user-select: none;
+        }
+        .lang-toggle:hover { background: var(--bg-glass-hover); color: var(--text); border-color: var(--border-glow); }
+        .lang-toggle .lang-arrow { font-size: 0.7rem; transition: transform 0.3s; }
+        .lang-menu {
+            position: absolute; top: calc(100% + 10px); right: 0;
+            background: var(--bg-card); border: 1px solid var(--border);
+            border-radius: var(--radius-md); padding: 6px;
+            backdrop-filter: blur(20px);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+            display: none; min-width: 140px;
+            z-index: 1001;
+        }
+        .lang-menu.show { display: block; animation: fadeInDown 0.2s ease-out; }
+        .lang-option {
+            padding: 9px 16px; border-radius: var(--radius-sm);
+            font-size: 0.88rem; color: var(--text-secondary);
+            cursor: pointer; transition: all 0.2s;
+            display: flex; align-items: center; gap: 8px;
+        }
+        .lang-option:hover { background: var(--bg-glass-hover); color: var(--text); }
+        .lang-option.active { color: var(--primary-light); background: rgba(0,212,255,0.1); }
+        .lang-wrap { position: relative; }
+
+        .page-content {
+            flex: 1;
+            padding: 28px;
+            max-width: 1600px;
+            width: 100%;
+            margin: 0 auto;
+        }
+        .page-content > main { width: 100%; }
+
+        /* 移动端菜单按钮与遮罩 */
+        .mobile-menu-btn {
+            display: none;
+            align-items: center; justify-content: center;
+            width: 40px; height: 40px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            color: var(--text-secondary);
+            font-size: 1.2rem;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            flex-shrink: 0;
+        }
+        .mobile-menu-btn:hover { background: var(--bg-glass-hover); color: var(--text); }
+        .sidebar-overlay {
+            position: fixed; inset: 0;
+            background: rgba(0, 0, 0, 0.5);
+            opacity: 0; visibility: hidden;
+            transition: all 0.3s ease;
+            z-index: 890;
+        }
+        .sidebar-overlay.show { opacity: 1; visibility: visible; }
+
+        /* ========== 搜索区域（浏览页内快速搜索提示） ========== */
         .search-section {
-            max-width: 850px; 
-            margin: 0 auto 56px;
+            margin-bottom: 28px;
             animation: fadeInUp 0.6s ease-out 0.35s both;
         }
         .search-wrapper { 
@@ -288,53 +691,56 @@
             color: var(--text);
         }
 
-        /* 搜索来源切换 */
-        .search-source-bar {
-            display: flex;
-            gap: 8px;
-            margin-bottom: 12px;
-            justify-content: center;
-        }
-        .search-source {
-            padding: 8px 18px;
-            background: var(--bg-glass);
-            border: 1px solid var(--border);
-            border-radius: var(--radius-full);
-            color: var(--text-secondary);
-            font-size: 0.85rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.25s ease;
-        }
-        .search-source:hover { background: var(--bg-glass-hover); color: var(--text); }
-        .search-source.active {
-            background: var(--gradient-primary);
-            border-color: transparent;
-            color: white;
-        }
-
         /* 分类筛选条 */
         .category-filter-bar {
             display: flex;
             gap: 8px;
             padding: 10px;
-            margin: 24px auto 24px;
+            margin: 0 0 24px;
             overflow-x: auto;
             max-width: 100%;
-            background: var(--bg-card);
-            border: 1px solid var(--border);
+            background:
+                linear-gradient(135deg, rgba(0, 212, 255, 0.08) 0%, rgba(139, 92, 246, 0.08) 50%, rgba(244, 114, 182, 0.08) 100%),
+                var(--bg-card);
+            border: 1px solid rgba(255, 255, 255, 0.1);
             border-radius: var(--radius-xl);
             -webkit-overflow-scrolling: touch;
             cursor: grab;
             user-select: none;
             position: relative;
+            box-shadow:
+                inset 0 1px 0 rgba(255, 255, 255, 0.05),
+                0 4px 24px rgba(0, 0, 0, 0.25);
         }
+        .category-filter-bar::before,
+        .category-filter-bar::after {
+            content: '';
+            position: absolute;
+            top: 0; bottom: 0;
+            width: 28px;
+            pointer-events: none;
+            z-index: 2;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        .category-filter-bar::before {
+            left: 0;
+            background: linear-gradient(90deg, var(--bg-card), transparent);
+            border-radius: var(--radius-xl) 0 0 var(--radius-xl);
+        }
+        .category-filter-bar::after {
+            right: 0;
+            background: linear-gradient(-90deg, var(--bg-card), transparent);
+            border-radius: 0 var(--radius-xl) var(--radius-xl) 0;
+        }
+        .category-filter-bar.has-scroll-left::before { opacity: 1; }
+        .category-filter-bar.has-scroll-right::after { opacity: 1; }
         .category-filter-bar.grabbing { cursor: grabbing; }
         .category-filter-bar::-webkit-scrollbar { height: 0; }
         .category-filter {
             padding: 8px 16px;
-            background: var(--bg-glass);
-            border: 1px solid var(--border);
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.08);
             border-radius: var(--radius-full);
             color: var(--text-secondary);
             font-size: 0.85rem;
@@ -345,26 +751,43 @@
             display: flex;
             align-items: center;
             gap: 6px;
+            position: relative;
+            overflow: hidden;
         }
-        .category-filter:hover { background: var(--bg-glass-hover); color: var(--text); }
+        .category-filter:hover {
+            background: rgba(0, 212, 255, 0.12);
+            border-color: rgba(0, 212, 255, 0.25);
+            color: var(--text);
+            box-shadow: 0 0 16px rgba(0, 212, 255, 0.14);
+            transform: translateY(-1px);
+        }
         .category-filter.active {
-            background: var(--gradient-primary);
+            background: var(--gradient-vibrant);
             border-color: transparent;
             color: white;
+            box-shadow:
+                0 6px 22px rgba(139, 92, 246, 0.4),
+                inset 0 1px 0 rgba(255, 255, 255, 0.2);
+            font-weight: 600;
         }
+        .category-filter.active:hover { transform: translateY(-1px); }
 
         /* 搜索热词 */
         .search-hints {
             display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px;
-            justify-content: center;
         }
         .search-hint {
-            padding: 5px 14px; background: var(--bg-glass);
-            border: 1px solid var(--border); border-radius: 100px;
+            padding: 5px 14px; background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.06); border-radius: 100px;
             font-size: 0.8rem; color: var(--text-secondary);
             cursor: pointer; transition: all 0.2s;
         }
-        .search-hint:hover { background: var(--bg-glass-hover); color: var(--text); border-color: var(--border-glow); }
+        .search-hint:hover {
+            background: rgba(139, 92, 246, 0.12);
+            color: var(--text);
+            border-color: rgba(139, 92, 246, 0.25);
+            box-shadow: 0 0 14px rgba(139, 92, 246, 0.15);
+        }
 
         /* ========== 导航标签 (SkillStore 风格) ========== */
         /* ========== 导航栏重构：3 主标签 + 右侧操作区 ========== */
@@ -520,6 +943,13 @@
             cursor: pointer;
             transition: all 0.2s;
         }
+        .manage-menu-icon {
+            width: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.95rem;
+        }
         .manage-menu-item:hover {
             background: var(--bg-glass-hover);
             color: var(--text);
@@ -536,10 +966,16 @@
             margin-bottom: 24px; flex-wrap: wrap; gap: 16px;
         }
         .section-title { display: flex; align-items: center; gap: 12px; }
-        .section-title h2 { font-size: 1.5rem; font-weight: 600; }
+        .section-title h2 { font-size: 1.55rem; font-weight: 700; letter-spacing: -0.3px; }
         .section-title .tag {
-            padding: 4px 12px; background: var(--bg-glass);
-            border-radius: 100px; font-size: 0.85rem; color: var(--text-secondary);
+            padding: 5px 14px;
+            background: linear-gradient(135deg, rgba(0, 212, 255, 0.1), rgba(139, 92, 246, 0.1));
+            border: 1px solid rgba(139, 92, 246, 0.18);
+            border-radius: 100px;
+            font-size: 0.84rem;
+            color: var(--text-secondary);
+            font-weight: 500;
+            backdrop-filter: blur(10px);
         }
 
         /* ========== 技能卡片网格 (SkillStore 风格) ========== */
@@ -549,57 +985,91 @@
             gap: 20px;
         }
         .skill-card {
-            background: var(--gradient-card); 
+            background: var(--gradient-card);
             border: 1px solid var(--border);
-            border-radius: var(--radius-lg); 
+            border-radius: var(--radius-lg);
             padding: 24px;
             backdrop-filter: blur(24px);
             transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-            cursor: pointer; 
-            position: relative; 
+            cursor: pointer;
+            position: relative;
             overflow: hidden;
         }
         .skill-card::before {
-            content: ''; 
-            position: absolute; 
-            top: 0; 
-            left: 0; 
-            right: 0;
-            height: 4px; 
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 4px;
             background: var(--gradient-primary);
-            opacity: 0; 
-            transition: opacity 0.4s ease;
+            opacity: 0.35;
+            transition: opacity 0.4s ease, transform 0.4s ease;
             transform-origin: left;
-            transform: scaleX(0);
+            transform: scaleX(1);
         }
-        .skill-card:hover::before { 
-            opacity: 1; 
+        .skill-card:hover::before {
+            opacity: 1;
             transform: scaleX(1);
         }
         .skill-card:hover {
-            transform: translateY(-8px) scale(1.01); 
+            transform: translateY(-8px) scale(1.01);
             border-color: var(--border-glow);
-            box-shadow: var(--shadow-hover);
+            box-shadow:
+                0 20px 50px rgba(0, 0, 0, 0.5),
+                0 0 0 1px rgba(0, 212, 255, 0.2),
+                0 0 40px rgba(0, 212, 255, 0.12);
         }
+        .skill-card.accent-cyan::before { background: linear-gradient(90deg, var(--primary), var(--accent-secondary)); }
+        .skill-card.accent-cyan:hover { box-shadow: 0 20px 50px rgba(0,0,0,0.5), 0 0 0 1px rgba(0,212,255,0.22), 0 0 40px rgba(0,212,255,0.14); }
+        .skill-card.accent-violet::before { background: linear-gradient(90deg, var(--violet), var(--pink)); }
+        .skill-card.accent-violet:hover { box-shadow: 0 20px 50px rgba(0,0,0,0.5), 0 0 0 1px rgba(139,92,246,0.25), 0 0 40px rgba(139,92,246,0.16); }
+        .skill-card.accent-pink::before { background: linear-gradient(90deg, var(--pink), var(--orange)); }
+        .skill-card.accent-pink:hover { box-shadow: 0 20px 50px rgba(0,0,0,0.5), 0 0 0 1px rgba(244,114,182,0.25), 0 0 40px rgba(244,114,182,0.16); }
+        .skill-card.accent-emerald::before { background: linear-gradient(90deg, var(--accent), #34d399); }
+        .skill-card.accent-emerald:hover { box-shadow: 0 20px 50px rgba(0,0,0,0.5), 0 0 0 1px rgba(16,185,129,0.25), 0 0 40px rgba(16,185,129,0.16); }
+        .skill-card.accent-lime::before { background: linear-gradient(90deg, var(--lime), var(--warning)); }
+        .skill-card.accent-lime:hover { box-shadow: 0 20px 50px rgba(0,0,0,0.5), 0 0 0 1px rgba(163,230,53,0.25), 0 0 40px rgba(163,230,53,0.16); }
 
         .skill-card-header {
             display: flex; align-items: flex-start; gap: 16px; margin-bottom: 16px;
         }
         .skill-emoji {
-            width: 54px; 
-            height: 54px; 
+            width: 54px;
+            height: 54px;
             display: flex; align-items: center; justify-content: center;
-            background: var(--bg-glass); 
-            border-radius: var(--radius-md); 
+            background: rgba(255, 255, 255, 0.04);
+            border-radius: var(--radius-md);
             font-size: 1.7rem;
-            flex-shrink: 0; 
+            flex-shrink: 0;
             transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-            border: 1px solid var(--border);
+            border: 1px solid rgba(255, 255, 255, 0.08);
         }
         .skill-card:hover .skill-emoji {
             transform: scale(1.15) rotate(-3deg);
-            background: rgba(0, 212, 255, 0.12);
-            border-color: rgba(0, 212, 255, 0.28);
+        }
+        .skill-card.accent-cyan:hover .skill-emoji {
+            background: rgba(0, 212, 255, 0.14);
+            border-color: rgba(0, 212, 255, 0.3);
+            box-shadow: 0 0 20px rgba(0, 212, 255, 0.18);
+        }
+        .skill-card.accent-violet:hover .skill-emoji {
+            background: rgba(139, 92, 246, 0.14);
+            border-color: rgba(139, 92, 246, 0.3);
+            box-shadow: 0 0 20px rgba(139, 92, 246, 0.18);
+        }
+        .skill-card.accent-pink:hover .skill-emoji {
+            background: rgba(244, 114, 182, 0.14);
+            border-color: rgba(244, 114, 182, 0.3);
+            box-shadow: 0 0 20px rgba(244, 114, 182, 0.18);
+        }
+        .skill-card.accent-emerald:hover .skill-emoji {
+            background: rgba(16, 185, 129, 0.14);
+            border-color: rgba(16, 185, 129, 0.3);
+            box-shadow: 0 0 20px rgba(16, 185, 129, 0.18);
+        }
+        .skill-card.accent-lime:hover .skill-emoji {
+            background: rgba(163, 230, 53, 0.14);
+            border-color: rgba(163, 230, 53, 0.3);
+            box-shadow: 0 0 20px rgba(163, 230, 53, 0.18);
         }
         .skill-info { flex: 1; min-width: 0; }
         .skill-name {
@@ -614,12 +1084,37 @@
         .skill-category {
             display: inline-flex; align-items: center; gap: 5px;
             padding: 4px 11px;
-            background: rgba(0, 212, 255, 0.08);
-            border: 1px solid rgba(0, 212, 255, 0.15);
+            background: linear-gradient(135deg, rgba(0, 212, 255, 0.1), rgba(139, 92, 246, 0.1));
+            border: 1px solid rgba(139, 92, 246, 0.2);
             border-radius: var(--radius-full);
             font-size: 0.76rem;
-            color: var(--primary-light);
+            color: #a5b4fc;
             font-weight: 500;
+        }
+        .skill-card.accent-cyan .skill-category {
+            background: linear-gradient(135deg, rgba(0, 212, 255, 0.12), rgba(14, 165, 233, 0.1));
+            border-color: rgba(0, 212, 255, 0.25);
+            color: #7dd3fc;
+        }
+        .skill-card.accent-violet .skill-category {
+            background: linear-gradient(135deg, rgba(139, 92, 246, 0.12), rgba(244, 114, 182, 0.1));
+            border-color: rgba(139, 92, 246, 0.25);
+            color: #c4b5fd;
+        }
+        .skill-card.accent-pink .skill-category {
+            background: linear-gradient(135deg, rgba(244, 114, 182, 0.12), rgba(251, 146, 60, 0.1));
+            border-color: rgba(244, 114, 182, 0.25);
+            color: #fbcfe8;
+        }
+        .skill-card.accent-emerald .skill-category {
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.12), rgba(52, 211, 153, 0.1));
+            border-color: rgba(16, 185, 129, 0.25);
+            color: #6ee7b7;
+        }
+        .skill-card.accent-lime .skill-category {
+            background: linear-gradient(135deg, rgba(163, 230, 53, 0.12), rgba(245, 158, 11, 0.1));
+            border-color: rgba(163, 230, 53, 0.25);
+            color: #d9f99d;
         }
         .skill-desc {
             color: var(--text-secondary); 
@@ -1689,40 +2184,9 @@
         ::-webkit-scrollbar-thumb { background: var(--bg-glass-hover); border-radius: 4px; }
         ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
 
-        /* ========== 语言切换按钮 ========== */
-        .lang-toggle {
-            position: fixed; top: 18px; right: 24px; z-index: 1000;
-            display: flex; align-items: center; gap: 6px;
-            padding: 7px 16px; background: var(--bg-glass);
-            border: 1px solid var(--border); border-radius: 100px;
-            color: var(--text-secondary); font-size: 0.85rem; font-weight: 600;
-            cursor: pointer; backdrop-filter: blur(10px);
-            transition: all 0.3s; user-select: none;
-        }
-        .lang-toggle:hover { background: var(--bg-glass-hover); color: var(--text); border-color: var(--border-glow); }
-        .lang-toggle .lang-label { min-width: 18px; text-align: center; }
-        .lang-toggle .lang-arrow { font-size: 0.7rem; transition: transform 0.3s; }
-        .lang-menu {
-            position: fixed; top: 56px; right: 24px; z-index: 1001;
-            background: var(--bg-card); border: 1px solid var(--border);
-            border-radius: var(--radius-md); padding: 6px;
-            backdrop-filter: blur(20px);
-            box-shadow: 0 8px 32px rgba(0,0,0,0.4);
-            display: none; min-width: 140px;
-        }
-        .lang-menu.show { display: block; animation: fadeInDown 0.2s ease-out; }
-        .lang-option {
-            padding: 9px 16px; border-radius: var(--radius-sm);
-            font-size: 0.88rem; color: var(--text-secondary);
-            cursor: pointer; transition: all 0.2s;
-            display: flex; align-items: center; gap: 8px;
-        }
-        .lang-option:hover { background: var(--bg-glass-hover); color: var(--text); }
-        .lang-option.active { color: var(--primary-light); background: rgba(0,212,255,0.1); }
-        @keyframes fadeInDown { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
         footer {
-            text-align: center; padding: 36px 20px; color: var(--text-muted);
-            font-size: 0.88rem; border-top: 1px solid var(--border); margin-top: 56px;
+            text-align: center; padding: 28px 20px; color: var(--text-muted);
+            font-size: 0.85rem; border-top: 1px solid var(--border); margin-top: 40px;
         }
         footer a { color: var(--primary-light); text-decoration: none; }
         footer a:hover { text-decoration: underline; }
@@ -1737,23 +2201,35 @@
         .breadcrumb-link:hover { color: var(--accent); }
         .breadcrumb-current { color: var(--text-secondary); }
 
-        /* ========== 响应式设计 (SkillStore 风格) ========== */
-        @media (max-width: 1024px) {
-            .app-container { padding: 24px 20px; }
-            .hero h1 { font-size: 2.2rem; }
+        /* ========== 响应式设计 (Dashboard) ========== */
+        @media (max-width: 1200px) {
             .skills-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+        @media (max-width: 1024px) {
+            .mobile-menu-btn { display: flex; }
+            .sidebar {
+                transform: translateX(-100%);
+                box-shadow: 10px 0 40px rgba(0,0,0,0.4);
+            }
+            .sidebar.show { transform: translateX(0); }
+            .main-area { margin-left: 0; }
+            .topbar { padding: 0 16px; }
+            .topbar-search { min-width: 0; }
+            .page-content { padding: 20px; }
+            .hero-compact { padding: 22px; }
+            .hero-compact h1 { font-size: 1.5rem; }
             .categories-grid { grid-template-columns: repeat(3, 1fr); }
             .releases-list { padding: 0; }
         }
 
         @media (max-width: 768px) {
-            .app-container { padding: 20px 14px; }
-            .hero h1 { font-size: 1.8rem; }
-            .hero p { font-size: 0.95rem; }
+            .topbar { gap: 10px; }
+            .topbar-search { max-width: none; }
+            .topbar-source { display: none; }
+            .hero-compact h1 { font-size: 1.35rem; }
+            .hero-compact p { font-size: 0.9rem; }
             .search-wrapper { flex-direction: column; }
             .search-btn { width: 100%; padding: 15px; justify-content: center; }
-            .nav-tabs { gap: 6px; padding: 8px; flex-wrap: wrap; }
-            .nav-tab { padding: 10px 16px; font-size: 0.85rem; flex-shrink: 0; }
             .skills-grid { grid-template-columns: 1fr; }
             .github-grid { grid-template-columns: 1fr; }
             .scenarios-grid { grid-template-columns: repeat(2, 1fr); }
@@ -1781,11 +2257,10 @@
         }
 
         @media (max-width: 480px) {
-            .app-container { padding: 16px 12px; }
-            .hero h1 { font-size: 1.5rem; }
-            .hero p { font-size: 0.9rem; }
-            .nav-tabs { gap: 5px; padding: 6px; }
-            .nav-tab { padding: 8px 12px; font-size: 0.8rem; }
+            .page-content { padding: 16px; }
+            .hero-compact { padding: 18px; }
+            .hero-compact h1 { font-size: 1.2rem; }
+            .hero-compact p { font-size: 0.85rem; }
             .skill-card { padding: 18px; }
             .skill-emoji { width: 36px; height: 36px; font-size: 1.1rem; }
             .scenarios-grid { grid-template-columns: 1fr; }
@@ -1814,504 +2289,564 @@
     </div>
     <div class="tech-scanline"></div>
 
-    <!-- 语言切换 -->
-    <button class="lang-toggle" id="langToggle" onclick="toggleLangMenu()">
-        <span id="langLabel">中</span>
-        <span class="lang-arrow">▼</span>
-    </button>
-    <div class="lang-menu" id="langMenu">
-        <div class="lang-option active" data-lang="zh" onclick="setLang('zh')">🇨🇳 中文</div>
-        <div class="lang-option" data-lang="en" onclick="setLang('en')">🇺🇸 English</div>
-    </div>
-
     <div class="app-container">
-        <!-- Hero 区域 -->
-        <header class="hero">
-            <div class="hero-badge">
-                <span class="dot"></span>
-                <span data-i18n="running">Skills Manager 正在运行</span>
-            </div>
-            <h1>⚡ Skills Manager</h1>
-            <p data-i18n="hero_desc">智能 Skills 搜索引擎，发现、浏览、打包您的技能工具箱</p>
-            <div class="stats-bar">
-                <div class="stats-bar-item" id="statsBarSkills" data-i18n="stats_skills">📦 共 <strong id="totalSkills">{}</strong> 个 Skills</div>
-                <div class="stats-bar-item" id="statsBarCategories" data-i18n="stats_categories">📂 覆盖 <strong id="totalCategories">{}</strong> 个分类</div>
-                <div class="stats-bar-item" data-i18n="stats_github">🌐 支持 GitHub 发现</div>
-            </div>
-        </header>
-
-        <!-- 搜索区域（全局，始终可见） -->
-        <section class="search-section">
-            <div class="search-source-bar">
-                <button class="search-source active" data-source="local" data-i18n="source_local" onclick="setSearchSource('local')">📋 本地 Skills</button>
-                <button class="search-source" data-source="github" data-i18n="source_github" onclick="setSearchSource('github')">🐙 GitHub</button>
-            </div>
-            <div class="search-wrapper">
-                <div class="search-box">
-                    <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="11" cy="11" r="8"/>
-                        <path d="m21 21-4.35-4.35"/>
-                    </svg>
-                <input type="text" id="searchInput"
-                    placeholder="搜索 Skills（如：sprint规划、测试策略、AI安全、用户故事...）"
-                    data-i18n-placeholder="search_placeholder"
-                    onkeydown="if(event.key==='Enter') searchSkills()">
-                </div>
-                <button onclick="searchSkills()" class="search-btn" data-i18n="search_btn">🔍 搜索</button>
-            </div>
-            <div class="search-hints">
-                <span class="search-hint" onclick="quickSearch('sprint')" data-i18n="hint_sprint">🏃 Sprint</span>
-                <span class="search-hint" onclick="quickSearch('test')" data-i18n="hint_test">🧪 测试</span>
-                <span class="search-hint" onclick="quickSearch('prd')" data-i18n="hint_prd">📋 PRD</span>
-                <span class="search-hint" onclick="quickSearch('api')" data-i18n="hint_api">🌐 API</span>
-                <span class="search-hint" onclick="quickSearch('tdd')" data-i18n="hint_tdd">⚡ TDD</span>
-                <span class="search-hint" onclick="quickSearch('design')" data-i18n="hint_design">🎨 设计</span>
-                <span class="search-hint" onclick="quickSearch('debug')" data-i18n="hint_debug">🔧 调试</span>
-                <span class="search-hint" onclick="quickSearch('mvp')" data-i18n="hint_mvp">💰 MVP</span>
-            </div>
-        </section>
-
-        <!-- 导航标签 -->
-        <nav class="nav-tabs">
-            <div class="nav-tabs-main">
-                <button class="nav-tab active" data-tab="search">
-                    <span data-i18n="tab_browse">📋 浏览 Skills</span>
-                </button>
-                <button class="nav-tab" data-tab="scenarios">
-                    <span data-i18n="tab_scenarios">🎯 场景推荐</span>
-                </button>
-            </div>
-            <div class="nav-tabs-actions">
-                <button class="nav-action-btn primary" id="cartToggleBtn" onclick="toggleCartSidebar()">
-                    <span>📦</span>
-                    <span data-i18n="cart_btn">清单</span>
-                    <span class="count" id="cartCount">0</span>
-                </button>
-                <div class="manage-wrap">
-                    <button class="nav-action-btn" id="manageToggleBtn" onclick="toggleManageMenu()">
-                        <span>⚙️</span>
-                        <span data-i18n="manage_btn">管理</span>
-                    </button>
-                    <div class="manage-menu" id="manageMenu">
-                        <div class="manage-menu-item" onclick="showManage('discover')">
-                            <span data-i18n="tab_discover">🔍 发现新 Skills</span>
+        <div class="dashboard-layout">
+            <!-- 左侧边栏 -->
+            <aside class="sidebar" id="sidebar">
+                <div class="sidebar-header">
+                    <a href="#" class="sidebar-brand" onclick="showSection('search'); closeMobileSidebar(); return false;">
+                        <div class="sidebar-brand-icon">⚡</div>
+                        <div class="sidebar-brand-text">
+                            <span class="sidebar-brand-name">Skills Manager</span>
+                            <span class="sidebar-brand-sub">智能 Skills 导航</span>
                         </div>
-                        <div class="manage-menu-item" onclick="showManage('import')">
-                            <span data-i18n="tab_import">👤 导入 Skill</span>
-                        </div>
-                        <div class="manage-menu-item" onclick="showManage('update')">
-                            <span data-i18n="tab_update">🔄 自动更新</span>
-                        </div>
-                        <div class="manage-menu-item" onclick="showManage('releases')">
-                            <span data-i18n="tab_releases">📅 版本发布</span>
-                        </div>
-                        <div class="manage-menu-item" onclick="showManage('ai')">
-                            <span data-i18n="tab_ai">⚙️ 智能设置</span>
-                        </div>
-                    </div>
+                    </a>
                 </div>
-            </div>
-        </nav>
-
-        <!-- 分类筛选条 -->
-        <div class="category-filter-bar" id="categoryFilterBar" style="display:none;"></div>
-
-        <main>
-            <!-- 本地 Skills 搜索结果 -->
-            <section id="searchSection" class="content-section active">
-                <div class="section-header">
-                    <div class="section-title">
-                        <h2 data-i18n="sec_local">📋 浏览 Skills</h2>
-                        <span class="tag" id="searchTag">显示最新 Skills</span>
-                    </div>
-                    <div style="display:flex;gap:8px;align-items:center;">
-                        <span style="color:var(--text-muted);font-size:0.85rem;" data-i18n="sort_label">排序：</span>
-                        <select id="sortOrder" class="select-input" style="font-size:0.82rem;padding:6px 10px;" onchange="onSortChange()">
-                            <option value="default" data-i18n="sort_default">默认</option>
-                            <option value="name" data-i18n="sort_name">名称 A-Z</option>
-                            <option value="category" data-i18n="sort_category">按分类</option>
-                        </select>
-                    </div>
-                </div>
-                <div id="aiRecommendation"></div>
-                <div class="skills-grid" id="searchResults"></div>
-                <div id="searchPagination"></div>
-            </section>
-
-            <!-- GitHub 仓库 -->
-            <section id="githubSection" class="content-section">
-                <div class="section-header">
-                    <div class="section-title">
-                        <h2 data-i18n="sec_github">🐙 GitHub 仓库</h2>
-                        <span class="tag" id="githubTag">发现优质开源项目</span>
-                    </div>
-                </div>
-                <div class="github-grid" id="githubResults">
-                    <div class="empty-state">
-                        <div class="empty-icon">🐙</div>
-                        <h3 class="empty-title" data-i18n="github_title">搜索 GitHub 仓库</h3>
-                        <p class="empty-desc" data-i18n="github_desc">在搜索框中输入关键词，点击「全网」按钮即可搜索 GitHub 上的优质 Skills 仓库</p>
-                    </div>
-                </div>
-            </section>
-
-            <!-- 场景推荐 -->
-            <section id="scenariosSection" class="content-section">
-                <div class="section-header">
-                    <div class="section-title">
-                        <h2 data-i18n="sec_scenarios">🎯 场景化推荐</h2>
-                        <span class="tag" id="scenarioTag">选择您的使用场景</span>
-                    </div>
-                    <button class="btn btn-ghost" id="scenarioBackBtn" onclick="loadScenarios()" style="display:none;" data-i18n="btn_back_scenarios">
-                        ← 返回场景列表
-                    </button>
-                </div>
-                <div id="scenariosList"></div>
-            </section>
-
-            <!-- 分类浏览（已合并到浏览页，保留 section 用于管理菜单兼容） -->
-            <section id="categoriesSection" class="content-section">
-                <div class="section-header">
-                    <div class="section-title">
-                        <h2 data-i18n="sec_categories">📂 分类浏览</h2>
-                        <span class="tag" id="categoriesTag">按分类查看所有 Skills</span>
-                    </div>
-                    <button class="btn btn-ghost" id="categoryBackBtn" onclick="loadCategories()" style="display:none;" data-i18n="btn_back_categories">
-                        ← 返回分类列表
-                    </button>
-                </div>
-                <div id="categoriesList"></div>
-            </section>
-
-            <!-- 打包清单（保留原 section 兼容，购物车主交互改为侧边栏） -->
-            <section id="cartSection" class="content-section">
-                <div class="section-header">
-                    <div class="section-title">
-                        <h2 data-i18n="sec_cart">📦 打包清单</h2>
-                        <span class="tag" id="cartTag">已选择 0 个 Skills</span>
-                    </div>
-                </div>
-                <div class="cart-actions">
-                    <button class="btn btn-primary" onclick="packageSelected()" data-i18n="btn_package">📦 打包下载选中项</button>
-                    <button class="btn btn-secondary" onclick="packageAll()" data-i18n="btn_package_all">📦 打包全部 Skills</button>
-                    <button class="btn btn-ghost" onclick="clearCart()" data-i18n="btn_clear_cart">🗑️ 清空清单</button>
-                </div>
-                <div id="cartList"></div>
-            </section>
-
-            <!-- 发现新 Skills -->
-            <section id="discoverSection" class="content-section">
-                <div class="section-header">
-                    <div class="section-title">
-                        <h2 data-i18n="sec_discover">🔍 发现新 Skills</h2>
-                        <span class="tag" id="discoverTag">从 GitHub 发现优质 Skills</span>
-                    </div>
-                </div>
-                <div class="discover-controls">
-                    <div class="discover-tabs">
-                        <button class="discover-tab active" data-mode="keyword" onclick="switchDiscoverMode('keyword')" data-i18n="discover_keyword">🔍 关键词搜索</button>
-                        <button class="discover-tab" data-mode="ai" onclick="switchDiscoverMode('ai')" data-i18n="discover_ai">⚙️ 智能推荐</button>
-                    </div>
-                </div>
-                <div id="keywordPanel" class="discover-panel">
-                    <div class="discover-filters">
-                        <select id="discoverCategory" class="select-input">
-                            <option value="" data-i18n="discover_cat_all">全部分类</option>
-                            <option value="ai_agent" data-i18n="discover_cat_ai">⚙️ AI Agent</option>
-                            <option value="product" data-i18n="discover_cat_product">📋 产品经理</option>
-                            <option value="agile" data-i18n="discover_cat_agile">🏃 敏捷开发</option>
-                            <option value="qa_testing" data-i18n="discover_cat_qa">🧪 QA测试</option>
-                            <option value="architecture" data-i18n="discover_cat_arch">🏗️ 架构设计</option>
-                            <option value="dev_workflow" data-i18n="discover_cat_dev">⚡ 开发工作流</option>
-                        </select>
-                        <input type="number" id="minStars" class="select-input" placeholder="最低 Stars" data-i18n-placeholder="discover_min_stars" value="50" min="10" style="width:130px;">
-                    </div>
-                    <div class="discover-actions">
-                        <button class="btn btn-primary" onclick="runDiscovery()" data-i18n="discover_run">▶️ 开始发现</button>
-                        <button class="btn btn-outline" onclick="loadCandidates()" data-i18n="discover_list">📋 候选列表</button>
-                    </div>
-                </div>
-                <div id="aiPanel" class="discover-panel" style="display:none;">
-                    <div class="ai-discover-box">
-                        <div class="ai-discover-header">
-                            <span class="ai-icon">⚙️</span>
-                            <span class="ai-title" data-i18n="ai_title">智能推荐</span>
-                        </div>
-                        <textarea id="aiRequirement" class="ai-textarea"
-                            placeholder="描述你需要的 Skills，例如：&#10;• 我需要一个帮助代码审查的 Skill&#10;• 想要提高团队敏捷开发效率&#10;• 需要产品需求文档编写的最佳实践"></textarea>
-                        <div class="ai-discover-footer">
-                            <input type="number" id="aiMinStars" class="select-input" placeholder="最低 Stars" data-i18n-placeholder="ai_min_stars" value="50" min="10" style="width:130px;">
-                            <button class="btn btn-primary btn-ai" onclick="runAIDiscovery()" data-i18n="ai_run">▶️ 智能发现</button>
-                        </div>
-                    </div>
-                </div>
-                <div id="discoverStats"></div>
-                <div class="candidate-toolbar" id="candidateToolbar" style="display:none;">
-                    <input type="text" id="candidateFilter" class="select-input" placeholder="" oninput="filterCandidates()" data-i18n-placeholder="filter_candidates">
-                    <div class="candidate-toolbar-info">
-                        <span id="candidateCount"></span>
-                        <button class="btn btn-ghost btn-sm" onclick="clearCandidateFilter()" data-i18n="clear_filter">清空</button>
-                    </div>
-                </div>
-                <div id="discoverResults" class="repo-list"></div>
-                <div class="pagination" id="candidatePagination" style="display:none;"></div>
-            </section>
-
-            <!-- 版本发布页面 -->
-            <section id="releasesSection" class="content-section">
-                <div class="section-header">
-                    <div class="section-title">
-                        <h2 data-i18n="sec_releases">📅 版本发布历史</h2>
-                        <span class="tag" id="releasesTag">追踪 Skills 更新记录</span>
-                    </div>
-                </div>
-                <div id="releasesList"></div>
-            </section>
-
-            <!-- 用户导入 -->
-            <section id="importSection" class="content-section">
-                <div class="section-header">
-                    <div class="section-title">
-                        <h2 data-i18n="sec_import">👤 导入我的 Skill</h2>
-                        <span class="tag" id="importTag">创建和管理您的自定义 Skills</span>
-                    </div>
-                </div>
-                <div class="discover-controls">
-                    <div class="discover-tabs">
-                        <button class="discover-tab active" data-mode="manual" onclick="switchImportMode('manual')" data-i18n="import_manual">✍️ 手动创建</button>
-                        <button class="discover-tab" data-mode="github" onclick="switchImportMode('github')" data-i18n="import_github">🐙 从 GitHub</button>
-                        <button class="discover-tab" data-mode="list" onclick="switchImportMode('list')" data-i18n="import_list">📋 我的 Skills</button>
-                    </div>
-                </div>
-                <div id="manualPanel" class="discover-panel">
-                    <form id="manualImportForm" style="max-width:700px;" onsubmit="event.preventDefault()">
-                        <div style="margin-bottom:16px;">
-                            <label style="display:block;margin-bottom:6px;color:var(--text-secondary);font-size:0.88rem;" data-i18n="import_name_label">Skill 名称（英文）</label>
-                            <input type="text" id="importName" class="select-input" style="width:100%;" placeholder="my-custom-skill">
-                        </div>
-                        <div style="margin-bottom:16px;">
-                            <label style="display:block;margin-bottom:6px;color:var(--text-secondary);font-size:0.88rem;" data-i18n="import_desc_label">描述</label>
-                            <input type="text" id="importDesc" class="select-input" style="width:100%;" placeholder="这个 Skill 做什么">
-                        </div>
-                        <div style="margin-bottom:16px;">
-                            <label style="display:block;margin-bottom:6px;color:var(--text-secondary);font-size:0.88rem;" data-i18n="import_content_label">Skill 内容（Markdown）</label>
-                            <textarea id="importContent" class="ai-textarea" style="min-height:200px;" placeholder="# My Custom Skill&#10;&#10;描述这个 Skill 的使用方法..."></textarea>
-                        </div>
-                        <div style="display:flex;gap:10px;margin-bottom:16px;">
-                            <button type="button" class="btn btn-secondary" onclick="validateImport()" data-i18n="import_validate">🔍 验证</button>
-                            <button type="button" class="btn btn-primary" onclick="submitImport()" data-i18n="import_submit">✅ 导入</button>
-                        </div>
-                        <div id="importValidation" style="display:none;padding:12px;border-radius:8px;font-size:0.88rem;"></div>
-                    </form>
-                </div>
-                <div id="githubPanel" class="discover-panel" style="display:none;">
-                    <form id="githubImportForm" style="max-width:700px;" onsubmit="event.preventDefault()">
-                        <div style="margin-bottom:16px;">
-                            <label style="display:block;margin-bottom:6px;color:var(--text-secondary);font-size:0.88rem;" data-i18n="import_github_label">GitHub 仓库 URL 或完整路径</label>
-                            <input type="text" id="importGithubUrl" class="select-input" style="width:100%;" placeholder="https://github.com/username/repo/tree/main/skills/my-skill">
-                        </div>
-                        <div style="margin-bottom:16px;color:var(--text-muted);font-size:0.82rem;" data-i18n="import_github_hint">支持完整路径：/tree/branch/path/to/SKILL.md</div>
-                        <div style="display:flex;gap:10px;margin-bottom:16px;">
-                            <button type="button" class="btn btn-secondary" onclick="browseGithubSkills()" data-i18n="import_github_browse">🔍 浏览</button>
-                            <button type="button" class="btn btn-primary" onclick="importFromGithub()" data-i18n="import_github_btn">🐙 导入</button>
-                        </div>
-                        <div id="browseResults" style="display:none;margin-top:16px;"></div>
-                    </form>
-                </div>
-                <div id="listPanel" class="discover-panel" style="display:none;">
-                    <div id="userSkillsList"></div>
-                </div>
-            </section>
-
-            <!-- 自动更新管理 -->
-            <section id="updateSection" class="content-section">
-                <div class="section-header">
-                    <div class="section-title">
-                        <h2 data-i18n="sec_update">🔄 自动更新管理</h2>
-                        <span class="tag" id="updateTag">一键更新索引、发现、扫描</span>
-                    </div>
-                </div>
-
-                <!-- 更新状态概览 -->
-                <div class="update-status-grid" id="updateStatusGrid">
-                    <div class="stat-card">
-                        <div class="stat-label" data-i18n="stat_last_full_update">上次完整更新</div>
-                        <div class="stat-value" id="lastFullUpdate">从未</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-label" data-i18n="stat_last_discover">上次发现新技能</div>
-                        <div class="stat-value" id="lastDiscover">从未</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-label" data-i18n="stat_last_index">上次构建索引</div>
-                        <div class="stat-value" id="lastBuildIndex">从未</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-label" data-i18n="stat_last_scan">上次安全扫描</div>
-                        <div class="stat-value" id="lastSecurityScan">从未</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-label" data-i18n="stat_total_updates">已执行更新次数</div>
-                        <div class="stat-value" id="totalUpdates">0</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-label" data-i18n="stat_total_skills">Skills 总数</div>
-                        <div class="stat-value" id="updateTotalSkills">-</div>
-                    </div>
-                </div>
-
-                <!-- 一键更新操作区 -->
-                <div class="update-actions">
-                    <div class="action-card">
-                        <div class="action-header">
-                            <div class="action-title" data-i18n="action_full_title">▶️ 完整更新流水线</div>
-                            <div class="action-desc" data-i18n="action_full_desc">依次执行：GitHub发现 → 安全扫描 → 去重清理 → 重建索引</div>
-                        </div>
-                        <button class="btn btn-primary btn-lg" onclick="runFullUpdate()" id="btnFullUpdate">
-                            <span data-i18n="btn_full_update">▶ 开始完整更新</span>
+                <nav class="sidebar-nav">
+                    <div class="sidebar-nav-section">
+                        <div class="sidebar-nav-label">浏览</div>
+                        <button class="nav-tab active" data-tab="search">
+                            <span class="nav-icon">📋</span>
+                            <span data-i18n="tab_browse">浏览 Skills</span>
+                        </button>
+                        <button class="nav-tab" data-tab="scenarios">
+                            <span class="nav-icon">🎯</span>
+                            <span data-i18n="tab_scenarios">场景推荐</span>
+                        </button>
+                        <button class="nav-tab" data-tab="categories">
+                            <span class="nav-icon">📂</span>
+                            <span data-i18n="tab_categories">分类浏览</span>
                         </button>
                     </div>
+                    <div class="sidebar-nav-section">
+                        <div class="sidebar-nav-label">管理</div>
+                        <button class="nav-tab" data-tab="discover">
+                            <span class="nav-icon">🔍</span>
+                            <span data-i18n="tab_discover">发现新 Skills</span>
+                        </button>
+                        <button class="nav-tab" data-tab="import">
+                            <span class="nav-icon">👤</span>
+                            <span data-i18n="tab_import">导入 Skill</span>
+                        </button>
+                        <button class="nav-tab" data-tab="update">
+                            <span class="nav-icon">🔄</span>
+                            <span data-i18n="tab_update">自动更新</span>
+                        </button>
+                        <button class="nav-tab" data-tab="releases">
+                            <span class="nav-icon">📅</span>
+                            <span data-i18n="tab_releases">版本发布</span>
+                        </button>
+                        <button class="nav-tab" data-tab="ai">
+                            <span class="nav-icon">⚙️</span>
+                            <span data-i18n="tab_ai">智能设置</span>
+                        </button>
+                    </div>
+                </nav>
+                <div class="sidebar-footer">
+                    <button class="sidebar-cart-btn" id="cartToggleBtn" onclick="toggleCartSidebar()">
+                        <span>📦</span>
+                        <span data-i18n="cart_btn">打包清单</span>
+                        <span class="count" id="cartCount">0</span>
+                    </button>
+                </div>
+            </aside>
 
-                    <div class="action-card">
-                        <div class="action-header">
-                            <div class="action-title" data-i18n="action_single_title">🔧 单步执行</div>
-                            <div class="action-desc" data-i18n="action_single_desc">单独运行某一更新步骤</div>
+            <!-- 主区域 -->
+            <div class="main-area">
+                <header class="topbar">
+                    <button class="mobile-menu-btn" id="mobileMenuBtn" onclick="toggleMobileSidebar()" aria-label="菜单">☰</button>
+
+                    <div class="topbar-search">
+                        <svg class="topbar-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="11" cy="11" r="8"/>
+                            <path d="m21 21-4.35-4.35"/>
+                        </svg>
+                        <input type="text" id="searchInput"
+                            placeholder="搜索 Skills（如：sprint规划、测试策略、AI安全、用户故事...）"
+                            data-i18n-placeholder="search_placeholder"
+                            onkeydown="if(event.key==='Enter') searchSkills()">
+                    </div>
+
+                    <div class="topbar-source">
+                        <button class="search-source active" data-source="local" data-i18n="source_local" onclick="setSearchSource('local')">本地</button>
+                        <button class="search-source" data-source="github" data-i18n="source_github" onclick="setSearchSource('github')">GitHub</button>
+                    </div>
+
+                    <div class="topbar-actions">
+                        <div class="manage-wrap">
+                            <button class="topbar-btn primary" id="manageToggleBtn" onclick="toggleManageMenu()" aria-label="管理">⚙️</button>
+                            <div class="manage-menu" id="manageMenu">
+                                <div class="manage-menu-item" onclick="showManage('discover')">
+                                    <span class="manage-menu-icon">🔍</span>
+                                    <span data-i18n="tab_discover">发现新 Skills</span>
+                                </div>
+                                <div class="manage-menu-item" onclick="showManage('import')">
+                                    <span class="manage-menu-icon">👤</span>
+                                    <span data-i18n="tab_import">导入 Skill</span>
+                                </div>
+                                <div class="manage-menu-item" onclick="showManage('update')">
+                                    <span class="manage-menu-icon">🔄</span>
+                                    <span data-i18n="tab_update">自动更新</span>
+                                </div>
+                                <div class="manage-menu-item" onclick="showManage('releases')">
+                                    <span class="manage-menu-icon">📅</span>
+                                    <span data-i18n="tab_releases">版本发布</span>
+                                </div>
+                                <div class="manage-menu-item" onclick="showManage('ai')">
+                                    <span class="manage-menu-icon">⚙️</span>
+                                    <span data-i18n="tab_ai">智能设置</span>
+                                </div>
+                            </div>
                         </div>
-                        <div class="single-actions">
-                            <button class="btn btn-outline" onclick="runSingleStep('discover')" data-i18n="btn_discover">🔍 发现新 Skills</button>
-                            <button class="btn btn-outline" onclick="runSingleStep('scan')" data-i18n="btn_scan">🛡️ 安全扫描</button>
-                            <button class="btn btn-outline" onclick="runSingleStep('clean')" data-i18n="btn_clean">🧹 去重清理</button>
-                            <button class="btn btn-outline" onclick="runSingleStep('reindex')" data-i18n="btn_reindex">🗂️ 重建索引</button>
+
+                        <div class="lang-wrap">
+                            <button class="lang-toggle" id="langToggle" onclick="toggleLangMenu()">
+                                <span id="langLabel">中</span>
+                                <span class="lang-arrow">▼</span>
+                            </button>
+                            <div class="lang-menu" id="langMenu">
+                                <div class="lang-option active" data-lang="zh" onclick="setLang('zh')">🇨🇳 中文</div>
+                                <div class="lang-option" data-lang="en" onclick="setLang('en')">🇺🇸 English</div>
+                            </div>
                         </div>
                     </div>
-                </div>
+                </header>
 
-                <!-- 更新进度 -->
-                <div class="update-progress" id="updateProgress" style="display:none;">
-                    <div class="progress-header">
-                        <h3 data-i18n="progress_title">⏳ 更新进度</h3>
-                        <span class="progress-time" id="progressTime"></span>
-                    </div>
-                    <div class="progress-steps" id="progressSteps"></div>
-                    <div class="progress-log" id="progressLog"></div>
-                </div>
-
-                <!-- 更新历史 -->
-                <div class="update-history" id="updateHistory" style="display:none;">
-                    <h3 data-i18n="history_title">📜 更新历史</h3>
-                    <div class="history-list" id="historyList"></div>
-                </div>
-            </section>
-
-            <!-- 智能设置 -->
-            <section id="aiSection" class="content-section">
-                <div class="section-header">
-                    <div class="section-title">
-                        <h2 data-i18n="sec_ai">⚙️ 智能设置</h2>
-                        <span class="tag" id="aiTag">配置智能 API，启用智能推荐</span>
-                    </div>
-                </div>
-
-                <div class="ai-settings">
-                    <div class="ai-config-card">
-                        <form id="aiConfigForm" onsubmit="event.preventDefault()">
-                            <div class="ai-config-header">
-                                <div class="ai-config-title" data-i18n="ai_config_title">API 配置</div>
-                                <div class="ai-config-desc" data-i18n="ai_config_desc">默认使用 Render 环境变量中的大模型配置，每个 IP 可独立覆盖</div>
-                            </div>
-
-                            <div class="form-group">
-                                <label data-i18n="ai_label_enable">启用智能</label>
-                                <label class="switch">
-                                    <input type="checkbox" id="aiEnabled" onchange="onAiConfigChanged()">
-                                    <span class="switch-slider"></span>
-                                </label>
-                            </div>
-
-                            <div class="form-group">
-                                <label for="aiProvider" data-i18n="ai_label_provider">智能提供商</label>
-                                <select id="aiProvider" onchange="onAiProviderChange()">
-                                    <option value="">加载中...</option>
-                                </select>
-                            </div>
-
-                            <div class="form-group">
-                                <label for="aiModel" data-i18n="ai_label_model">模型</label>
-                                <select id="aiModel"></select>
-                                <input type="text" id="aiModelCustom" class="select-input" style="display:none;" placeholder="输入模型名，如 gpt-4o" onchange="onAiConfigChanged()">
-                            </div>
-
-                            <div class="form-group">
-                                <label for="aiBaseUrl" data-i18n="ai_label_base_url">API 地址</label>
-                                <input type="text" id="aiBaseUrl" placeholder="https://api.openai.com/v1" onchange="onAiConfigChanged()">
-                            </div>
-
-                            <div class="form-group">
-                                <label for="aiApiKey" data-i18n="ai_label_api_key">API Key</label>
-                                <div class="api-key-row">
-                                    <input type="password" id="aiApiKey" placeholder="sk-..." autocomplete="current-password" onchange="onAiConfigChanged()">
-                                    <button type="button" class="btn btn-sm btn-outline" onclick="toggleApiKeyVisibility()" data-i18n="btn_show" id="btnToggleKey">显示</button>
+                <div class="page-content">
+                    <main>
+                        <!-- 本地 Skills 搜索结果 -->
+                        <section id="searchSection" class="content-section active">
+                            <!-- 紧凑欢迎横幅 -->
+                            <div class="hero-compact">
+                                <div class="hero-compact-inner">
+                                    <div class="hero-compact-main">
+                                        <div class="hero-badge">
+                                            <span class="dot"></span>
+                                            <span data-i18n="running">Skills Manager 正在运行</span>
+                                        </div>
+                                        <h1 data-i18n="hero_title">⚡ Skills Manager</h1>
+                                        <p data-i18n="hero_desc">智能 Skills 搜索引擎，发现、浏览、打包您的技能工具箱</p>
+                                    </div>
+                                    <div class="stats-bar">
+                                        <div class="stats-bar-item" id="statsBarSkills" data-i18n="stats_skills">📦 <strong id="totalSkills">{}</strong> Skills</div>
+                                        <div class="stats-bar-item" id="statsBarCategories" data-i18n="stats_categories">📂 <strong id="totalCategories">{}</strong> 分类</div>
+                                        <div class="stats-bar-item" data-i18n="stats_github">🌐 GitHub</div>
+                                    </div>
                                 </div>
                             </div>
 
-                            <div class="form-group">
-                                <label for="aiTemperature" data-i18n="ai_label_temperature">温度 (Temperature)</label>
-                                <div class="range-row">
-                                    <input type="range" id="aiTemperature" min="0" max="2" step="0.1" value="0.7" oninput="document.getElementById('tempValue').textContent = this.value; onAiConfigChanged()">
-                                    <span id="tempValue" class="range-value">0.7</span>
+                            <!-- 快速搜索提示 -->
+                            <section class="search-section">
+                                <div class="search-hints">
+                                    <span class="search-hint" onclick="quickSearch('sprint')" data-i18n="hint_sprint">🏃 Sprint</span>
+                                    <span class="search-hint" onclick="quickSearch('test')" data-i18n="hint_test">🧪 测试</span>
+                                    <span class="search-hint" onclick="quickSearch('prd')" data-i18n="hint_prd">📋 PRD</span>
+                                    <span class="search-hint" onclick="quickSearch('api')" data-i18n="hint_api">🌐 API</span>
+                                    <span class="search-hint" onclick="quickSearch('tdd')" data-i18n="hint_tdd">⚡ TDD</span>
+                                    <span class="search-hint" onclick="quickSearch('design')" data-i18n="hint_design">🎨 设计</span>
+                                    <span class="search-hint" onclick="quickSearch('debug')" data-i18n="hint_debug">🔧 调试</span>
+                                    <span class="search-hint" onclick="quickSearch('mvp')" data-i18n="hint_mvp">💰 MVP</span>
+                                </div>
+                            </section>
+
+                            <!-- 分类筛选条 -->
+                            <div class="category-filter-bar" id="categoryFilterBar" style="display:none;"></div>
+
+                            <div class="section-header">
+                                <div class="section-title">
+                                    <h2 data-i18n="sec_local">📋 浏览 Skills</h2>
+                                    <span class="tag" id="searchTag">显示最新 Skills</span>
+                                </div>
+                                <div style="display:flex;gap:8px;align-items:center;">
+                                    <span style="color:var(--text-muted);font-size:0.85rem;" data-i18n="sort_label">排序：</span>
+                                    <select id="sortOrder" class="select-input" style="font-size:0.82rem;padding:6px 10px;" onchange="onSortChange()">
+                                        <option value="default" data-i18n="sort_default">默认</option>
+                                        <option value="name" data-i18n="sort_name">名称 A-Z</option>
+                                        <option value="category" data-i18n="sort_category">按分类</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div id="aiRecommendation"></div>
+                            <div class="skills-grid" id="searchResults"></div>
+                            <div id="searchPagination"></div>
+                        </section>
+
+                        <!-- GitHub 仓库 -->
+                        <section id="githubSection" class="content-section">
+                            <div class="section-header">
+                                <div class="section-title">
+                                    <h2 data-i18n="sec_github">🐙 GitHub 仓库</h2>
+                                    <span class="tag" id="githubTag">发现优质开源项目</span>
+                                </div>
+                            </div>
+                            <div class="github-grid" id="githubResults">
+                                <div class="empty-state">
+                                    <div class="empty-icon">🐙</div>
+                                    <h3 class="empty-title" data-i18n="github_title">搜索 GitHub 仓库</h3>
+                                    <p class="empty-desc" data-i18n="github_desc">在搜索框中输入关键词，点击「全网」按钮即可搜索 GitHub 上的优质 Skills 仓库</p>
+                                </div>
+                            </div>
+                        </section>
+
+                        <!-- 场景推荐 -->
+                        <section id="scenariosSection" class="content-section">
+                            <div class="section-header">
+                                <div class="section-title">
+                                    <h2 data-i18n="sec_scenarios">🎯 场景化推荐</h2>
+                                    <span class="tag" id="scenarioTag">选择您的使用场景</span>
+                                </div>
+                                <button class="btn btn-ghost" id="scenarioBackBtn" onclick="loadScenarios()" style="display:none;" data-i18n="btn_back_scenarios">
+                                    ← 返回场景列表
+                                </button>
+                            </div>
+                            <div id="scenariosList"></div>
+                        </section>
+
+                        <!-- 分类浏览 -->
+                        <section id="categoriesSection" class="content-section">
+                            <div class="section-header">
+                                <div class="section-title">
+                                    <h2 data-i18n="sec_categories">📂 分类浏览</h2>
+                                    <span class="tag" id="categoriesTag">按分类查看所有 Skills</span>
+                                </div>
+                                <button class="btn btn-ghost" id="categoryBackBtn" onclick="loadCategories()" style="display:none;" data-i18n="btn_back_categories">
+                                    ← 返回分类列表
+                                </button>
+                            </div>
+                            <div id="categoriesList"></div>
+                        </section>
+
+                        <!-- 打包清单 -->
+                        <section id="cartSection" class="content-section">
+                            <div class="section-header">
+                                <div class="section-title">
+                                    <h2 data-i18n="sec_cart">📦 打包清单</h2>
+                                    <span class="tag" id="cartTag">已选择 0 个 Skills</span>
+                                </div>
+                            </div>
+                            <div class="cart-actions">
+                                <button class="btn btn-primary" onclick="packageSelected()" data-i18n="btn_package">📦 打包下载选中项</button>
+                                <button class="btn btn-secondary" onclick="packageAll()" data-i18n="btn_package_all">📦 打包全部 Skills</button>
+                                <button class="btn btn-ghost" onclick="clearCart()" data-i18n="btn_clear_cart">🗑️ 清空清单</button>
+                            </div>
+                            <div id="cartList"></div>
+                        </section>
+
+                        <!-- 发现新 Skills -->
+                        <section id="discoverSection" class="content-section">
+                            <div class="section-header">
+                                <div class="section-title">
+                                    <h2 data-i18n="sec_discover">🔍 发现新 Skills</h2>
+                                    <span class="tag" id="discoverTag">从 GitHub 发现优质 Skills</span>
+                                </div>
+                            </div>
+                            <div class="discover-controls">
+                                <div class="discover-tabs">
+                                    <button class="discover-tab active" data-mode="keyword" onclick="switchDiscoverMode('keyword')" data-i18n="discover_keyword">🔍 关键词搜索</button>
+                                    <button class="discover-tab" data-mode="ai" onclick="switchDiscoverMode('ai')" data-i18n="discover_ai">⚙️ 智能推荐</button>
+                                </div>
+                            </div>
+                            <div id="keywordPanel" class="discover-panel">
+                                <div class="discover-filters">
+                                    <select id="discoverCategory" class="select-input">
+                                        <option value="" data-i18n="discover_cat_all">全部分类</option>
+                                        <option value="ai_agent" data-i18n="discover_cat_ai">⚙️ AI Agent</option>
+                                        <option value="product" data-i18n="discover_cat_product">📋 产品经理</option>
+                                        <option value="agile" data-i18n="discover_cat_agile">🏃 敏捷开发</option>
+                                        <option value="qa_testing" data-i18n="discover_cat_qa">🧪 QA测试</option>
+                                        <option value="architecture" data-i18n="discover_cat_arch">🏗️ 架构设计</option>
+                                        <option value="dev_workflow" data-i18n="discover_cat_dev">⚡ 开发工作流</option>
+                                    </select>
+                                    <input type="number" id="minStars" class="select-input" placeholder="最低 Stars" data-i18n-placeholder="discover_min_stars" value="50" min="10" style="width:130px;">
+                                </div>
+                                <div class="discover-actions">
+                                    <button class="btn btn-primary" onclick="runDiscovery()" data-i18n="discover_run">▶️ 开始发现</button>
+                                    <button class="btn btn-outline" onclick="loadCandidates()" data-i18n="discover_list">📋 候选列表</button>
+                                </div>
+                            </div>
+                            <div id="aiPanel" class="discover-panel" style="display:none;">
+                                <div class="ai-discover-box">
+                                    <div class="ai-discover-header">
+                                        <span class="ai-icon">⚙️</span>
+                                        <span class="ai-title" data-i18n="ai_title">智能推荐</span>
+                                    </div>
+                                    <textarea id="aiRequirement" class="ai-textarea"
+                                        placeholder="描述你需要的 Skills，例如：&#10;• 我需要一个帮助代码审查的 Skill&#10;• 想要提高团队敏捷开发效率&#10;• 需要产品需求文档编写的最佳实践"></textarea>
+                                    <div class="ai-discover-footer">
+                                        <input type="number" id="aiMinStars" class="select-input" placeholder="最低 Stars" data-i18n-placeholder="ai_min_stars" value="50" min="10" style="width:130px;">
+                                        <button class="btn btn-primary btn-ai" onclick="runAIDiscovery()" data-i18n="ai_run">▶️ 智能发现</button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div id="discoverStats"></div>
+                            <div class="candidate-toolbar" id="candidateToolbar" style="display:none;">
+                                <input type="text" id="candidateFilter" class="select-input" placeholder="" oninput="filterCandidates()" data-i18n-placeholder="filter_candidates">
+                                <div class="candidate-toolbar-info">
+                                    <span id="candidateCount"></span>
+                                    <button class="btn btn-ghost btn-sm" onclick="clearCandidateFilter()" data-i18n="clear_filter">清空</button>
+                                </div>
+                            </div>
+                            <div id="discoverResults" class="repo-list"></div>
+                            <div class="pagination" id="candidatePagination" style="display:none;"></div>
+                        </section>
+
+                        <!-- 版本发布页面 -->
+                        <section id="releasesSection" class="content-section">
+                            <div class="section-header">
+                                <div class="section-title">
+                                    <h2 data-i18n="sec_releases">📅 版本发布历史</h2>
+                                    <span class="tag" id="releasesTag">追踪 Skills 更新记录</span>
+                                </div>
+                            </div>
+                            <div id="releasesList"></div>
+                        </section>
+
+                        <!-- 用户导入 -->
+                        <section id="importSection" class="content-section">
+                            <div class="section-header">
+                                <div class="section-title">
+                                    <h2 data-i18n="sec_import">👤 导入我的 Skill</h2>
+                                    <span class="tag" id="importTag">创建和管理您的自定义 Skills</span>
+                                </div>
+                            </div>
+                            <div class="discover-controls">
+                                <div class="discover-tabs">
+                                    <button class="discover-tab active" data-mode="manual" onclick="switchImportMode('manual')" data-i18n="import_manual">✍️ 手动创建</button>
+                                    <button class="discover-tab" data-mode="github" onclick="switchImportMode('github')" data-i18n="import_github">🐙 从 GitHub</button>
+                                    <button class="discover-tab" data-mode="list" onclick="switchImportMode('list')" data-i18n="import_list">📋 我的 Skills</button>
+                                </div>
+                            </div>
+                            <div id="manualPanel" class="discover-panel">
+                                <form id="manualImportForm" style="max-width:700px;" onsubmit="event.preventDefault()">
+                                    <div style="margin-bottom:16px;">
+                                        <label style="display:block;margin-bottom:6px;color:var(--text-secondary);font-size:0.88rem;" data-i18n="import_name_label">Skill 名称（英文）</label>
+                                        <input type="text" id="importName" class="select-input" style="width:100%;" placeholder="my-custom-skill">
+                                    </div>
+                                    <div style="margin-bottom:16px;">
+                                        <label style="display:block;margin-bottom:6px;color:var(--text-secondary);font-size:0.88rem;" data-i18n="import_desc_label">描述</label>
+                                        <input type="text" id="importDesc" class="select-input" style="width:100%;" placeholder="这个 Skill 做什么">
+                                    </div>
+                                    <div style="margin-bottom:16px;">
+                                        <label style="display:block;margin-bottom:6px;color:var(--text-secondary);font-size:0.88rem;" data-i18n="import_content_label">Skill 内容（Markdown）</label>
+                                        <textarea id="importContent" class="ai-textarea" style="min-height:200px;" placeholder="# My Custom Skill&#10;&#10;描述这个 Skill 的使用方法..."></textarea>
+                                    </div>
+                                    <div style="display:flex;gap:10px;margin-bottom:16px;">
+                                        <button type="button" class="btn btn-secondary" onclick="validateImport()" data-i18n="import_validate">🔍 验证</button>
+                                        <button type="button" class="btn btn-primary" onclick="submitImport()" data-i18n="import_submit">✅ 导入</button>
+                                    </div>
+                                    <div id="importValidation" style="display:none;padding:12px;border-radius:8px;font-size:0.88rem;"></div>
+                                </form>
+                            </div>
+                            <div id="githubPanel" class="discover-panel" style="display:none;">
+                                <form id="githubImportForm" style="max-width:700px;" onsubmit="event.preventDefault()">
+                                    <div style="margin-bottom:16px;">
+                                        <label style="display:block;margin-bottom:6px;color:var(--text-secondary);font-size:0.88rem;" data-i18n="import_github_label">GitHub 仓库 URL 或完整路径</label>
+                                        <input type="text" id="importGithubUrl" class="select-input" style="width:100%;" placeholder="https://github.com/username/repo/tree/main/skills/my-skill">
+                                    </div>
+                                    <div style="margin-bottom:16px;color:var(--text-muted);font-size:0.82rem;" data-i18n="import_github_hint">支持完整路径：/tree/branch/path/to/SKILL.md</div>
+                                    <div style="display:flex;gap:10px;margin-bottom:16px;">
+                                        <button type="button" class="btn btn-secondary" onclick="browseGithubSkills()" data-i18n="import_github_browse">🔍 浏览</button>
+                                        <button type="button" class="btn btn-primary" onclick="importFromGithub()" data-i18n="import_github_btn">🐙 导入</button>
+                                    </div>
+                                    <div id="browseResults" style="display:none;margin-top:16px;"></div>
+                                </form>
+                            </div>
+                            <div id="listPanel" class="discover-panel" style="display:none;">
+                                <div id="userSkillsList"></div>
+                            </div>
+                        </section>
+
+                        <!-- 自动更新管理 -->
+                        <section id="updateSection" class="content-section">
+                            <div class="section-header">
+                                <div class="section-title">
+                                    <h2 data-i18n="sec_update">🔄 自动更新管理</h2>
+                                    <span class="tag" id="updateTag">一键更新索引、发现、扫描</span>
                                 </div>
                             </div>
 
-                            <div class="form-group">
-                                <label for="aiMaxTokens" data-i18n="ai_label_max_tokens">最大 Token 数</label>
-                                <input type="number" id="aiMaxTokens" value="1024" min="128" max="8192" step="128" onchange="onAiConfigChanged()">
+                            <div class="update-status-grid" id="updateStatusGrid">
+                                <div class="stat-card">
+                                    <div class="stat-label" data-i18n="stat_last_full_update">上次完整更新</div>
+                                    <div class="stat-value" id="lastFullUpdate">从未</div>
+                                </div>
+                                <div class="stat-card">
+                                    <div class="stat-label" data-i18n="stat_last_discover">上次发现新技能</div>
+                                    <div class="stat-value" id="lastDiscover">从未</div>
+                                </div>
+                                <div class="stat-card">
+                                    <div class="stat-label" data-i18n="stat_last_index">上次构建索引</div>
+                                    <div class="stat-value" id="lastBuildIndex">从未</div>
+                                </div>
+                                <div class="stat-card">
+                                    <div class="stat-label" data-i18n="stat_last_scan">上次安全扫描</div>
+                                    <div class="stat-value" id="lastSecurityScan">从未</div>
+                                </div>
+                                <div class="stat-card">
+                                    <div class="stat-label" data-i18n="stat_total_updates">已执行更新次数</div>
+                                    <div class="stat-value" id="totalUpdates">0</div>
+                                </div>
+                                <div class="stat-card">
+                                    <div class="stat-label" data-i18n="stat_total_skills">Skills 总数</div>
+                                    <div class="stat-value" id="updateTotalSkills">-</div>
+                                </div>
                             </div>
 
-                            <div class="ai-config-actions">
-                                <button type="button" class="btn btn-primary" onclick="saveAiConfig()" id="btnSaveAi">
-                                    <span data-i18n="btn_save_ai">💾 保存配置</span>
-                                </button>
-                                <button type="button" class="btn btn-outline" onclick="testAiConnection()" id="btnTestAi">
-                                    <span data-i18n="btn_test_ai">🔌 测试连接</span>
-                                </button>
-                            </div>
-                            <div id="aiTestResult" class="ai-test-result" style="display:none;"></div>
-                        </form>
-                    </div>
+                            <div class="update-actions">
+                                <div class="action-card">
+                                    <div class="action-header">
+                                        <div class="action-title" data-i18n="action_full_title">▶️ 完整更新流水线</div>
+                                        <div class="action-desc" data-i18n="action_full_desc">依次执行：GitHub发现 → 安全扫描 → 去重清理 → 重建索引</div>
+                                    </div>
+                                    <button class="btn btn-primary btn-lg" onclick="runFullUpdate()" id="btnFullUpdate">
+                                        <span data-i18n="btn_full_update">▶ 开始完整更新</span>
+                                    </button>
+                                </div>
 
-                    <div class="ai-info-card">
-                        <div class="ai-info-title" data-i18n="ai_info_title">📡 使用说明</div>
-                        <ul class="ai-info-list">
-                            <li data-i18n="ai_info_1">默认加载 Render 环境变量中的 ZHIPU_* 配置</li>
-                            <li data-i18n="ai_info_2">每个 IP 可在此页面独立覆盖默认配置</li>
-                            <li data-i18n="ai_info_3">配置并启用后，搜索时将自动调用智能模型进行推荐</li>
-                            <li data-i18n="ai_info_4">如果智能服务调用失败，会自动降级为规则匹配推荐</li>
-                            <li data-i18n="ai_info_5">API Key 只保存在当前 IP 的本地配置中，不会上传到其他地方</li>
-                        </ul>
-                        <div class="ai-status" id="aiStatus">
-                            <span class="status-dot offline"></span>
-                            <span data-i18n="ai_status_disabled">智能功能未启用</span>
-                        </div>
-                    </div>
+                                <div class="action-card">
+                                    <div class="action-header">
+                                        <div class="action-title" data-i18n="action_single_title">🔧 单步执行</div>
+                                        <div class="action-desc" data-i18n="action_single_desc">单独运行某一更新步骤</div>
+                                    </div>
+                                    <div class="single-actions">
+                                        <button class="btn btn-outline" onclick="runSingleStep('discover')" data-i18n="btn_discover">🔍 发现新 Skills</button>
+                                        <button class="btn btn-outline" onclick="runSingleStep('scan')" data-i18n="btn_scan">🛡️ 安全扫描</button>
+                                        <button class="btn btn-outline" onclick="runSingleStep('clean')" data-i18n="btn_clean">🧹 去重清理</button>
+                                        <button class="btn btn-outline" onclick="runSingleStep('reindex')" data-i18n="btn_reindex">🗂️ 重建索引</button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="update-progress" id="updateProgress" style="display:none;">
+                                <div class="progress-header">
+                                    <h3 data-i18n="progress_title">⏳ 更新进度</h3>
+                                    <span class="progress-time" id="progressTime"></span>
+                                </div>
+                                <div class="progress-steps" id="progressSteps"></div>
+                                <div class="progress-log" id="progressLog"></div>
+                            </div>
+
+                            <div class="update-history" id="updateHistory" style="display:none;">
+                                <h3 data-i18n="history_title">📜 更新历史</h3>
+                                <div class="history-list" id="historyList"></div>
+                            </div>
+                        </section>
+
+                        <!-- 智能设置 -->
+                        <section id="aiSection" class="content-section">
+                            <div class="section-header">
+                                <div class="section-title">
+                                    <h2 data-i18n="sec_ai">⚙️ 智能设置</h2>
+                                    <span class="tag" id="aiTag">配置智能 API，启用智能推荐</span>
+                                </div>
+                            </div>
+
+                            <div class="ai-settings">
+                                <div class="ai-config-card">
+                                    <form id="aiConfigForm" onsubmit="event.preventDefault()">
+                                        <div class="ai-config-header">
+                                            <div class="ai-config-title" data-i18n="ai_config_title">API 配置</div>
+                                            <div class="ai-config-desc" data-i18n="ai_config_desc">默认使用 Render 环境变量中的大模型配置，每个 IP 可独立覆盖</div>
+                                        </div>
+
+                                        <div class="form-group">
+                                            <label data-i18n="ai_label_enable">启用智能</label>
+                                            <label class="switch">
+                                                <input type="checkbox" id="aiEnabled" onchange="onAiConfigChanged()">
+                                                <span class="switch-slider"></span>
+                                            </label>
+                                        </div>
+
+                                        <div class="form-group">
+                                            <label for="aiProvider" data-i18n="ai_label_provider">智能提供商</label>
+                                            <select id="aiProvider" onchange="onAiProviderChange()">
+                                                <option value="">加载中...</option>
+                                            </select>
+                                        </div>
+
+                                        <div class="form-group">
+                                            <label for="aiModel" data-i18n="ai_label_model">模型</label>
+                                            <select id="aiModel"></select>
+                                            <input type="text" id="aiModelCustom" class="select-input" style="display:none;" placeholder="输入模型名，如 gpt-4o" onchange="onAiConfigChanged()">
+                                        </div>
+
+                                        <div class="form-group">
+                                            <label for="aiBaseUrl" data-i18n="ai_label_base_url">API 地址</label>
+                                            <input type="text" id="aiBaseUrl" placeholder="https://api.openai.com/v1" onchange="onAiConfigChanged()">
+                                        </div>
+
+                                        <div class="form-group">
+                                            <label for="aiApiKey" data-i18n="ai_label_api_key">API Key</label>
+                                            <div class="api-key-row">
+                                                <input type="password" id="aiApiKey" placeholder="sk-..." autocomplete="current-password" onchange="onAiConfigChanged()">
+                                                <button type="button" class="btn btn-sm btn-outline" onclick="toggleApiKeyVisibility()" data-i18n="btn_show" id="btnToggleKey">显示</button>
+                                            </div>
+                                        </div>
+
+                                        <div class="form-group">
+                                            <label for="aiTemperature" data-i18n="ai_label_temperature">温度 (Temperature)</label>
+                                            <div class="range-row">
+                                                <input type="range" id="aiTemperature" min="0" max="2" step="0.1" value="0.7" oninput="document.getElementById('tempValue').textContent = this.value; onAiConfigChanged()">
+                                                <span id="tempValue" class="range-value">0.7</span>
+                                            </div>
+                                        </div>
+
+                                        <div class="form-group">
+                                            <label for="aiMaxTokens" data-i18n="ai_label_max_tokens">最大 Token 数</label>
+                                            <input type="number" id="aiMaxTokens" value="1024" min="128" max="8192" step="128" onchange="onAiConfigChanged()">
+                                        </div>
+
+                                        <div class="ai-config-actions">
+                                            <button type="button" class="btn btn-primary" onclick="saveAiConfig()" id="btnSaveAi">
+                                                <span data-i18n="btn_save_ai">💾 保存配置</span>
+                                            </button>
+                                            <button type="button" class="btn btn-outline" onclick="testAiConnection()" id="btnTestAi">
+                                                <span data-i18n="btn_test_ai">🔌 测试连接</span>
+                                            </button>
+                                        </div>
+                                        <div id="aiTestResult" class="ai-test-result" style="display:none;"></div>
+                                    </form>
+                                </div>
+
+                                <div class="ai-info-card">
+                                    <div class="ai-info-title" data-i18n="ai_info_title">📡 使用说明</div>
+                                    <ul class="ai-info-list">
+                                        <li data-i18n="ai_info_1">默认加载 Render 环境变量中的 ZHIPU_* 配置</li>
+                                        <li data-i18n="ai_info_2">每个 IP 可在此页面独立覆盖默认配置</li>
+                                        <li data-i18n="ai_info_3">配置并启用后，搜索时将自动调用智能模型进行推荐</li>
+                                        <li data-i18n="ai_info_4">如果智能服务调用失败，会自动降级为规则匹配推荐</li>
+                                        <li data-i18n="ai_info_5">API Key 只保存在当前 IP 的本地配置中，不会上传到其他地方</li>
+                                    </ul>
+                                    <div class="ai-status" id="aiStatus">
+                                        <span class="status-dot offline"></span>
+                                        <span data-i18n="ai_status_disabled">智能功能未启用</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </section>
+
+                        <!-- 详情页 -->
+                        <section id="detailSection" class="content-section">
+                            <button class="btn-back" onclick="goBack()">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="m15 18-6-6 6-6"/>
+                                </svg>
+                                <span data-i18n="btn_back">返回</span>
+                            </button>
+                            <div id="skillDetail"></div>
+                        </section>
+                    </main>
+
+                    <footer>
+                        <p data-i18n="footer">Skills Manager | <span id="footerTotal">0</span> 个 Skills | 涵盖 16+ 个分类 | <a href="https://github.com" target="_blank">GitHub</a></p>
+                    </footer>
                 </div>
-            </section>
-
-            <!-- 详情页 -->
-            <section id="detailSection" class="content-section">
-                <button class="btn-back" onclick="goBack()">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="m15 18-6-6 6-6"/>
-                    </svg>
-                    <span data-i18n="btn_back">返回</span>
-                </button>
-                <div id="skillDetail"></div>
-            </section>
-        </main>
-
-        <footer>
-            <p data-i18n="footer">Skills Manager | <span id="footerTotal">0</span> 个 Skills | 涵盖 16+ 个分类 | <a href="https://github.com" target="_blank">GitHub</a></p>
-        </footer>
+            </div>
+        </div>
     </div>
+
+    <!-- 移动端侧边栏遮罩 -->
+    <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleMobileSidebar()"></div>
 
     <!-- 购物车侧边栏 -->
     <div class="cart-overlay" id="cartOverlay" onclick="toggleCartSidebar()"></div>
@@ -2378,16 +2913,16 @@
                 hint_debug: '🔧 调试',
                 hint_mvp: '💰 MVP',
                 // Nav tabs
-                tab_browse: '📋 浏览 Skills',
-                tab_local: '📋 本地 Skills',
-                tab_github: '🐙 GitHub 仓库',
-                tab_scenarios: '🎯 场景推荐',
-                tab_categories: '📂 分类浏览',
-                tab_cart: '📦 打包清单',
-                tab_discover: '🔍 发现新 Skills',
-                tab_releases: '📅 版本发布',
-                tab_import: '👤 导入 Skill',
-                tab_update: '🔄 自动更新',
+                tab_browse: '浏览 Skills',
+                tab_local: '本地 Skills',
+                tab_github: 'GitHub 仓库',
+                tab_scenarios: '场景推荐',
+                tab_categories: '分类浏览',
+                tab_cart: '打包清单',
+                tab_discover: '发现新 Skills',
+                tab_releases: '版本发布',
+                tab_import: '导入 Skill',
+                tab_update: '自动更新',
                 source_local: '📋 本地 Skills',
                 source_github: '🐙 GitHub',
                 cat_all: '全部分类',
@@ -2416,7 +2951,7 @@
                 progress_title: '⏳ 更新进度',
                 history_title: '📜 更新历史',
                 // 智能设置
-                tab_ai: '⚙️ 智能设置',
+                tab_ai: '智能设置',
                 sec_ai: '⚙️ 智能设置',
                 tag_ai: '配置智能 API，启用智能推荐',
                 ai_config_title: 'API 配置',
@@ -2733,16 +3268,16 @@
                 hint_debug: '🔧 Debug',
                 hint_mvp: '💰 MVP',
                 // Nav tabs
-                tab_browse: '📋 Browse Skills',
-                tab_local: '📋 Local Skills',
-                tab_github: '🐙 GitHub Repos',
-                tab_scenarios: '🎯 By Scenario',
-                tab_categories: '📂 By Category',
-                tab_cart: '📦 Package List',
-                tab_discover: '🔍 Discover Skills',
-                tab_releases: '📅 Releases',
-                tab_import: '👤 Import Skill',
-                tab_update: '🔄 Auto Update',
+                tab_browse: 'Browse Skills',
+                tab_local: 'Local Skills',
+                tab_github: 'GitHub Repos',
+                tab_scenarios: 'By Scenario',
+                tab_categories: 'By Category',
+                tab_cart: 'Package List',
+                tab_discover: 'Discover Skills',
+                tab_releases: 'Releases',
+                tab_import: 'Import Skill',
+                tab_update: 'Auto Update',
                 source_local: '📋 Local Skills',
                 source_github: '🐙 GitHub',
                 cat_all: 'All Categories',
@@ -2771,7 +3306,7 @@
                 progress_title: '⏳ Update Progress',
                 history_title: '📜 Update History',
                 // Smart Settings
-                tab_ai: '⚙️ Smart Settings',
+                tab_ai: 'Smart Settings',
                 sec_ai: '⚙️ Smart Settings',
                 tag_ai: 'Configure smart API for recommendations',
                 ai_config_title: 'API Configuration',
@@ -3142,11 +3677,23 @@
             if (view === 'ai') loadAiConfig();
             if (view === 'import') loadImportList();
             if (view === 'detail' && currentDetailSkillName) showSkillDetail(currentDetailSkillName);
-            // Update nav tab texts
+            // Update nav tab texts（保留图标，只更新文字 span）
             document.querySelectorAll('.nav-tab').forEach(tab => {
                 const key = tab.dataset.tab;
-                const map = { 'search': 'tab_browse', 'scenarios': 'tab_scenarios' };
-                if (map[key]) tab.innerHTML = t(map[key]);
+                const map = {
+                    'search': 'tab_browse',
+                    'scenarios': 'tab_scenarios',
+                    'categories': 'tab_categories',
+                    'discover': 'tab_discover',
+                    'import': 'tab_import',
+                    'update': 'tab_update',
+                    'releases': 'tab_releases',
+                    'ai': 'tab_ai'
+                };
+                if (map[key]) {
+                    const textSpan = tab.querySelector('span[data-i18n]');
+                    if (textSpan) textSpan.textContent = t(map[key]);
+                }
             });
             // Update search source buttons
             document.querySelectorAll('.search-source').forEach(btn => {
@@ -3240,8 +3787,15 @@
             document.querySelectorAll('.nav-tab').forEach(tab => {
                 tab.addEventListener('click', () => {
                     const section = tab.dataset.tab;
-                    showSection(section);
-                    if (section === 'scenarios') loadScenarios();
+                    closeMobileSidebar();
+                    const manageSections = ['discover', 'import', 'update', 'releases', 'ai'];
+                    if (manageSections.includes(section)) {
+                        showManage(section);
+                    } else {
+                        showSection(section);
+                        if (section === 'scenarios') loadScenarios();
+                        if (section === 'categories') loadCategories();
+                    }
                 });
             });
         }
@@ -3273,6 +3827,7 @@
                         return;
                     }
                     bar.scrollLeft += direction * speed;
+                    updateScrollHints();
                     if (bar.scrollLeft + bar.clientWidth >= bar.scrollWidth - 1) {
                         direction = -1;
                     } else if (bar.scrollLeft <= 0) {
@@ -3281,6 +3836,13 @@
                     autoScrollId = requestAnimationFrame(step);
                 }
                 autoScrollId = requestAnimationFrame(step);
+            }
+
+            function updateScrollHints() {
+                const canScrollLeft = bar.scrollLeft > 2;
+                const canScrollRight = bar.scrollLeft + bar.clientWidth < bar.scrollWidth - 2;
+                bar.classList.toggle('has-scroll-left', canScrollLeft);
+                bar.classList.toggle('has-scroll-right', canScrollRight);
             }
 
             bar.addEventListener('mouseenter', () => {
@@ -3309,6 +3871,7 @@
                 e.preventDefault();
                 const dx = e.pageX - startX;
                 bar.scrollLeft = startScrollLeft - dx;
+                updateScrollHints();
             });
 
             bar.addEventListener('mouseup', () => {
@@ -3320,7 +3883,12 @@
             // 滚轮/触控板水平滚动不冲突
             bar.addEventListener('wheel', () => {
                 stopAutoScroll();
+                updateScrollHints();
             }, { passive: true });
+
+            bar.addEventListener('scroll', updateScrollHints, { passive: true });
+            window.addEventListener('resize', updateScrollHints, { passive: true });
+            updateScrollHints();
         }
 
         function setupManageMenu() {
@@ -3348,6 +3916,26 @@
             if (section === 'ai') loadAiConfig();
             if (section === 'import') loadImportList();
         }
+
+        // ========== 移动端侧边栏 ==========
+        function toggleMobileSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('sidebarOverlay');
+            const isOpen = sidebar.classList.toggle('show');
+            overlay.classList.toggle('show', isOpen);
+            document.body.classList.toggle('dashboard-open', isOpen);
+        }
+        function closeMobileSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('sidebarOverlay');
+            sidebar.classList.remove('show');
+            overlay.classList.remove('show');
+            document.body.classList.remove('dashboard-open');
+        }
+        // 窗口放大到桌面尺寸时自动关闭移动侧边栏
+        window.addEventListener('resize', () => {
+            if (window.innerWidth > 1024) closeMobileSidebar();
+        });
 
         // ========== 购物车侧边栏 ==========
         function toggleCartSidebar() {
@@ -3668,6 +4256,17 @@
             renderPagination('searchPagination', page, totalPages, total, renderSkillsPage);
         }
 
+        function categoryAccentClass(category) {
+            if (!category) return '';
+            const c = category.toLowerCase();
+            if (c.includes('ai') || c.includes('product')) return 'accent-violet';
+            if (c.includes('agile') || c.includes('scrum') || c.includes('dev')) return 'accent-cyan';
+            if (c.includes('qa') || c.includes('test') || c.includes('quality')) return 'accent-emerald';
+            if (c.includes('design') || c.includes('ui') || c.includes('ux')) return 'accent-pink';
+            if (c.includes('arch') || c.includes('api') || c.includes('skill')) return 'accent-lime';
+            return 'accent-cyan';
+        }
+
         function renderSkills(containerId, skills) {
             const container = document.getElementById(containerId);
             if (!skills || skills.length === 0) {
@@ -3683,8 +4282,9 @@
                 const rating = skill.rating;
                 const ratingCount = skill.rating_count;
                 const hasStats = downloads || rating || ratingCount;
+                const accent = categoryAccentClass(skill.category);
                 return `
-                <div class="skill-card">
+                <div class="skill-card ${accent}">
                     <div class="skill-card-header">
                         <div class="skill-emoji">${skill.category_emoji || '📦'}</div>
                         <div class="skill-info">
