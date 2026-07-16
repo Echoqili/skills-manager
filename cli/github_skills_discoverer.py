@@ -30,16 +30,27 @@ AI_CONFIG_FILE = Path(__file__).parent.parent / "data" / "ai-config.json"
 
 
 def _load_ai_config():
-    """加载 AI 配置（环境变量 > ai-config.json）"""
-    env_url = os.environ.get("ZHIPU_API_URL", "")
-    env_key = os.environ.get("ZHIPU_API_KEY", "")
-    env_model = os.environ.get("ZHIPU_MODEL", "")
+    """加载 AI 配置（环境变量 AI_* > ZHIPU_* > ai-config.json）"""
+    # 优先读取通用 AI_* 变量（与 web/app.py 保持一致）
+    api_key = os.environ.get("AI_API_KEY", "").strip()
+    base_url = os.environ.get("AI_BASE_URL", "").strip()
+    model = os.environ.get("AI_MODEL", "").strip()
 
-    if env_key:
-        url = env_url or "https://ark.cn-beijing.volces.com/api/coding/v3/chat/completions"
+    if api_key:
+        url = base_url or "https://api.openai.com/v1"
+        model = model or "gpt-3.5-turbo"
+    else:
+        # 回退到旧的 ZHIPU_* 变量，保持向后兼容
+        api_key = os.environ.get("ZHIPU_API_KEY", "")
+        base_url = os.environ.get("ZHIPU_API_URL", "")
+        model = os.environ.get("ZHIPU_MODEL", "")
+        url = base_url or "https://open.bigmodel.cn/api/paas/v4"
+        model = model or "glm-4"
+
+    if api_key:
         if url and not url.endswith("/chat/completions"):
             url = url.rstrip("/") + "/chat/completions"
-        return url, env_key, env_model or "kimi-k2.6"
+        return url, api_key, model
 
     if AI_CONFIG_FILE.exists():
         try:
