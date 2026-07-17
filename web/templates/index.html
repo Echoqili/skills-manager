@@ -132,17 +132,16 @@
         .hero-compact {
             position: relative;
             border-radius: var(--radius-xl);
-            padding: 32px 36px;
-            margin-bottom: 28px;
+            padding: 28px 32px;
+            margin-bottom: 24px;
             overflow: hidden;
             background:
-                linear-gradient(135deg, rgba(0, 212, 255, 0.14) 0%, rgba(139, 92, 246, 0.12) 45%, rgba(244, 114, 182, 0.12) 100%),
+                linear-gradient(135deg, rgba(0, 212, 255, 0.10) 0%, rgba(139, 92, 246, 0.08) 45%, rgba(244, 114, 182, 0.08) 100%),
                 var(--gradient-card);
-            border: 1px solid rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.09);
             box-shadow:
-                0 8px 32px rgba(0, 0, 0, 0.35),
-                inset 0 1px 0 rgba(255, 255, 255, 0.08),
-                0 0 60px rgba(0, 212, 255, 0.06);
+                0 8px 28px rgba(0, 0, 0, 0.3),
+                inset 0 1px 0 rgba(255, 255, 255, 0.06);
             animation: fadeInUp 0.6s ease-out;
         }
         .hero-compact::before {
@@ -166,41 +165,40 @@
         }
         .hero-compact-inner {
             position: relative; z-index: 1;
-            display: flex; align-items: center; justify-content: space-between;
-            gap: 28px; flex-wrap: wrap;
+            display: flex; flex-direction: column; align-items: flex-start;
+            gap: 18px;
         }
-        .hero-compact-main { flex: 1; min-width: 260px; }
+        .hero-compact-main { width: 100%; }
         .hero-compact h1 {
-            font-size: 2.1rem; font-weight: 800;
+            font-size: 2rem; font-weight: 800;
             background: var(--gradient-vibrant);
             -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
-            margin-bottom: 10px; letter-spacing: -0.6px;
-            filter: drop-shadow(0 2px 12px rgba(139, 92, 246, 0.25));
+            margin-bottom: 8px; letter-spacing: -0.6px;
+            filter: drop-shadow(0 2px 10px rgba(139, 92, 246, 0.2));
         }
         .hero-compact p {
-            font-size: 1rem; color: var(--text-secondary); max-width: 520px;
-            line-height: 1.65; letter-spacing: -0.2px;
+            font-size: 0.98rem; color: var(--text-secondary); max-width: 560px;
+            line-height: 1.6; letter-spacing: -0.2px;
         }
         .hero-compact .stats-bar {
-            display: flex; gap: 12px; flex-wrap: wrap;
+            display: flex; gap: 10px; flex-wrap: wrap;
         }
         .stats-bar-item {
-            display: flex; align-items: center; gap: 8px;
-            padding: 10px 18px;
-            background: rgba(5, 9, 16, 0.55);
-            border: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex; align-items: center; gap: 6px;
+            padding: 7px 14px;
+            background: rgba(5, 9, 16, 0.45);
+            border: 1px solid rgba(255, 255, 255, 0.08);
             border-radius: 100px;
-            font-size: 0.88rem;
+            font-size: 0.84rem;
             backdrop-filter: blur(14px);
-            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+            color: var(--text-secondary);
             transition: all 0.3s ease;
         }
         .stats-bar-item:hover {
-            transform: translateY(-2px);
-            border-color: rgba(0, 212, 255, 0.25);
-            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25), 0 0 20px rgba(0, 212, 255, 0.08);
+            border-color: rgba(0, 212, 255, 0.2);
+            background: rgba(5, 9, 16, 0.6);
         }
-        .stats-bar-item strong { color: var(--primary-light); font-weight: 700; }
+        .stats-bar-item strong { color: var(--text); font-weight: 700; }
         .hero-badge {
             display: inline-flex; align-items: center; gap: 8px;
             padding: 6px 14px;
@@ -477,9 +475,9 @@
         }
         .search-source:hover { color: var(--text); }
         .search-source.active {
-            background: var(--gradient-primary);
-            color: white;
-            box-shadow: 0 4px 14px rgba(0, 212, 255, 0.25);
+            background: rgba(0, 212, 255, 0.15);
+            color: var(--primary-light);
+            box-shadow: inset 0 0 0 1px rgba(0, 212, 255, 0.25);
         }
         .topbar-actions {
             display: flex; align-items: center; gap: 10px;
@@ -505,13 +503,13 @@
             box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
         }
         .topbar-btn.primary {
-            background: var(--gradient-primary);
-            border-color: transparent;
-            color: white;
-            box-shadow: 0 4px 16px rgba(0, 212, 255, 0.25);
+            background: rgba(0, 212, 255, 0.1);
+            border-color: rgba(0, 212, 255, 0.2);
+            color: var(--primary-light);
         }
         .topbar-btn.primary:hover {
-            box-shadow: 0 8px 24px rgba(0, 212, 255, 0.4);
+            background: rgba(0, 212, 255, 0.18);
+            border-color: rgba(0, 212, 255, 0.35);
             transform: translateY(-2px);
         }
         .topbar-btn .count {
@@ -694,23 +692,19 @@
         /* 分类筛选条 */
         .category-filter-bar {
             display: flex;
-            gap: 8px;
-            padding: 10px;
+            gap: 6px;
+            padding: 8px;
             margin: 0 0 24px;
             overflow-x: auto;
             max-width: 100%;
-            background:
-                linear-gradient(135deg, rgba(0, 212, 255, 0.08) 0%, rgba(139, 92, 246, 0.08) 50%, rgba(244, 114, 182, 0.08) 100%),
-                var(--bg-card);
-            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: var(--bg-card);
+            border: 1px solid var(--border);
             border-radius: var(--radius-xl);
             -webkit-overflow-scrolling: touch;
             cursor: grab;
             user-select: none;
             position: relative;
-            box-shadow:
-                inset 0 1px 0 rgba(255, 255, 255, 0.05),
-                0 4px 24px rgba(0, 0, 0, 0.25);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
         }
         .category-filter-bar::before,
         .category-filter-bar::after {
@@ -756,38 +750,37 @@
             overflow: hidden;
         }
         .category-filter:hover {
-            background: rgba(0, 212, 255, 0.12);
-            border-color: rgba(0, 212, 255, 0.25);
+            background: rgba(255, 255, 255, 0.08);
+            border-color: rgba(255, 255, 255, 0.15);
             color: var(--text);
-            box-shadow: 0 0 16px rgba(0, 212, 255, 0.14);
-            transform: translateY(-1px);
         }
         .category-filter.active {
-            background: var(--gradient-vibrant);
-            border-color: transparent;
-            color: white;
-            box-shadow:
-                0 6px 22px rgba(139, 92, 246, 0.4),
-                inset 0 1px 0 rgba(255, 255, 255, 0.2);
+            background: rgba(0, 212, 255, 0.15);
+            border-color: rgba(0, 212, 255, 0.35);
+            color: var(--primary-light);
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
             font-weight: 600;
         }
-        .category-filter.active:hover { transform: translateY(-1px); }
+        .category-filter.active:hover { background: rgba(0, 212, 255, 0.2); }
 
         /* 搜索热词 */
         .search-hints {
-            display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px;
+            display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
+            margin-top: 12px;
+        }
+        .search-hints-label {
+            font-size: 0.75rem; color: var(--text-muted); font-weight: 500; margin-right: 4px;
         }
         .search-hint {
-            padding: 5px 14px; background: rgba(255, 255, 255, 0.03);
-            border: 1px solid rgba(255, 255, 255, 0.06); border-radius: 100px;
-            font-size: 0.8rem; color: var(--text-secondary);
+            padding: 3px 10px; background: transparent;
+            border: 1px solid transparent; border-radius: 100px;
+            font-size: 0.78rem; color: var(--text-secondary);
             cursor: pointer; transition: all 0.2s;
         }
         .search-hint:hover {
-            background: rgba(139, 92, 246, 0.12);
+            background: rgba(255, 255, 255, 0.04);
             color: var(--text);
-            border-color: rgba(139, 92, 246, 0.25);
-            box-shadow: 0 0 14px rgba(139, 92, 246, 0.15);
+            border-color: rgba(255, 255, 255, 0.1);
         }
 
         /* ========== 导航标签 (SkillStore 风格) ========== */
@@ -1145,46 +1138,47 @@
             height: 14px;
         }
         .skill-actions {
-            display: flex; gap: 10px; padding-top: 16px; border-top: 1px solid var(--border);
+            display: flex; gap: 10px; align-items: center; justify-content: space-between;
+            padding-top: 14px; border-top: 1px solid var(--border);
         }
         .skill-action {
-            flex: 1; 
-            padding: 10px 16px; 
-            border: none; 
-            border-radius: var(--radius-sm);
-            font-size: 0.84rem; 
-            font-weight: 600; 
-            cursor: pointer; 
-            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-            display: flex; align-items: center; justify-content: center; gap: 6px;
+            padding: 8px 14px;
+            border-radius: var(--radius-md);
+            font-size: 0.82rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            display: inline-flex; align-items: center; justify-content: center; gap: 5px;
             letter-spacing: -0.2px;
+            white-space: nowrap;
         }
         .skill-action.primary {
-            background: var(--gradient-primary);
-            color: white;
-            box-shadow: 0 4px 16px rgba(0, 212, 255, 0.25);
+            background: rgba(0, 212, 255, 0.1);
+            color: var(--primary-light);
+            border: 1px solid rgba(0, 212, 255, 0.25);
         }
         .skill-action.primary:hover {
-            box-shadow: 0 8px 28px rgba(0, 212, 255, 0.35);
-            transform: translateY(-2px);
-        }
-        .skill-action.secondary { 
-            background: var(--bg-glass); 
-            color: var(--text-secondary); 
-            border: 1px solid var(--border); 
-        }
-        .skill-action.secondary:hover { 
-            background: var(--bg-glass-hover); 
+            background: rgba(0, 212, 255, 0.18);
+            border-color: rgba(0, 212, 255, 0.45);
             color: var(--text);
-            border-color: var(--border-glow);
         }
-        .skill-action.danger { 
-            background: rgba(239,68,68,0.08); 
-            color: var(--error); 
-            border: 1px solid rgba(239,68,68,0.15); 
+        .skill-action.secondary {
+            background: transparent;
+            color: var(--text-muted);
+            border: 1px solid transparent;
+            padding-left: 8px;
         }
-        .skill-action.danger:hover { 
-            background: var(--error); 
+        .skill-action.secondary:hover {
+            color: var(--text);
+            background: rgba(255, 255, 255, 0.04);
+        }
+        .skill-action.danger {
+            background: rgba(239,68,68,0.08);
+            color: var(--error);
+            border: 1px solid rgba(239,68,68,0.15);
+        }
+        .skill-action.danger:hover {
+            background: var(--error);
             color: white;
             border-color: var(--error);
         }
@@ -2207,6 +2201,15 @@
             .skills-grid { grid-template-columns: repeat(2, 1fr); }
         }
         @media (max-width: 1024px) {
+            .topbar { padding: 0 16px; }
+            .topbar-search { min-width: 0; }
+            .page-content { padding: 20px; }
+            .hero-compact { padding: 22px; }
+            .hero-compact h1 { font-size: 1.7rem; }
+            .categories-grid { grid-template-columns: repeat(3, 1fr); }
+            .releases-list { padding: 0; }
+        }
+        @media (max-width: 768px) {
             .mobile-menu-btn { display: flex; }
             .sidebar {
                 transform: translateX(-100%);
@@ -2214,16 +2217,6 @@
             }
             .sidebar.show { transform: translateX(0); }
             .main-area { margin-left: 0; }
-            .topbar { padding: 0 16px; }
-            .topbar-search { min-width: 0; }
-            .page-content { padding: 20px; }
-            .hero-compact { padding: 22px; }
-            .hero-compact h1 { font-size: 1.5rem; }
-            .categories-grid { grid-template-columns: repeat(3, 1fr); }
-            .releases-list { padding: 0; }
-        }
-
-        @media (max-width: 768px) {
             .topbar { gap: 10px; }
             .topbar-search { max-width: none; }
             .topbar-source { display: none; }
@@ -2439,14 +2432,15 @@
                             <!-- 快速搜索提示 -->
                             <section class="search-section">
                                 <div class="search-hints">
-                                    <span class="search-hint" onclick="quickSearch('sprint')" data-i18n="hint_sprint">🏃 Sprint</span>
-                                    <span class="search-hint" onclick="quickSearch('test')" data-i18n="hint_test">🧪 测试</span>
-                                    <span class="search-hint" onclick="quickSearch('prd')" data-i18n="hint_prd">📋 PRD</span>
-                                    <span class="search-hint" onclick="quickSearch('api')" data-i18n="hint_api">🌐 API</span>
-                                    <span class="search-hint" onclick="quickSearch('tdd')" data-i18n="hint_tdd">⚡ TDD</span>
-                                    <span class="search-hint" onclick="quickSearch('design')" data-i18n="hint_design">🎨 设计</span>
-                                    <span class="search-hint" onclick="quickSearch('debug')" data-i18n="hint_debug">🔧 调试</span>
-                                    <span class="search-hint" onclick="quickSearch('mvp')" data-i18n="hint_mvp">💰 MVP</span>
+                                    <span class="search-hints-label" data-i18n="hint_label">热门搜索：</span>
+                                    <span class="search-hint" onclick="quickSearch('sprint')" data-i18n="hint_sprint">Sprint</span>
+                                    <span class="search-hint" onclick="quickSearch('test')" data-i18n="hint_test">测试</span>
+                                    <span class="search-hint" onclick="quickSearch('prd')" data-i18n="hint_prd">PRD</span>
+                                    <span class="search-hint" onclick="quickSearch('api')" data-i18n="hint_api">API</span>
+                                    <span class="search-hint" onclick="quickSearch('tdd')" data-i18n="hint_tdd">TDD</span>
+                                    <span class="search-hint" onclick="quickSearch('design')" data-i18n="hint_design">设计</span>
+                                    <span class="search-hint" onclick="quickSearch('debug')" data-i18n="hint_debug">调试</span>
+                                    <span class="search-hint" onclick="quickSearch('mvp')" data-i18n="hint_mvp">MVP</span>
                                 </div>
                             </section>
 
@@ -2898,21 +2892,22 @@
                 running: 'Skills Manager 正在运行',
                 hero_title: '⚡ Skills Manager',
                 hero_desc: '智能 Skills 搜索引擎，发现、浏览、打包您的技能工具箱',
-                stats_skills: '📦 共 <strong id="totalSkills">{}</strong> 个 Skills',
-                stats_categories: '📂 覆盖 <strong id="totalCategories">{}</strong> 个分类',
-                stats_github: '🌐 支持 GitHub 发现',
+                stats_skills: '共 <strong id="totalSkills">{}</strong> 个 Skills',
+                stats_categories: '覆盖 <strong id="totalCategories">{}</strong> 个分类',
+                stats_github: '支持 GitHub 发现',
                 // Search
                 search_placeholder: '搜索 Skills（如：sprint规划、测试策略、AI安全、用户故事...）',
-                search_btn: '🔍 搜索',
-                search_all: '🌐 全网',
-                hint_sprint: '🏃 Sprint',
-                hint_test: '🧪 测试',
-                hint_prd: '📋 PRD',
-                hint_api: '🌐 API',
-                hint_tdd: '⚡ TDD',
-                hint_design: '🎨 设计',
-                hint_debug: '🔧 调试',
-                hint_mvp: '💰 MVP',
+                search_btn: '搜索',
+                search_all: '全网',
+                hint_label: '热门搜索：',
+                hint_sprint: 'Sprint',
+                hint_test: '测试',
+                hint_prd: 'PRD',
+                hint_api: 'API',
+                hint_tdd: 'TDD',
+                hint_design: '设计',
+                hint_debug: '调试',
+                hint_mvp: 'MVP',
                 // Nav tabs
                 tab_browse: '浏览 Skills',
                 tab_local: '本地 Skills',
@@ -2924,8 +2919,8 @@
                 tab_releases: '版本发布',
                 tab_import: '导入 Skill',
                 tab_update: '自动更新',
-                source_local: '📋 本地 Skills',
-                source_github: '🐙 GitHub',
+                source_local: '本地 Skills',
+                source_github: 'GitHub',
                 cat_all: '全部分类',
                 cart_btn: '清单',
                 manage_btn: '管理',
@@ -2997,8 +2992,8 @@
                 import_github_browse: '🔍 浏览',
                 import_github_btn: '🐙 导入',
                 // Section headers
-                sec_local: '📋 浏览 Skills',
-                sec_github: '🐙 GitHub 仓库',
+                sec_local: '浏览 Skills',
+                sec_github: 'GitHub 仓库',
                 tag_local: '显示最新 Skills',
                 tag_search: '找到 {} 个 Skills',
                 tag_searching: '正在搜索: "{}"',
@@ -3253,21 +3248,22 @@
                 running: 'Skills Manager is running',
                 hero_title: '⚡ Skills Manager',
                 hero_desc: 'Intelligent Skills search engine — discover, browse, and package your skill toolkit',
-                stats_skills: '📦 <strong id="totalSkills">...</strong> Skills total',
-                stats_categories: '📂 <strong id="totalCategories">...</strong> categories',
-                stats_github: '🌐 GitHub discovery supported',
+                stats_skills: '<strong id="totalSkills">...</strong> Skills total',
+                stats_categories: '<strong id="totalCategories">...</strong> categories',
+                stats_github: 'GitHub discovery supported',
                 // Search
                 search_placeholder: 'Search Skills (e.g., sprint planning, testing strategy, AI safety, user stories...)',
-                search_btn: '🔍 Search',
-                search_all: '🌐 Global',
-                hint_sprint: '🏃 Sprint',
-                hint_test: '🧪 Testing',
-                hint_prd: '📋 PRD',
-                hint_api: '🌐 API',
-                hint_tdd: '⚡ TDD',
-                hint_design: '🎨 Design',
-                hint_debug: '🔧 Debug',
-                hint_mvp: '💰 MVP',
+                search_btn: 'Search',
+                search_all: 'Global',
+                hint_label: 'Trending:',
+                hint_sprint: 'Sprint',
+                hint_test: 'Testing',
+                hint_prd: 'PRD',
+                hint_api: 'API',
+                hint_tdd: 'TDD',
+                hint_design: 'Design',
+                hint_debug: 'Debug',
+                hint_mvp: 'MVP',
                 // Nav tabs
                 tab_browse: 'Browse Skills',
                 tab_local: 'Local Skills',
@@ -3279,8 +3275,8 @@
                 tab_releases: 'Releases',
                 tab_import: 'Import Skill',
                 tab_update: 'Auto Update',
-                source_local: '📋 Local Skills',
-                source_github: '🐙 GitHub',
+                source_local: 'Local Skills',
+                source_github: 'GitHub',
                 cat_all: 'All Categories',
                 cart_btn: 'Cart',
                 manage_btn: 'Manage',
@@ -3352,8 +3348,8 @@
                 import_github_browse: '🔍 Browse',
                 import_github_btn: '🐙 Import',
                 // Section headers
-                sec_local: '📋 Browse Skills',
-                sec_github: '🐙 GitHub Repos',
+                sec_local: 'Browse Skills',
+                sec_github: 'GitHub Repos',
                 tag_local: 'Showing latest Skills',
                 tag_search: 'Found {} Skills',
                 tag_searching: 'Searching: "{}"',
