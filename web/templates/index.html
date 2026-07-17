@@ -293,7 +293,7 @@
             letter-spacing: 0.6px;
             margin-bottom: 4px;
         }
-        .nav-tab {
+        .sidebar-nav .nav-tab {
             width: 100%;
             padding: 11px 14px;
             background: transparent;
@@ -313,7 +313,7 @@
             text-align: left;
             overflow: hidden;
         }
-        .nav-tab::before {
+        .sidebar-nav .nav-tab::before {
             content: '';
             position: absolute; inset: 0;
             border-radius: var(--radius-md);
@@ -322,7 +322,7 @@
             transition: opacity 0.3s ease;
             z-index: 0;
         }
-        .nav-tab::after {
+        .sidebar-nav .nav-tab::after {
             content: '';
             position: absolute;
             left: 0; top: 50%;
@@ -333,24 +333,21 @@
             transition: height 0.3s cubic-bezier(0.16, 1, 0.3, 1);
             z-index: 2;
         }
-        .nav-tab > * { position: relative; z-index: 1; }
-        .nav-tab:hover {
+        .sidebar-nav .nav-tab > * { position: relative; z-index: 1; }
+        .sidebar-nav .nav-tab:hover {
             background: var(--bg-glass-hover);
             color: var(--text);
             transform: translateX(2px);
         }
-        .nav-tab.active {
-            background: transparent;
-            color: white;
-            box-shadow:
-                0 0 0 1px rgba(0, 212, 255, 0.25),
-                0 8px 28px rgba(0, 212, 255, 0.18),
-                inset 0 1px 0 rgba(255, 255, 255, 0.1);
+        .sidebar-nav .nav-tab.active {
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text);
+            box-shadow: none;
         }
-        .nav-tab.active::before { opacity: 1; }
-        .nav-tab.active::after { height: 20px; }
-        .nav-tab.active .nav-icon { transform: scale(1.15); }
-        .nav-tab .count {
+        .sidebar-nav .nav-tab.active::before { opacity: 0; }
+        .sidebar-nav .nav-tab.active::after { height: 18px; }
+        .sidebar-nav .nav-tab.active .nav-icon { transform: scale(1.05); }
+        .sidebar-nav .nav-tab .count {
             margin-left: auto;
             padding: 2px 8px;
             background: rgba(255,255,255,0.15);
@@ -358,8 +355,8 @@
             font-size: 0.7rem; font-weight: 700;
             min-width: 20px; text-align: center;
         }
-        .nav-tab.active .count { background: rgba(255,255,255,0.3); }
-        .nav-tab .nav-icon {
+        .sidebar-nav .nav-tab.active .count { background: rgba(255,255,255,0.3); }
+        .sidebar-nav .nav-tab .nav-icon {
             width: 22px; height: 22px;
             display: flex; align-items: center; justify-content: center;
             font-size: 1.05rem;
@@ -762,6 +759,19 @@
             font-weight: 600;
         }
         .category-filter.active:hover { background: rgba(0, 212, 255, 0.2); }
+        .category-dot {
+            width: 6px; height: 6px;
+            border-radius: 50%;
+            background: var(--text-muted);
+            opacity: 0.6;
+            flex-shrink: 0;
+        }
+        .category-filter.accent-cyan .category-dot { background: rgba(0, 212, 255, 0.8); }
+        .category-filter.accent-violet .category-dot { background: rgba(139, 92, 246, 0.8); }
+        .category-filter.accent-pink .category-dot { background: rgba(244, 114, 182, 0.8); }
+        .category-filter.accent-emerald .category-dot { background: rgba(16, 185, 129, 0.8); }
+        .category-filter.accent-lime .category-dot { background: rgba(163, 230, 53, 0.8); }
+        .category-filter.active .category-dot { background: currentColor; opacity: 1; }
 
         /* 搜索热词 */
         .search-hints {
@@ -1005,34 +1015,35 @@
             transform: scaleX(1);
         }
         .skill-card:hover {
-            transform: translateY(-8px) scale(1.01);
+            transform: translateY(-4px);
             border-color: var(--border-glow);
             box-shadow:
-                0 20px 50px rgba(0, 0, 0, 0.5),
-                0 0 0 1px rgba(0, 212, 255, 0.2),
-                0 0 40px rgba(0, 212, 255, 0.12);
+                0 16px 40px rgba(0, 0, 0, 0.35),
+                0 0 0 1px rgba(0, 212, 255, 0.15);
         }
         .skill-card.accent-cyan::before { background: linear-gradient(90deg, var(--primary), var(--accent-secondary)); }
-        .skill-card.accent-cyan:hover { box-shadow: 0 20px 50px rgba(0,0,0,0.5), 0 0 0 1px rgba(0,212,255,0.22), 0 0 40px rgba(0,212,255,0.14); }
+        .skill-card.accent-cyan:hover { box-shadow: 0 16px 40px rgba(0,0,0,0.35), 0 0 0 1px rgba(0,212,255,0.18); }
         .skill-card.accent-violet::before { background: linear-gradient(90deg, var(--violet), var(--pink)); }
-        .skill-card.accent-violet:hover { box-shadow: 0 20px 50px rgba(0,0,0,0.5), 0 0 0 1px rgba(139,92,246,0.25), 0 0 40px rgba(139,92,246,0.16); }
+        .skill-card.accent-violet:hover { box-shadow: 0 16px 40px rgba(0,0,0,0.35), 0 0 0 1px rgba(139,92,246,0.2); }
         .skill-card.accent-pink::before { background: linear-gradient(90deg, var(--pink), var(--orange)); }
-        .skill-card.accent-pink:hover { box-shadow: 0 20px 50px rgba(0,0,0,0.5), 0 0 0 1px rgba(244,114,182,0.25), 0 0 40px rgba(244,114,182,0.16); }
+        .skill-card.accent-pink:hover { box-shadow: 0 16px 40px rgba(0,0,0,0.35), 0 0 0 1px rgba(244,114,182,0.2); }
         .skill-card.accent-emerald::before { background: linear-gradient(90deg, var(--accent), #34d399); }
-        .skill-card.accent-emerald:hover { box-shadow: 0 20px 50px rgba(0,0,0,0.5), 0 0 0 1px rgba(16,185,129,0.25), 0 0 40px rgba(16,185,129,0.16); }
+        .skill-card.accent-emerald:hover { box-shadow: 0 16px 40px rgba(0,0,0,0.35), 0 0 0 1px rgba(16,185,129,0.2); }
         .skill-card.accent-lime::before { background: linear-gradient(90deg, var(--lime), var(--warning)); }
-        .skill-card.accent-lime:hover { box-shadow: 0 20px 50px rgba(0,0,0,0.5), 0 0 0 1px rgba(163,230,53,0.25), 0 0 40px rgba(163,230,53,0.16); }
+        .skill-card.accent-lime:hover { box-shadow: 0 16px 40px rgba(0,0,0,0.35), 0 0 0 1px rgba(163,230,53,0.2); }
 
         .skill-card-header {
             display: flex; align-items: flex-start; gap: 16px; margin-bottom: 16px;
         }
         .skill-emoji {
-            width: 54px;
-            height: 54px;
+            width: 48px;
+            height: 48px;
             display: flex; align-items: center; justify-content: center;
             background: rgba(255, 255, 255, 0.04);
             border-radius: var(--radius-md);
-            font-size: 1.7rem;
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: var(--text);
             flex-shrink: 0;
             transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
             border: 1px solid rgba(255, 255, 255, 0.08);
@@ -1067,13 +1078,15 @@
         }
         .skill-info { flex: 1; min-width: 0; }
         .skill-name {
-            font-size: 1.05rem; 
-            font-weight: 600; 
+            font-size: 1.02rem;
+            font-weight: 600;
             margin-bottom: 6px;
-            white-space: nowrap; 
-            overflow: hidden; 
-            text-overflow: ellipsis;
             letter-spacing: -0.3px;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            line-height: 1.35;
         }
         .skill-category {
             display: inline-flex; align-items: center; gap: 5px;
@@ -1478,15 +1491,17 @@
             border-bottom: 1px solid var(--border);
         }
         .detail-emoji {
-            width: 80px; 
-            height: 80px; 
-            display: flex; 
-            align-items: center; 
+            width: 72px;
+            height: 72px;
+            display: flex;
+            align-items: center;
             justify-content: center;
-            background: var(--bg-glass); 
+            background: var(--bg-glass);
             border: 1px solid var(--border);
-            border-radius: var(--radius-lg); 
-            font-size: 2.8rem;
+            border-radius: var(--radius-lg);
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--text);
             transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
         }
         .detail-header:hover .detail-emoji {
@@ -2230,7 +2245,7 @@
             .categories-grid { grid-template-columns: repeat(2, 1fr); }
             .detail-header { flex-direction: column; align-items: center; text-align: center; }
             .detail-section { padding: 22px; }
-            .detail-emoji { width: 64px; height: 64px; font-size: 2.2rem; }
+            .detail-emoji { width: 56px; height: 56px; font-size: 1.6rem; }
             .detail-info h2 { font-size: 1.5rem; }
             .detail-stats-row { flex-wrap: wrap; gap: 12px; }
             .install-cmd { flex-direction: column; gap: 10px; }
@@ -2256,7 +2271,7 @@
             .hero-compact h1 { font-size: 1.2rem; }
             .hero-compact p { font-size: 0.85rem; }
             .skill-card { padding: 18px; }
-            .skill-emoji { width: 36px; height: 36px; font-size: 1.1rem; }
+            .skill-emoji { width: 40px; height: 40px; font-size: 1.1rem; }
             .scenarios-grid { grid-template-columns: 1fr; }
             .categories-grid { grid-template-columns: 1fr; }
             .category-card { padding: 20px; }
@@ -4027,13 +4042,16 @@
             ];
 
             bar.style.display = 'flex';
-            bar.innerHTML = items.map(item => `
-                <button class="category-filter ${currentCategoryFilter === item.key ? 'active' : ''}"
+            bar.innerHTML = items.map(item => {
+                const accent = item.key ? categoryAccentClass(item.key) : 'accent-cyan';
+                return `
+                <button class="category-filter ${accent} ${currentCategoryFilter === item.key ? 'active' : ''}"
                     data-category="${item.key}"
                     onclick="setCategoryFilter('${item.key}')">
-                    <span>${item.emoji}</span><span>${item.name}</span>
+                    <span class="category-dot"></span><span>${item.name}</span>
                 </button>
-            `).join('');
+                `;
+            }).join('');
         }
 
         async function setCategoryFilter(key) {
@@ -4280,16 +4298,18 @@
                 const ratingCount = skill.rating_count;
                 const hasStats = downloads || rating || ratingCount;
                 const accent = categoryAccentClass(skill.category);
+                const nameInitial = displayName.charAt(0).toUpperCase();
+                const desc = (currentLang === 'zh' ? skill.description_zh : skill.description_en) || skill.description;
                 return `
                 <div class="skill-card ${accent}">
                     <div class="skill-card-header">
-                        <div class="skill-emoji">${skill.category_emoji || '📦'}</div>
+                        <div class="skill-emoji">${nameInitial}</div>
                         <div class="skill-info">
                             <div class="skill-name" title="${skill.name}">${displayName}</div>
-                            <span class="skill-category">${skill.category_emoji || ''} ${categoryName(skill.category)}</span>
+                            <span class="skill-category">${categoryName(skill.category)}</span>
                         </div>
                     </div>
-                    <p class="skill-desc">${(currentLang === 'zh' ? skill.description_zh : skill.description_en) || skill.description || t('detail_no_desc')}</p>
+                    ${desc ? `<p class="skill-desc">${desc}</p>` : ''}
                     ${hasStats ? `<div class="skill-stats">
                         <span class="skill-stat">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -4408,15 +4428,17 @@
                 const hasStats = downloads || rating || ratingCount;
 
                 const installCmd = `npx skillstore add ${skill.name}`;
+                const nameInitial = displayName.charAt(0).toUpperCase();
+                const desc = (currentLang === 'zh' ? skill.description_zh : skill.description_en) || skill.description;
 
                 document.getElementById('skillDetail').innerHTML = `
                     <div class="detail-section">
                         <div class="detail-header">
-                            <div class="detail-emoji">${skill.emoji || skill.category_emoji || '📦'}</div>
+                            <div class="detail-emoji">${nameInitial}</div>
                             <div class="detail-info">
                                 <h2>${displayName}</h2>
                                 <div class="detail-meta">
-                                    <span>${skill.category_emoji || ''} ${categoryName(skill.category)}</span>
+                                    <span>${categoryName(skill.category)}</span>
                                     <span>📁 ${t('detail_files_count', skill.files?.length || 0)}</span>
                                     <span style="word-break:break-all;max-width:300px;" title="${skill.path}">📍 ${skill.path ? skill.path.slice(-40) : t('detail_no_path')}</span>
                                 </div>
@@ -4436,7 +4458,7 @@
                                 <span>${rating} (${ratingCount || 0})</span>
                             </div>` : ''}
                         </div>` : ''}
-                        <p class="detail-desc">${(currentLang === 'zh' ? skill.description_zh : skill.description_en) || skill.description || t('detail_no_desc')}</p>
+                        ${desc ? `<p class="detail-desc">${desc}</p>` : ''}
                         <div class="detail-install">
                             <h4>${t('detail_install_cmd')}</h4>
                             <div class="install-cmd">
@@ -4595,16 +4617,18 @@
                 const ratingCount = skill.rating_count;
                 const hasStats = downloads || rating || ratingCount;
                 const safeName = escHtml(skill.name).replace(/[^a-z0-9]/gi, '_');
+                const nameInitial = displayName.charAt(0).toUpperCase();
+                const desc = (currentLang === 'zh' ? skill.description_zh : skill.description_en) || skill.description;
                 return `
                 <div class="skill-card">
                     <div class="skill-card-header">
-                        <div class="skill-emoji">${skill.category_emoji || '📦'}</div>
+                        <div class="skill-emoji">${nameInitial}</div>
                         <div class="skill-info">
                             <div class="skill-name" title="${skill.name}">${displayName}</div>
-                            <span class="skill-category">${skill.category_emoji || ''} ${categoryName(skill.category)}</span>
+                            <span class="skill-category">${categoryName(skill.category)}</span>
                         </div>
                     </div>
-                    <p class="skill-desc">${(currentLang === 'zh' ? skill.description_zh : skill.description_en) || skill.description || t('detail_no_desc')}</p>
+                    ${desc ? `<p class="skill-desc">${desc}</p>` : ''}
                     ${hasStats ? `<div class="skill-stats">
                         <span class="skill-stat">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -5577,7 +5601,7 @@
                     <div class="candidate-main">
                         <div class="candidate-info">
                             <a href="${c.url || '#'}" target="_blank" class="candidate-name">${c.full_name || c.name}</a>
-                            <p class="candidate-desc">${c.description || t('detail_no_desc')}</p>
+                            ${c.description ? `<p class="candidate-desc">${c.description}</p>` : ''}
                             <div class="candidate-tags">
                                 <span class="tag tag-stars">⭐ ${c.stars || 0}</span>
                                 ${c.language ? `<span class="tag tag-lang">${c.language}</span>` : ''}
