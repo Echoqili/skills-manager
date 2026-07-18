@@ -2298,14 +2298,10 @@
             .releases-list { padding: 0; }
         }
         @media (max-width: 768px) {
-            .mobile-menu-btn { display: flex; }
+            .mobile-menu-btn { display: none; }
             .mobile-bottom-nav { display: flex; }
-            .sidebar {
-                transform: translateX(-100%);
-                box-shadow: 10px 0 40px rgba(0,0,0,0.4);
-            }
-            .sidebar.show { transform: translateX(0); }
-            .sidebar-footer { display: none; }
+            .sidebar { display: none; }
+            .sidebar-overlay { display: none; }
             .main-area { margin-left: 0; }
             .topbar { gap: 10px; }
             .topbar-search { max-width: none; }
