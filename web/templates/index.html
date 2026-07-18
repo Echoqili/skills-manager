@@ -183,6 +183,29 @@
         .hero-compact .stats-bar {
             display: flex; gap: 10px; flex-wrap: wrap;
         }
+        .hero-search { display: none; }
+        .hero-search-inner {
+            position: relative; width: 100%;
+        }
+        .hero-search-icon {
+            position: absolute; left: 16px; top: 50%; transform: translateY(-50%);
+            color: var(--text-muted); pointer-events: none; width: 20px; height: 20px;
+        }
+        .hero-search input {
+            width: 100%; padding: 14px 18px 14px 46px;
+            border-radius: var(--radius-lg);
+            border: 1px solid rgba(255, 255, 255, 0.10);
+            background: rgba(5, 9, 16, 0.55);
+            color: var(--text-primary);
+            font-size: 1rem;
+            outline: none; transition: all 0.2s ease;
+        }
+        .hero-search input::placeholder { color: var(--text-muted); }
+        .hero-search input:focus {
+            border-color: rgba(0, 212, 255, 0.45);
+            background: rgba(5, 9, 16, 0.75);
+            box-shadow: 0 0 20px rgba(0, 212, 255, 0.15);
+        }
         .stats-bar-item {
             display: flex; align-items: center; gap: 6px;
             padding: 7px 14px;
@@ -2304,8 +2327,9 @@
             .sidebar-overlay { display: none; }
             .main-area { margin-left: 0; }
             .topbar { gap: 10px; }
-            .topbar-search { max-width: none; }
+            .topbar-search { display: none; }
             .topbar-source { display: none; }
+            .hero-search { display: block; width: 100%; margin-top: 4px; }
             .page-content { padding-bottom: 88px; }
             .manage-icon { display: none; }
             .mobile-manage-label { display: inline; }
@@ -2400,10 +2424,6 @@
                         <button class="nav-tab" data-tab="scenarios">
                             <span class="nav-icon">🎯</span>
                             <span data-i18n="tab_scenarios">场景推荐</span>
-                        </button>
-                        <button class="nav-tab" data-tab="categories">
-                            <span class="nav-icon">📂</span>
-                            <span data-i18n="tab_categories">分类浏览</span>
                         </button>
                     </div>
                     <div class="sidebar-nav-section">
@@ -2519,6 +2539,20 @@
                                         <div class="stats-bar-item" id="statsBarCategories" data-i18n="stats_categories">📂 <strong id="totalCategories">{}</strong> 分类</div>
                                         <div class="stats-bar-item" data-i18n="stats_github">🌐 GitHub</div>
                                     </div>
+
+                                    <!-- 移动端主搜索框 -->
+                                    <div class="hero-search">
+                                        <div class="hero-search-inner">
+                                            <svg class="hero-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                                <circle cx="11" cy="11" r="8"/>
+                                                <path d="m21 21-4.35-4.35"/>
+                                            </svg>
+                                            <input type="text" id="heroSearchInput"
+                                                placeholder="搜索 Skills（如：sprint规划、测试策略、AI安全、用户故事...）"
+                                                data-i18n-placeholder="search_placeholder"
+                                                onkeydown="if(event.key==='Enter') submitHeroSearch()">
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
 
@@ -2535,6 +2569,14 @@
                                     <span class="search-hint" onclick="quickSearch('debug')" data-i18n="hint_debug">调试</span>
                                     <span class="search-hint" onclick="quickSearch('mvp')" data-i18n="hint_mvp">MVP</span>
                                 </div>
+                            </section>
+
+                            <!-- 分类快速入口 -->
+                            <section class="browse-categories-section">
+                                <div class="section-title" style="margin-bottom:16px;">
+                                    <h3 data-i18n="browse_categories_title">📂 按分类浏览</h3>
+                                </div>
+                                <div class="categories-grid" id="browseCategoryGrid"></div>
                             </section>
 
                             <!-- 分类筛选条 -->
@@ -2969,10 +3011,6 @@
             <span class="mobile-nav-icon">🎯</span>
             <span data-i18n="tab_scenarios">场景推荐</span>
         </button>
-        <button class="nav-tab" data-tab="categories" aria-label="分类">
-            <span class="mobile-nav-icon">📂</span>
-            <span data-i18n="tab_categories">分类浏览</span>
-        </button>
         <button class="nav-tab" data-tab="cart" aria-label="清单">
             <span class="mobile-nav-icon">📦</span>
             <span data-i18n="cart_btn">清单</span>
@@ -3139,6 +3177,7 @@
                 scenario_skill_creation: 'Skill开发',
                 // Categories
                 sec_categories: '📂 分类浏览',
+                browse_categories_title: '📂 按分类浏览',
                 tag_categories: '按分类查看所有 Skills',
                 btn_back_categories: '← 返回分类列表',
                 category_product: '产品经理',
@@ -3495,6 +3534,7 @@
                 scenario_skill_creation: 'Skill Creation',
                 // Categories
                 sec_categories: '📂 Browse by Category',
+                browse_categories_title: '📂 Browse by Category',
                 tag_categories: 'View all Skills by category',
                 btn_back_categories: '← Back to categories',
                 category_product: 'Product Manager',
@@ -3779,6 +3819,7 @@
                 } else {
                     document.getElementById('searchTag').textContent = t('tag_local_all', allLoadedSkills.length);
                 }
+                renderBrowseCategories();
             }
             if (view === 'github') {
                 const tag = document.getElementById('githubTag');
@@ -3798,7 +3839,6 @@
                 const map = {
                     'search': 'tab_browse',
                     'scenarios': 'tab_scenarios',
-                    'categories': 'tab_categories',
                     'discover': 'tab_discover',
                     'import': 'tab_import',
                     'update': 'tab_update',
@@ -4129,6 +4169,7 @@
                     categoriesData = data.categories || [];
                 }
                 renderCategoryFilterBar();
+                renderBrowseCategories();
             } catch (e) {
                 console.error('Failed to load categories:', e);
             }
@@ -4157,10 +4198,39 @@
             }).join('');
         }
 
+        function renderBrowseCategories() {
+            const grid = document.getElementById('browseCategoryGrid');
+            if (!grid || categoriesData.length === 0) return;
+            const maxCount = Math.max(...categoriesData.map(c => c.count), 1);
+            const trendingCategories = ['ai', 'product', 'devops', 'automation'];
+            grid.innerHTML = categoriesData.map(cat => {
+                const isTrending = trendingCategories.includes(cat.key);
+                return `
+                <div class="category-card" onclick="setCategoryFilter('${cat.key}')">
+                    <div class="category-header">
+                        <div class="category-emoji">${cat.emoji}</div>
+                        <div class="category-info">
+                            <div style="display:flex;align-items:center;gap:8px;">
+                                <h3>${categoryName(cat.key)}</h3>
+                                ${isTrending ? `<span class="category-badge">🔥 ${t('hot')}</span>` : ''}
+                            </div>
+                            <span class="category-count">${t('skill_count', cat.count)}</span>
+                        </div>
+                    </div>
+                    <div class="category-bar">
+                        <div class="category-bar-fill" style="width:${(cat.count / maxCount) * 100}%"></div>
+                    </div>
+                    ${isTrending ? `<div class="category-trending">📈 ${t('trending_up')}</div>` : ''}
+                </div>`;
+            }).join('');
+        }
+
         async function setCategoryFilter(key) {
             currentCategoryFilter = key;
             renderCategoryFilterBar();
             document.getElementById('searchInput').value = '';
+            const heroInput = document.getElementById('heroSearchInput');
+            if (heroInput) heroInput.value = '';
 
             if (!key) {
                 // 显示全部
@@ -4257,8 +4327,17 @@
         // ========== 快捷搜索 ==========
         function quickSearch(keyword) {
             document.getElementById('searchInput').value = keyword;
+            const heroInput = document.getElementById('heroSearchInput');
+            if (heroInput) heroInput.value = keyword;
             searchSkills();
             showSection('search');
+        }
+
+        function submitHeroSearch() {
+            const heroInput = document.getElementById('heroSearchInput');
+            const searchInput = document.getElementById('searchInput');
+            if (heroInput && searchInput) searchInput.value = heroInput.value;
+            searchSkills();
         }
 
         // ========== 排序 ==========
