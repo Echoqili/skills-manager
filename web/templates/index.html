@@ -576,12 +576,85 @@
         .mobile-menu-btn:hover { background: var(--bg-glass-hover); color: var(--text); }
         .sidebar-overlay {
             position: fixed; inset: 0;
-            background: rgba(0, 0, 0, 0.5);
+            background: rgba(0, 0, 0, 0.25);
             opacity: 0; visibility: hidden;
             transition: all 0.3s ease;
             z-index: 890;
         }
         .sidebar-overlay.show { opacity: 1; visibility: visible; }
+
+        /* 移动端底部导航 */
+        .mobile-bottom-nav {
+            display: none;
+            position: fixed;
+            left: 0; right: 0; bottom: 0;
+            height: 64px;
+            background: rgba(5, 7, 10, 0.9);
+            border-top: 1px solid var(--border);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            z-index: 950;
+            justify-content: space-around;
+            align-items: stretch;
+            padding-bottom: env(safe-area-inset-bottom, 0px);
+        }
+        .mobile-bottom-nav .nav-tab {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 3px;
+            padding: 0;
+            margin: 0;
+            background: transparent;
+            border: none;
+            border-radius: 0;
+            color: var(--text-secondary);
+            font-size: 0.65rem;
+            font-weight: 600;
+            letter-spacing: 0;
+            cursor: pointer;
+            transition: color 0.2s ease;
+            white-space: nowrap;
+            position: relative;
+        }
+        .mobile-bottom-nav .nav-tab::before,
+        .mobile-bottom-nav .nav-tab::after { display: none; }
+        .mobile-bottom-nav .mobile-nav-icon {
+            font-size: 1.15rem;
+            line-height: 1;
+            transition: transform 0.2s ease;
+        }
+        .mobile-bottom-nav .nav-tab.active {
+            background: transparent;
+            color: var(--primary-light);
+            box-shadow: none;
+            transform: none;
+        }
+        .mobile-bottom-nav .nav-tab.active .mobile-nav-icon {
+            transform: scale(1.1);
+        }
+        .mobile-bottom-nav .count {
+            position: absolute;
+            top: 6px;
+            right: calc(50% - 22px);
+            min-width: 16px;
+            height: 16px;
+            padding: 0 4px;
+            background: var(--gradient-vibrant);
+            color: white;
+            border-radius: 100px;
+            font-size: 0.6rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* 顶部管理按钮：桌面显示齿轮，移动端显示文字 */
+        .manage-icon { display: inline; }
+        .mobile-manage-label { display: none; }
 
         /* ========== 搜索区域（浏览页内快速搜索提示） ========== */
         .search-section {
@@ -2226,15 +2299,25 @@
         }
         @media (max-width: 768px) {
             .mobile-menu-btn { display: flex; }
+            .mobile-bottom-nav { display: flex; }
             .sidebar {
                 transform: translateX(-100%);
                 box-shadow: 10px 0 40px rgba(0,0,0,0.4);
             }
             .sidebar.show { transform: translateX(0); }
+            .sidebar-footer { display: none; }
             .main-area { margin-left: 0; }
             .topbar { gap: 10px; }
             .topbar-search { max-width: none; }
             .topbar-source { display: none; }
+            .page-content { padding-bottom: 88px; }
+            .manage-icon { display: none; }
+            .mobile-manage-label { display: inline; }
+            #manageToggleBtn {
+                width: auto;
+                padding: 0 12px;
+                gap: 4px;
+            }
             .hero-compact h1 { font-size: 1.35rem; }
             .hero-compact p { font-size: 0.9rem; }
             .search-wrapper { flex-direction: column; }
@@ -2383,7 +2466,10 @@
 
                     <div class="topbar-actions">
                         <div class="manage-wrap">
-                            <button class="topbar-btn primary" id="manageToggleBtn" onclick="toggleManageMenu()" aria-label="管理">⚙️</button>
+                            <button class="topbar-btn primary" id="manageToggleBtn" onclick="toggleManageMenu()" aria-label="管理">
+                                <span class="manage-icon">⚙️</span>
+                                <span class="mobile-manage-label" data-i18n="manage_btn">管理</span>
+                            </button>
                             <div class="manage-menu" id="manageMenu">
                                 <div class="manage-menu-item" onclick="showManage('discover')">
                                     <span class="manage-menu-icon">🔍</span>
@@ -2400,10 +2486,6 @@
                                 <div class="manage-menu-item" onclick="showManage('releases')">
                                     <span class="manage-menu-icon">📅</span>
                                     <span data-i18n="tab_releases">版本发布</span>
-                                </div>
-                                <div class="manage-menu-item" onclick="showManage('ai')">
-                                    <span class="manage-menu-icon">⚙️</span>
-                                    <span data-i18n="tab_ai">智能设置</span>
                                 </div>
                             </div>
                         </div>
@@ -2880,6 +2962,31 @@
             </div>
         </div>
     </div>
+
+    <!-- 移动端底部导航 -->
+    <nav class="mobile-bottom-nav" id="mobileBottomNav" aria-label="底部导航">
+        <button class="nav-tab" data-tab="search" aria-label="浏览">
+            <span class="mobile-nav-icon">📋</span>
+            <span data-i18n="tab_browse">浏览 Skills</span>
+        </button>
+        <button class="nav-tab" data-tab="scenarios" aria-label="场景">
+            <span class="mobile-nav-icon">🎯</span>
+            <span data-i18n="tab_scenarios">场景推荐</span>
+        </button>
+        <button class="nav-tab" data-tab="categories" aria-label="分类">
+            <span class="mobile-nav-icon">📂</span>
+            <span data-i18n="tab_categories">分类浏览</span>
+        </button>
+        <button class="nav-tab" data-tab="cart" aria-label="清单">
+            <span class="mobile-nav-icon">📦</span>
+            <span data-i18n="cart_btn">清单</span>
+            <span class="count" id="mobileCartCount" style="display:none;">0</span>
+        </button>
+        <button class="nav-tab" data-tab="ai" aria-label="设置">
+            <span class="mobile-nav-icon">⚙️</span>
+            <span data-i18n="tab_ai">智能设置</span>
+        </button>
+    </nav>
 
     <!-- Toast 容器 -->
     <div class="toast-container" id="toastContainer"></div>
@@ -4126,6 +4233,8 @@
             if (catBar) {
                 catBar.style.display = section === 'search' ? 'flex' : 'none';
             }
+            // 渲染打包清单页面
+            if (section === 'cart') renderCart();
             // Update section tags
             const tagMap = {
                 'github': 'tag_github',
@@ -4703,6 +4812,11 @@
 
         function updateCart() {
             document.getElementById('cartCount').textContent = cart.length;
+            const mobileCartCount = document.getElementById('mobileCartCount');
+            if (mobileCartCount) {
+                mobileCartCount.textContent = cart.length;
+                mobileCartCount.style.display = cart.length ? 'flex' : 'none';
+            }
             const cartTag = document.getElementById('cartTag');
             if (cartTag) cartTag.textContent = t('tag_cart', cart.length);
             // 同步侧边栏标题和数量，避免关闭状态下显示旧数据
