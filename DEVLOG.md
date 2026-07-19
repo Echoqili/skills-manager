@@ -64,6 +64,12 @@
 >
 > **已补充**：在 `web/app.py` 中新增 `/favicon.ico` 路由，返回相同 SVG，Content-Type 为 `image/svg+xml`。本地 Flask 测试客户端验证：`GET /favicon.ico` → 200，body 为闪电 SVG。
 
+### 部署验证（Render 自动部署后）
+- `GET https://skills-manager.onrender.com/favicon.ico` → **200 OK**，返回闪电 SVG
+- 独立 Playwright 脚本监听首页全部网络请求，站点 warm 后无 >=400 响应
+- 页面中 `link[rel*="icon"]` 与 `link[rel="apple-touch-icon"]` 均已正确渲染为 data URI
+- 手动探测 `/apple-touch-icon.png` 仍会 404（服务器未配置该路径），但 HTML 中已声明 `apple-touch-icon` data URI，浏览器不会发起此请求，故不影响实际体验
+
 ### 结论
-线上站点核心功能正常，搜索、详情、清单、分类、国际化及主要 API 均可用。404 为浏览器默认图标请求，不影响用户体验；已同时添加 `apple-touch-icon` 链接与 `/favicon.ico` 路由，部署到 Render 后应能彻底消除图标类 404。
+线上站点核心功能正常，搜索、详情、清单、分类、国际化及主要 API 均可用。图标类 404 已通过添加 `apple-touch-icon` 链接与 `/favicon.ico` 路由修复，部署验证通过。
 
