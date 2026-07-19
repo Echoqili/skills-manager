@@ -2778,6 +2778,16 @@
                                     <div style="display:flex;gap:10px;margin-bottom:16px;">
                                         <button type="button" id="aiGenerateBtn" class="btn btn-primary" onclick="generateSkillWithAI()" data-i18n="import_ai_btn">🤖 AI 生成</button>
                                     </div>
+                                    <div id="aiProgressContainer" style="display:none;margin-bottom:16px;">
+                                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;font-size:0.85rem;color:var(--text-secondary);">
+                                            <span id="aiProgressText" data-i18n="import_ai_progress">🤖 AI 正在生成 Skill...</span>
+                                            <span id="aiProgressPercent">0%</span>
+                                        </div>
+                                        <div style="width:100%;height:8px;background:var(--bg-tertiary);border-radius:999px;overflow:hidden;box-shadow:inset 0 1px 2px rgba(0,0,0,0.2);">
+                                            <div id="aiProgressBar" style="width:0%;height:100%;background:linear-gradient(90deg, var(--primary), var(--accent));border-radius:999px;transition:width 0.5s ease;"></div>
+                                        </div>
+                                        <div id="aiProgressStep" style="margin-top:6px;font-size:0.8rem;color:var(--text-muted);" data-i18n="import_ai_step_submit">正在提交需求...</div>
+                                    </div>
                                     <div id="aiSkillPreview" style="display:none;">
                                         <div style="margin-bottom:12px;padding:12px;border-radius:8px;background:var(--bg-tertiary);">
                                             <div style="font-weight:600;margin-bottom:8px;" data-i18n="import_ai_preview_title">生成结果预览</div>
@@ -3188,6 +3198,13 @@
                 import_ai_success: 'Skill 生成成功',
                 import_ai_failed: 'AI 生成失败',
                 import_ai_filled: '已填入手动表单',
+                import_ai_progress: '🤖 AI 正在生成 Skill...',
+                import_ai_step_submit: '正在提交需求...',
+                import_ai_step_received: '已收到任务，准备开始生成...',
+                import_ai_step_generating: 'AI 正在分析需求...',
+                import_ai_step_writing: 'AI 正在撰写 Skill 内容...',
+                import_ai_step_polishing: '正在整理格式与校验...',
+                import_ai_step_done: '生成完成！',
                 enter_skill_requirement: '请输入 Skill 需求描述',
                 // Section headers
                 sec_local: '浏览 Skills',
@@ -3556,6 +3573,13 @@
                 import_ai_success: 'Skill generated successfully',
                 import_ai_failed: 'AI generation failed',
                 import_ai_filled: 'Filled into manual form',
+                import_ai_progress: '🤖 AI is generating Skill...',
+                import_ai_step_submit: 'Submitting requirement...',
+                import_ai_step_received: 'Task received, preparing to generate...',
+                import_ai_step_generating: 'AI is analyzing the requirement...',
+                import_ai_step_writing: 'AI is writing Skill content...',
+                import_ai_step_polishing: 'Formatting and verifying...',
+                import_ai_step_done: 'Generation complete!',
                 enter_skill_requirement: 'Please enter Skill requirement description',
                 // Section headers
                 sec_local: 'Browse Skills',
@@ -6107,6 +6131,32 @@
                       .replace(/'/g, '&#039;');
         }
 
+        function setAIProgress(percent, stepKey) {
+            const container = document.getElementById('aiProgressContainer');
+            const bar = document.getElementById('aiProgressBar');
+            const percentEl = document.getElementById('aiProgressPercent');
+            const stepEl = document.getElementById('aiProgressStep');
+            if (!container || !bar || !percentEl || !stepEl) return;
+            container.style.display = 'block';
+            bar.style.width = `${percent}%`;
+            percentEl.textContent = `${Math.round(percent)}%`;
+            if (stepKey) {
+                stepEl.textContent = t(stepKey) || stepKey;
+            }
+        }
+
+        function hideAIProgress() {
+            const container = document.getElementById('aiProgressContainer');
+            if (container) container.style.display = 'none';
+        }
+
+        function resetAIProgress() {
+            const bar = document.getElementById('aiProgressBar');
+            const percentEl = document.getElementById('aiProgressPercent');
+            if (bar) bar.style.width = '0%';
+            if (percentEl) percentEl.textContent = '0%';
+        }
+
         async function generateSkillWithAI() {
             const requirement = document.getElementById('aiSkillRequirement').value.trim();
             if (!requirement) {
@@ -6119,6 +6169,8 @@
             btn.innerHTML = `⏳ ${t('import_ai_generating')}`;
             document.getElementById('aiSkillPreview').style.display = 'none';
             document.getElementById('aiGenerateError').style.display = 'none';
+            resetAIProgress();
+            setAIProgress(5, 'import_ai_step_submit');
 
             try {
                 const res = await fetch('/api/import/generate', {
@@ -6126,6 +6178,7 @@
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({requirement})
                 });
+                setAIProgress(15, 'import_ai_step_received');
                 const data = await res.json();
                 if (!data.success || !data.task_id) {
                     const errMsg = data.error || t('unknown_error');
@@ -6135,6 +6188,7 @@
                     return;
                 }
 
+                setAIProgress(20, 'import_ai_step_generating');
                 const result = await pollGenerateStatus(data.task_id, btn, originalText);
                 if (!result) return;
 
@@ -6142,6 +6196,7 @@
                 document.getElementById('aiPreviewName').textContent = result.name;
                 document.getElementById('aiPreviewDesc').textContent = result.description;
                 document.getElementById('aiPreviewContent').textContent = result.content;
+                setAIProgress(100, 'import_ai_step_done');
                 document.getElementById('aiSkillPreview').style.display = 'block';
                 showToast(t('import_ai_success'), 'success');
             } catch (e) {
@@ -6152,6 +6207,7 @@
             } finally {
                 btn.disabled = false;
                 btn.innerHTML = originalText;
+                hideAIProgress();
             }
         }
 
@@ -6164,6 +6220,15 @@
                 if (!data.success) {
                     throw new Error(data.error || t('unknown_error'));
                 }
+
+                // 进度从 20% 平滑增长到 95%，避免长时间卡在 99%
+                const progress = 20 + Math.min(75, ((i + 1) / maxAttempts) * 75);
+                let stepKey = 'import_ai_step_generating';
+                if (progress > 70) stepKey = 'import_ai_step_polishing';
+                else if (progress > 45) stepKey = 'import_ai_step_writing';
+                setAIProgress(progress, stepKey);
+                btn.innerHTML = `⏳ ${t('import_ai_generating')} (${(i + 1) * 2}s)`;
+
                 if (data.status === 'completed') {
                     return data.data;
                 }
@@ -6175,7 +6240,6 @@
                     return null;
                 }
                 // running: continue polling
-                btn.innerHTML = `⏳ ${t('import_ai_generating')} (${i + 1}s)`;
             }
             throw new Error('生成超时，请稍后重试');
         }
