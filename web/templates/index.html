@@ -6127,21 +6127,21 @@
                     body: JSON.stringify({requirement})
                 });
                 const data = await res.json();
-                if (!data.success) {
+                if (!data.success || !data.task_id) {
                     const errMsg = data.error || t('unknown_error');
                     document.getElementById('aiGenerateError').textContent = errMsg;
                     document.getElementById('aiGenerateError').style.display = 'block';
                     showToast(`${t('import_ai_failed')}: ${escapeHtml(errMsg)}`, 'error');
                     return;
                 }
-                _lastGeneratedSkill = {
-                    name: data.name || '',
-                    description: data.description || '',
-                    content: data.content || ''
-                };
-                document.getElementById('aiPreviewName').textContent = _lastGeneratedSkill.name;
-                document.getElementById('aiPreviewDesc').textContent = _lastGeneratedSkill.description;
-                document.getElementById('aiPreviewContent').textContent = _lastGeneratedSkill.content;
+
+                const result = await pollGenerateStatus(data.task_id, btn, originalText);
+                if (!result) return;
+
+                _lastGeneratedSkill = result;
+                document.getElementById('aiPreviewName').textContent = result.name;
+                document.getElementById('aiPreviewDesc').textContent = result.description;
+                document.getElementById('aiPreviewContent').textContent = result.content;
                 document.getElementById('aiSkillPreview').style.display = 'block';
                 showToast(t('import_ai_success'), 'success');
             } catch (e) {
@@ -6153,6 +6153,31 @@
                 btn.disabled = false;
                 btn.innerHTML = originalText;
             }
+        }
+
+        async function pollGenerateStatus(taskId, btn, originalText) {
+            const maxAttempts = 60; // 最多轮询 60 次，每次 2 秒，共 120 秒
+            for (let i = 0; i < maxAttempts; i++) {
+                await new Promise(r => setTimeout(r, 2000));
+                const res = await fetch(`/api/import/generate/status?task_id=${encodeURIComponent(taskId)}`);
+                const data = await res.json();
+                if (!data.success) {
+                    throw new Error(data.error || t('unknown_error'));
+                }
+                if (data.status === 'completed') {
+                    return data.data;
+                }
+                if (data.status === 'failed') {
+                    const errMsg = data.error || t('unknown_error');
+                    document.getElementById('aiGenerateError').textContent = errMsg;
+                    document.getElementById('aiGenerateError').style.display = 'block';
+                    showToast(`${t('import_ai_failed')}: ${escapeHtml(errMsg)}`, 'error');
+                    return null;
+                }
+                // running: continue polling
+                btn.innerHTML = `⏳ ${t('import_ai_generating')} (${i + 1}s)`;
+            }
+            throw new Error('生成超时，请稍后重试');
         }
 
         function fillManualFormFromAI() {

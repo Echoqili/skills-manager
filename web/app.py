@@ -41,6 +41,9 @@ _update_tasks = {}
 # 后台发现任务状态
 _discover_tasks = {}
 
+# AI 生成 Skill 任务状态
+_generate_tasks = {}
+
 PROJECT_ROOT = Path(__file__).parent.parent
 CLI_DIR = PROJECT_ROOT / "cli"
 SKILLS_ROOT = PROJECT_ROOT / "data" / "all-skills"
@@ -1082,63 +1085,109 @@ def api_generate_skill():
             "error": "AI 功能未启用或未配置 API Key，请先在「智能设置」中配置。"
         }), 400
 
-    # 为生成任务分配更大的 token 和超时预算
-    config = dict(config)
-    config["max_tokens"] = 4096
+    task_id = str(uuid.uuid4())
+    _generate_tasks[task_id] = {"status": "running", "result": None, "error": None}
 
-    messages = [
-        {"role": "system", "content": SKILL_GENERATION_SYSTEM_PROMPT},
-        {"role": "user", "content": requirement}
-    ]
-    result = call_ai_api(messages, config=config, timeout=60)
+    def _run_skill_generation(task_id, requirement, config):
+        try:
+            cfg = dict(config)
+            cfg["max_tokens"] = 4096
+            messages = [
+                {"role": "system", "content": SKILL_GENERATION_SYSTEM_PROMPT},
+                {"role": "user", "content": requirement}
+            ]
+            result = call_ai_api(messages, config=cfg, timeout=120)
 
-    if result is None:
-        return jsonify({"success": False, "error": "AI 服务未配置或调用失败"}), 503
-    if isinstance(result, dict) and "error" in result:
-        return jsonify({"success": False, "error": result["error"]}), 502
+            task = _generate_tasks.get(task_id)
+            if task is None:
+                return
 
-    raw = result.strip()
-    if not raw:
-        return jsonify({"success": False, "error": "AI 返回为空，请重试或更换模型"}), 502
-    if raw.startswith("```"):
-        raw = raw.strip("`")
-        if raw.lower().startswith("json"):
-            raw = raw[4:].strip()
+            if result is None:
+                task.update({"status": "failed", "error": "AI 服务未配置或调用失败"})
+                return
+            if isinstance(result, dict) and "error" in result:
+                task.update({"status": "failed", "error": result["error"]})
+                return
 
-    try:
-        parsed = json.loads(raw)
-    except Exception as e:
-        return jsonify({
-            "success": False,
-            "error": f"AI 返回格式无法解析: {str(e)}",
-            "raw_preview": raw[:500]
-        }), 502
+            raw = result.strip()
+            if not raw:
+                task.update({"status": "failed", "error": "AI 返回为空，请重试或更换模型"})
+                return
+            if raw.startswith("```"):
+                raw = raw.strip("`")
+                if raw.lower().startswith("json"):
+                    raw = raw[4:].strip()
 
-    if not isinstance(parsed, dict):
-        return jsonify({"success": False, "error": "AI 返回不是 JSON 对象"}), 502
+            try:
+                parsed = json.loads(raw)
+            except Exception as e:
+                task.update({
+                    "status": "failed",
+                    "error": f"AI 返回格式无法解析: {str(e)}",
+                    "raw_preview": raw[:500]
+                })
+                return
 
-    name = str(parsed.get("name", "")).strip().lower()
-    description = str(parsed.get("description", "")).strip()
-    content = str(parsed.get("content", "")).strip()
+            if not isinstance(parsed, dict):
+                task.update({"status": "failed", "error": "AI 返回不是 JSON 对象"})
+                return
 
-    if not name:
-        return jsonify({"success": False, "error": "AI 未生成有效的 Skill 名称"}), 502
-    if not content:
-        return jsonify({"success": False, "error": "AI 未生成有效的 Skill 内容"}), 502
+            name = str(parsed.get("name", "")).strip().lower()
+            description = str(parsed.get("description", "")).strip()
+            content = str(parsed.get("content", "")).strip()
 
-    name = re.sub(r'[^a-z0-9]+', '-', name).strip('-')
-    if not name or '..' in name or '/' in name or '\\' in name:
-        return jsonify({"success": False, "error": "生成的 Skill 名称不合法"}), 502
+            if not name:
+                task.update({"status": "failed", "error": "AI 未生成有效的 Skill 名称"})
+                return
+            if not content:
+                task.update({"status": "failed", "error": "AI 未生成有效的 Skill 内容"})
+                return
 
-    if len(content) > 20000:
-        content = content[:20000]
+            name = re.sub(r'[^a-z0-9]+', '-', name).strip('-')
+            if not name or '..' in name or '/' in name or '\\' in name:
+                task.update({"status": "failed", "error": "生成的 Skill 名称不合法"})
+                return
 
-    return jsonify({
-        "success": True,
-        "name": name,
-        "description": description,
-        "content": content
-    })
+            if len(content) > 20000:
+                content = content[:20000]
+
+            task.update({
+                "status": "completed",
+                "result": {"name": name, "description": description, "content": content}
+            })
+        except Exception as e:
+            task = _generate_tasks.get(task_id)
+            if task:
+                task.update({"status": "failed", "error": str(e)})
+
+    thread = threading.Thread(
+        target=_run_skill_generation,
+        args=(task_id, requirement, config),
+        daemon=True
+    )
+    thread.start()
+
+    return jsonify({"success": True, "task_id": task_id})
+
+
+@app.route('/api/import/generate/status', methods=['GET'])
+def api_generate_skill_status():
+    """查询 AI 生成 Skill 任务状态"""
+    task_id = request.args.get('task_id', '').strip()
+    if not task_id:
+        return jsonify({"success": False, "error": "缺少 task_id"}), 400
+
+    task = _generate_tasks.get(task_id)
+    if not task:
+        return jsonify({"success": False, "error": "任务不存在"}), 404
+
+    response = {"success": True, "status": task["status"]}
+    if task["status"] == "completed":
+        response["data"] = task["result"]
+    elif task["status"] == "failed":
+        response["error"] = task.get("error", "未知错误")
+        response["raw_preview"] = task.get("raw_preview", "")
+    return jsonify(response)
 
 
 @app.route('/api/import/github', methods=['POST'])
