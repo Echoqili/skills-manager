@@ -2743,6 +2743,7 @@
                             <div class="discover-controls">
                                 <div class="discover-tabs">
                                     <button class="discover-tab active" data-mode="manual" onclick="switchImportMode('manual')" data-i18n="import_manual">✍️ 手动创建</button>
+                                    <button class="discover-tab" data-mode="ai" onclick="switchImportMode('ai')" data-i18n="import_ai">🤖 AI 生成</button>
                                     <button class="discover-tab" data-mode="github" onclick="switchImportMode('github')" data-i18n="import_github">🐙 从 GitHub</button>
                                     <button class="discover-tab" data-mode="list" onclick="switchImportMode('list')" data-i18n="import_list">📋 我的 Skills</button>
                                 </div>
@@ -2766,6 +2767,35 @@
                                         <button type="button" class="btn btn-primary" onclick="submitImport()" data-i18n="import_submit">✅ 导入</button>
                                     </div>
                                     <div id="importValidation" style="display:none;padding:12px;border-radius:8px;font-size:0.88rem;"></div>
+                                </form>
+                            </div>
+                            <div id="aiPanel" class="discover-panel" style="display:none;">
+                                <form id="aiImportForm" style="max-width:700px;" onsubmit="event.preventDefault()">
+                                    <div style="margin-bottom:16px;">
+                                        <label style="display:block;margin-bottom:6px;color:var(--text-secondary);font-size:0.88rem;" data-i18n="import_ai_label">描述你想要的 Skill</label>
+                                        <textarea id="aiSkillRequirement" class="ai-textarea" style="min-height:120px;" placeholder="例如：一个帮我做 Python 代码审查的 Skill，要求给出具体改进建议..." data-i18n-placeholder="import_ai_placeholder"></textarea>
+                                    </div>
+                                    <div style="display:flex;gap:10px;margin-bottom:16px;">
+                                        <button type="button" id="aiGenerateBtn" class="btn btn-primary" onclick="generateSkillWithAI()" data-i18n="import_ai_btn">🤖 AI 生成</button>
+                                    </div>
+                                    <div id="aiSkillPreview" style="display:none;">
+                                        <div style="margin-bottom:12px;padding:12px;border-radius:8px;background:var(--bg-tertiary);">
+                                            <div style="font-weight:600;margin-bottom:8px;" data-i18n="import_ai_preview_title">生成结果预览</div>
+                                            <div style="margin-bottom:6px;">
+                                                <span style="color:var(--text-secondary);">Name:</span>
+                                                <code id="aiPreviewName" style="margin-left:6px;color:var(--primary);"></code>
+                                            </div>
+                                            <div style="margin-bottom:6px;">
+                                                <span style="color:var(--text-secondary);">Description:</span>
+                                                <span id="aiPreviewDesc" style="margin-left:6px;"></span>
+                                            </div>
+                                            <pre id="aiPreviewContent" style="max-height:260px;overflow:auto;background:#0f172a;color:#e2e8f0;padding:12px;border-radius:6px;font-size:0.82rem;white-space:pre-wrap;word-break:break-word;"></pre>
+                                        </div>
+                                        <div style="display:flex;gap:10px;">
+                                            <button type="button" class="btn btn-primary" onclick="fillManualFormFromAI()" data-i18n="import_ai_fill">✍️ 填入手动表单并编辑</button>
+                                        </div>
+                                    </div>
+                                    <div id="aiGenerateError" style="display:none;padding:12px;border-radius:8px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);color:#ef4444;font-size:0.88rem;margin-top:12px;"></div>
                                 </form>
                             </div>
                             <div id="githubPanel" class="discover-panel" style="display:none;">
@@ -3136,6 +3166,7 @@
                 sec_import: '👤 导入我的 Skill',
                 tag_import: '创建和管理您的自定义 Skills',
                 import_manual: '✍️ 手动创建',
+                import_ai: '🤖 AI 生成',
                 import_github: '🐙 从 GitHub',
                 import_list: '📋 我的 Skills',
                 import_name_label: 'Skill 名称（英文）',
@@ -3148,6 +3179,16 @@
                 import_github_hint: '支持完整路径：/tree/branch/path/to/SKILL.md',
                 import_github_browse: '🔍 浏览',
                 import_github_btn: '🐙 导入',
+                import_ai_label: '描述你想要的 Skill',
+                import_ai_placeholder: '例如：一个帮我做 Python 代码审查的 Skill，要求给出具体改进建议...',
+                import_ai_btn: '🤖 AI 生成',
+                import_ai_generating: 'AI 生成中...',
+                import_ai_fill: '✍️ 填入手动表单并编辑',
+                import_ai_preview_title: '生成结果预览',
+                import_ai_success: 'Skill 生成成功',
+                import_ai_failed: 'AI 生成失败',
+                import_ai_filled: '已填入手动表单',
+                enter_skill_requirement: '请输入 Skill 需求描述',
                 // Section headers
                 sec_local: '浏览 Skills',
                 sec_github: 'GitHub 仓库',
@@ -3493,6 +3534,7 @@
                 sec_import: '👤 Import My Skill',
                 tag_import: 'Create and manage your custom Skills',
                 import_manual: '✍️ Create Manually',
+                import_ai: '🤖 AI Generate',
                 import_github: '🐙 From GitHub',
                 import_list: '📋 My Skills',
                 import_name_label: 'Skill Name (English)',
@@ -3505,6 +3547,16 @@
                 import_github_hint: 'Supports full path: /tree/branch/path/to/SKILL.md',
                 import_github_browse: '🔍 Browse',
                 import_github_btn: '🐙 Import',
+                import_ai_label: 'Describe the Skill you want',
+                import_ai_placeholder: 'e.g. A Skill that helps me review Python code and gives concrete improvement suggestions...',
+                import_ai_btn: '🤖 AI Generate',
+                import_ai_generating: 'Generating...',
+                import_ai_fill: '✍️ Fill into manual form',
+                import_ai_preview_title: 'Generated Skill Preview',
+                import_ai_success: 'Skill generated successfully',
+                import_ai_failed: 'AI generation failed',
+                import_ai_filled: 'Filled into manual form',
+                enter_skill_requirement: 'Please enter Skill requirement description',
                 // Section headers
                 sec_local: 'Browse Skills',
                 sec_github: 'GitHub Repos',
@@ -6033,13 +6085,83 @@
             document.querySelectorAll('#importSection .discover-tab').forEach(t => t.classList.remove('active'));
             document.querySelector(`#importSection [data-mode="${mode}"]`).classList.add('active');
             document.getElementById('manualPanel').style.display = mode === 'manual' ? 'block' : 'none';
+            document.getElementById('aiPanel').style.display = mode === 'ai' ? 'block' : 'none';
             document.getElementById('githubPanel').style.display = mode === 'github' ? 'block' : 'none';
             document.getElementById('listPanel').style.display = mode === 'list' ? 'block' : 'none';
             if (mode === 'list') loadUserSkills();
             // Update import tab texts
-            document.querySelector('#importSection [data-mode="manual"]').innerHTML = t('import_manual');
-            document.querySelector('#importSection [data-mode="github"]').innerHTML = t('import_github');
-            document.querySelector('#importSection [data-mode="list"]').innerHTML = t('import_list');
+            ['manual', 'ai', 'github', 'list'].forEach(m => {
+                const tab = document.querySelector(`#importSection [data-mode="${m}"]`);
+                if (tab) tab.innerHTML = t(`import_${m}`);
+            });
+        }
+
+        let _lastGeneratedSkill = null;
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return str.replace(/&/g, '&amp;')
+                      .replace(/</g, '&lt;')
+                      .replace(/>/g, '&gt;')
+                      .replace(/"/g, '&quot;')
+                      .replace(/'/g, '&#039;');
+        }
+
+        async function generateSkillWithAI() {
+            const requirement = document.getElementById('aiSkillRequirement').value.trim();
+            if (!requirement) {
+                showToast(t('enter_skill_requirement'), 'warning');
+                return;
+            }
+            const btn = document.getElementById('aiGenerateBtn');
+            const originalText = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = `⏳ ${t('import_ai_generating')}`;
+            document.getElementById('aiSkillPreview').style.display = 'none';
+            document.getElementById('aiGenerateError').style.display = 'none';
+
+            try {
+                const res = await fetch('/api/import/generate', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({requirement})
+                });
+                const data = await res.json();
+                if (!data.success) {
+                    const errMsg = data.error || t('unknown_error');
+                    document.getElementById('aiGenerateError').textContent = errMsg;
+                    document.getElementById('aiGenerateError').style.display = 'block';
+                    showToast(`${t('import_ai_failed')}: ${escapeHtml(errMsg)}`, 'error');
+                    return;
+                }
+                _lastGeneratedSkill = {
+                    name: data.name || '',
+                    description: data.description || '',
+                    content: data.content || ''
+                };
+                document.getElementById('aiPreviewName').textContent = _lastGeneratedSkill.name;
+                document.getElementById('aiPreviewDesc').textContent = _lastGeneratedSkill.description;
+                document.getElementById('aiPreviewContent').textContent = _lastGeneratedSkill.content;
+                document.getElementById('aiSkillPreview').style.display = 'block';
+                showToast(t('import_ai_success'), 'success');
+            } catch (e) {
+                const errMsg = e.message || String(e);
+                document.getElementById('aiGenerateError').textContent = errMsg;
+                document.getElementById('aiGenerateError').style.display = 'block';
+                showToast(`${t('import_ai_failed')}: ${escapeHtml(errMsg)}`, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            }
+        }
+
+        function fillManualFormFromAI() {
+            if (!_lastGeneratedSkill) return;
+            document.getElementById('importName').value = _lastGeneratedSkill.name;
+            document.getElementById('importDesc').value = _lastGeneratedSkill.description;
+            document.getElementById('importContent').value = _lastGeneratedSkill.content;
+            switchImportMode('manual');
+            showToast(t('import_ai_filled'), 'success');
         }
 
         async function validateImport() {

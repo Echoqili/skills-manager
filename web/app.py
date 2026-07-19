@@ -54,6 +54,21 @@ AI_CONFIG_DIR = PROJECT_ROOT / "data" / "ai-configs"
 DEFAULT_AI_BASE_URL = "https://open.bigmodel.cn/api/paas/v4"
 DEFAULT_AI_MODEL = "glm-4"
 
+SKILL_GENERATION_SYSTEM_PROMPT = """你是 Skills Manager 的 Skill 创作助手。
+
+请将用户需求转换成一个自定义 Skill，只返回如下 JSON，不要包含任何其他说明文字：
+
+{
+  "name": "skill-name",
+  "description": "一句话描述",
+  "content": "# Skill 标题\\n\\n正文 Markdown..."
+}
+
+要求：
+- name：英文 kebab-case，只能包含小写字母、数字和连字符。
+- description：不超过 200 字。
+- content：包含 # 一级标题、使用场景说明、给 AI Agent 的具体 system prompt 或工作流、可选示例。"""
+
 
 def _get_client_ip():
     """获取客户端 IP（优先 X-Forwarded-For）"""
@@ -1053,6 +1068,74 @@ def api_validate_skill():
         "valid": is_valid,
         "errors": errors,
         "warnings": warnings
+    })
+
+
+@app.route('/api/import/generate', methods=['POST'])
+def api_generate_skill():
+    """根据用户需求使用 AI 生成 Skill 草稿"""
+    data = request.get_json() or {}
+    requirement = data.get('requirement', '').strip()
+    if not requirement:
+        return jsonify({"success": False, "error": "需求描述不能为空"}), 400
+
+    config = load_ai_config()
+    if not config.get("enabled") or not config.get("api_key"):
+        return jsonify({
+            "success": False,
+            "error": "AI 功能未启用或未配置 API Key，请先在「智能设置」中配置。"
+        }), 400
+
+    messages = [
+        {"role": "system", "content": SKILL_GENERATION_SYSTEM_PROMPT},
+        {"role": "user", "content": requirement}
+    ]
+    result = call_ai_api(messages, config=config)
+
+    if result is None:
+        return jsonify({"success": False, "error": "AI 服务未配置或调用失败"}), 503
+    if isinstance(result, dict) and "error" in result:
+        return jsonify({"success": False, "error": result["error"]}), 502
+
+    raw = result.strip()
+    if raw.startswith("```"):
+        raw = raw.strip("`")
+        if raw.lower().startswith("json"):
+            raw = raw[4:].strip()
+
+    try:
+        parsed = json.loads(raw)
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": f"AI 返回格式无法解析: {str(e)}",
+            "raw_preview": raw[:500]
+        }), 502
+
+    if not isinstance(parsed, dict):
+        return jsonify({"success": False, "error": "AI 返回不是 JSON 对象"}), 502
+
+    name = str(parsed.get("name", "")).strip().lower()
+    description = str(parsed.get("description", "")).strip()
+    content = str(parsed.get("content", "")).strip()
+
+    if not name:
+        return jsonify({"success": False, "error": "AI 未生成有效的 Skill 名称"}), 502
+    if not content:
+        return jsonify({"success": False, "error": "AI 未生成有效的 Skill 内容"}), 502
+
+    name = re.sub(r'[^a-z0-9]+', '-', name).strip('-')
+    if not name or '..' in name or '/' in name or '\\' in name:
+        return jsonify({"success": False, "error": "生成的 Skill 名称不合法"}), 502
+
+    if len(content) > 20000:
+        content = content[:20000]
+
+    return jsonify({
+        "success": True,
+        "name": name,
+        "description": description,
+        "content": content
     })
 
 
