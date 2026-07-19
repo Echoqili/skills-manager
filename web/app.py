@@ -506,6 +506,12 @@ def index():
     return render_template('index.html')
 
 
+@app.route('/favicon.ico')
+def favicon():
+    svg = "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>"
+    return Response(svg, mimetype='image/svg+xml')
+
+
 @app.route('/api/stats')
 def api_stats():
     _, by_category, _ = build_skills_cache()
