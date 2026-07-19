@@ -54,20 +54,16 @@ AI_CONFIG_DIR = PROJECT_ROOT / "data" / "ai-configs"
 DEFAULT_AI_BASE_URL = "https://open.bigmodel.cn/api/paas/v4"
 DEFAULT_AI_MODEL = "glm-4"
 
-SKILL_GENERATION_SYSTEM_PROMPT = """你是 Skills Manager 的 Skill 创作助手。
+SKILL_GENERATION_SYSTEM_PROMPT = """You are a Skill creator for Skills Manager.
 
-请将用户需求转换成一个自定义 Skill，只返回如下 JSON，不要包含任何其他说明文字：
+Based on the user's requirement, generate a custom Skill. Return ONLY a JSON object in this exact format (no markdown, no explanation):
 
-{
-  "name": "skill-name",
-  "description": "一句话描述",
-  "content": "# Skill 标题\\n\\n正文 Markdown..."
-}
+{"name": "skill-name", "description": "One sentence description", "content": "# Skill Title\n\nMarkdown content..."}
 
-要求：
-- name：英文 kebab-case，只能包含小写字母、数字和连字符。
-- description：不超过 200 字。
-- content：包含 # 一级标题、使用场景说明、给 AI Agent 的具体 system prompt 或工作流、可选示例。"""
+Rules:
+- name: lowercase English letters, numbers and hyphens only (kebab-case)
+- description: within 200 characters
+- content: must include a # heading, usage scenario, system prompt/workflow for an AI agent, and optional examples"""
 
 
 def _get_client_ip():
@@ -174,7 +170,7 @@ def mask_api_key(key: str) -> str:
     return key[:4] + "****" + key[-4:]
 
 
-def call_ai_api(messages, config=None, stream=False):
+def call_ai_api(messages, config=None, stream=False, timeout=None):
     """调用 AI API (OpenAI 兼容接口)"""
     if config is None:
         config = load_ai_config()
@@ -199,7 +195,7 @@ def call_ai_api(messages, config=None, stream=False):
     try:
         resp = requests.post(
             f"{base_url}/chat/completions",
-            headers=headers, json=payload, timeout=15,
+            headers=headers, json=payload, timeout=timeout or 15,
         )
         if resp.status_code == 200:
             data = resp.json()
@@ -1086,11 +1082,15 @@ def api_generate_skill():
             "error": "AI 功能未启用或未配置 API Key，请先在「智能设置」中配置。"
         }), 400
 
+    # 为生成任务分配更大的 token 和超时预算
+    config = dict(config)
+    config["max_tokens"] = 4096
+
     messages = [
         {"role": "system", "content": SKILL_GENERATION_SYSTEM_PROMPT},
         {"role": "user", "content": requirement}
     ]
-    result = call_ai_api(messages, config=config)
+    result = call_ai_api(messages, config=config, timeout=60)
 
     if result is None:
         return jsonify({"success": False, "error": "AI 服务未配置或调用失败"}), 503
@@ -1098,6 +1098,8 @@ def api_generate_skill():
         return jsonify({"success": False, "error": result["error"]}), 502
 
     raw = result.strip()
+    if not raw:
+        return jsonify({"success": False, "error": "AI 返回为空，请重试或更换模型"}), 502
     if raw.startswith("```"):
         raw = raw.strip("`")
         if raw.lower().startswith("json"):
