@@ -73,3 +73,39 @@
 ### 结论
 线上站点核心功能正常，搜索、详情、清单、分类、国际化及主要 API 均可用。图标类 404 已通过添加 `apple-touch-icon` 链接与 `/favicon.ico` 路由修复，部署验证通过。
 
+## 2026-07-19 AI 生成 Skill 功能线上验证
+
+### 功能实现
+在「导入我的 Skill」页面新增 AI 生成选项卡，支持用户输入需求后由 AI 生成 Skill 草稿：
+- 前端：`web/templates/index.html` 新增 AI 生成面板、异步轮询状态逻辑
+- 后端：`web/app.py` 新增 `/api/import/generate`（创建异步生成任务）与 `/api/import/generate/status`（查询任务状态）
+- 为避免 Render Free Tier 请求超时，AI 调用放在后台线程执行，前端轮询获取结果
+
+### 关键提交
+- `c028f1a` fix: AI 生成 Skill 改为异步任务+轮询，避免 Render 请求超时
+- `11de071` trigger: 重新触发 Render 部署以应用异步 AI 生成更新
+
+### 线上验证结果
+
+| 测试项 | 结果 | 备注 |
+|--------|------|------|
+| 页面加载 | ✅ 通过 | 首页正常加载，227 个 Skills、14 个分类 |
+| AI 生成面板 | ✅ 通过 | Playwright 确认 `aiSkillRequirement` 文本框与 `aiGenerateBtn` 按钮存在 |
+| `/api/import/generate` | ❌ 502 Bad Gateway | 旧版同步逻辑调用 AI API 超时，网关切断连接 |
+| `/api/import/generate/status` | ❌ 404 Not Found | 该路由仅在新版异步代码中存在，确认后端仍为旧版 |
+| `/api/stats` | ✅ 200 | 应用实例运行正常 |
+| 前端 AI 代码 | ✅ 已部署 | 页面源码包含 `aiSkillRequirement` / `generateSkillWithAI` |
+
+### 根因分析
+- 本地仓库与 GitHub (`Echoqili/skills-manager`) 已同步到最新提交 `11de071`
+- Render 线上环境已更新前端模板（页面包含 AI 生成相关 DOM），但后端 Python 代码仍为旧版
+- 旧版 `/api/import/generate` 同步调用 AI API（timeout 较长），Render 网关在等待响应期间返回 502
+- 新版才有的 `/api/import/generate/status` 路由返回 404，进一步确认后端未更新
+- 已推送空提交 `11de071` 尝试重新触发 Render 自动部署，但数分钟后后端仍无变化
+
+### 待办
+- [ ] 登录 Render Dashboard 手动触发 **Manual Deploy → Deploy latest commit**
+- [ ] 检查 Render 部署日志，确认 build / start 命令执行的是最新 `web/app.py`
+- [ ] 部署完成后重新验证 `/api/import/generate` 返回 `task_id`
+- [ ] 验证 `/api/import/generate/status` 轮询最终返回 `completed` 与生成结果
+
