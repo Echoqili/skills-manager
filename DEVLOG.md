@@ -84,28 +84,37 @@
 ### 关键提交
 - `c028f1a` fix: AI 生成 Skill 改为异步任务+轮询，避免 Render 请求超时
 - `11de071` trigger: 重新触发 Render 部署以应用异步 AI 生成更新
+- `501c3ac` docs: 更新 DEVLOG.md 记录 AI 生成功能线上验证与 Render 部署问题
 
-### 线上验证结果
+### 线上验证结果（手动重新部署后）
 
 | 测试项 | 结果 | 备注 |
 |--------|------|------|
 | 页面加载 | ✅ 通过 | 首页正常加载，227 个 Skills、14 个分类 |
 | AI 生成面板 | ✅ 通过 | Playwright 确认 `aiSkillRequirement` 文本框与 `aiGenerateBtn` 按钮存在 |
-| `/api/import/generate` | ❌ 502 Bad Gateway | 旧版同步逻辑调用 AI API 超时，网关切断连接 |
-| `/api/import/generate/status` | ❌ 404 Not Found | 该路由仅在新版异步代码中存在，确认后端仍为旧版 |
+| `/api/import/generate` | ✅ 通过 | 返回 `success: true` 与有效 `task_id` |
+| `/api/import/generate/status` | ✅ 通过 | 轮询从 `running` 到 `completed` |
+| 前端完整流程 | ✅ 通过 | 输入需求 → 异步生成 → 轮询 → 展示预览结果 |
 | `/api/stats` | ✅ 200 | 应用实例运行正常 |
-| 前端 AI 代码 | ✅ 已部署 | 页面源码包含 `aiSkillRequirement` / `generateSkillWithAI` |
 
-### 根因分析
-- 本地仓库与 GitHub (`Echoqili/skills-manager`) 已同步到最新提交 `11de071`
-- Render 线上环境已更新前端模板（页面包含 AI 生成相关 DOM），但后端 Python 代码仍为旧版
-- 旧版 `/api/import/generate` 同步调用 AI API（timeout 较长），Render 网关在等待响应期间返回 502
-- 新版才有的 `/api/import/generate/status` 路由返回 404，进一步确认后端未更新
-- 已推送空提交 `11de071` 尝试重新触发 Render 自动部署，但数分钟后后端仍无变化
+### 生成示例
+测试需求：「我需要一个帮助团队进行 Sprint 回顾会议的 Skill，能够引导团队识别迭代中的问题并提出改进建议」
 
-### 待办
-- [ ] 登录 Render Dashboard 手动触发 **Manual Deploy → Deploy latest commit**
-- [ ] 检查 Render 部署日志，确认 build / start 命令执行的是最新 `web/app.py`
-- [ ] 部署完成后重新验证 `/api/import/generate` 返回 `task_id`
-- [ ] 验证 `/api/import/generate/status` 轮询最终返回 `completed` 与生成结果
+生成结果：
+- **name**: `sprint-retro-helper`
+- **description**: 引导团队高效开展 Sprint 回顾会议，识别迭代问题并生成可落地的改进建议。
+- **content**: 包含 `# Sprint回顾会议引导助手`、使用场景、系统提示词与工作流程等完整 Markdown 内容
+
+### 根因分析（已解决）
+- 本地仓库与 GitHub (`Echoqili/skills-manager`) 已同步到最新提交 `501c3ac`
+- 初次自动部署后，Render 上前端模板已更新而后端 Python 仍为旧版，导致 `/api/import/generate` 502、`/api/import/generate/status` 404
+- 用户在 Render Dashboard 手动触发 **Manual Deploy → Deploy latest commit** 后，前后端均更新到最新版本
+- 异步生成任务+前端轮询机制正常运作，Render 网关不再超时
+
+### 结论
+线上 AI 生成 Skill 功能验证通过。用户输入需求后，后端创建异步任务、前端轮询状态、最终成功展示生成结果，整个流程可用。
+
+### 截图
+- `ai-generation-success-2026-07-19T06-21-42-926Z.png`
+- `ai-panel-success-2026-07-19T06-22-06-637Z.png`
 
