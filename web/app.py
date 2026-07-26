@@ -34,6 +34,7 @@ skills_db.init_db()
 
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024
+app.config['TEMPLATES_AUTO_RELOAD'] = True
 
 # 后台自动更新任务状态
 _update_tasks = {}
