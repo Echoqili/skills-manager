@@ -4,15 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script>
-        /* 主题初始化（防闪烁）：优先用户手动选择，否则按当地时间自动切换 白天7:00-19:00 / 夜晚 */
+        /* 主题初始化：强制使用浅色主题，彻底禁用深色模式 */
         (function () {
-            var t = null;
-            try { t = localStorage.getItem('skills-manager-theme'); } catch (e) {}
-            if (t !== 'day' && t !== 'night') {
-                var h = new Date().getHours();
-                t = (h >= 7 && h < 19) ? 'day' : 'night';
-            }
-            document.documentElement.setAttribute('data-theme', t);
+            document.documentElement.setAttribute('data-theme', 'day');
+            try { localStorage.setItem('skills-manager-theme', 'day'); } catch (e) {}
         })();
     </script>
     <title>⚡ Skills Manager - 智能 Skills 导航</title>
@@ -3563,16 +3558,21 @@
         /* ========== 主题切换（白天 / 夜晚） ========== */
         const THEME_KEY = 'skills-manager-theme';
         function applyTheme(theme) {
-            document.documentElement.setAttribute('data-theme', theme);
+            // 强制使用浅色主题，禁用深色模式
+            const forced = 'day';
+            document.documentElement.setAttribute('data-theme', forced);
             const icon = document.getElementById('themeToggleIcon');
-            if (icon) icon.textContent = theme === 'day' ? '☀️' : '🌙';
+            if (icon) icon.textContent = '☀️';
             const btn = document.getElementById('themeToggle');
-            if (btn) btn.title = theme === 'day' ? '当前：白天主题 · 点击切换到夜晚' : '当前：夜晚主题 · 点击切换到白天';
+            if (btn) {
+                btn.title = '当前：白天主题';
+                btn.style.display = 'none';
+            }
+            try { localStorage.setItem(THEME_KEY, forced); } catch (e) {}
         }
         function toggleTheme() {
-            const current = document.documentElement.getAttribute('data-theme') === 'day' ? 'night' : 'day';
-            try { localStorage.setItem(THEME_KEY, current); } catch (e) {}
-            applyTheme(current);
+            // 深色模式已禁用，保持浅色主题
+            applyTheme('day');
         }
         // 同步按钮图标（<head> 内联脚本已设置 data-theme，避免闪烁）
         applyTheme(document.documentElement.getAttribute('data-theme') || 'day');
@@ -4398,7 +4398,7 @@
             }
             if (view === 'scenarios') loadScenarios();
             if (view === 'categories') loadCategories();
-            if (view === 'discover') { loadDiscoverStats(); switchDiscoverMode(document.querySelector('.discover-tab.active')?.dataset.mode || 'keyword'); }
+            if (view === 'discover') { loadDiscoverStats(); switchDiscoverMode(document.querySelector('.discover-tab.active')?.dataset.mode || 'keyword'); renderDiscoverResults(_currentCandidates); }
             if (view === 'releases') loadReleases();
             if (view === 'update') loadUpdateStatus();
             if (view === 'ai') loadAiConfig();
@@ -4802,6 +4802,11 @@
             document.getElementById('searchInput').value = '';
             const heroInput = document.getElementById('heroSearchInput');
             if (heroInput) heroInput.value = '';
+
+            // GitHub 搜索结果没有本地分类，切换分类时回到本地数据源
+            if (searchSource === 'github') {
+                setSearchSource('local');
+            }
 
             if (!key) {
                 // 显示全部
@@ -6193,7 +6198,7 @@
             try {
                 const res = await fetch('/api/discover/ai', {
                     method: 'POST', headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({requirement, min_stars: minStars})
+                    body: JSON.stringify({requirement, min_stars: minStars, lang: currentLang})
                 });
                 const data = await res.json();
                 if (data.success) {
@@ -6249,7 +6254,11 @@
         async function runDiscovery() {
             const category = document.getElementById('discoverCategory').value;
             const minStars = parseInt(document.getElementById('minStars').value) || 50;
-            const body = {min_stars: minStars};
+            const body = {
+                min_stars: minStars,
+                max_per_category: 10,
+                lang: currentLang
+            };
             if (category) body.categories = [category];
             showToast(t('msg_discovering'), 'info');
             setDiscoverLoading(true);
@@ -6319,10 +6328,17 @@
             if (!query) return _currentCandidates;
             return _currentCandidates.filter(c =>
                 (c.full_name || c.name || '').toLowerCase().includes(query) ||
-                (c.description || '').toLowerCase().includes(query) ||
+                (getCandidateDesc(c) || '').toLowerCase().includes(query) ||
                 (c.language || '').toLowerCase().includes(query) ||
                 (c.category || '').toLowerCase().includes(query)
             );
+        }
+
+        function getCandidateDesc(c) {
+            if (!c) return '';
+            if (currentLang === 'zh' && c.description_zh) return c.description_zh;
+            if (currentLang === 'en' && c.description_en) return c.description_en;
+            return c.description || '';
         }
 
         function renderDiscoverResults(candidates) {
@@ -6361,7 +6377,7 @@
                     <div class="candidate-main">
                         <div class="candidate-info">
                             <a href="${c.url || '#'}" target="_blank" class="candidate-name">${c.full_name || c.name}</a>
-                            ${c.description ? `<p class="candidate-desc">${c.description}</p>` : ''}
+                            ${getCandidateDesc(c) ? `<p class="candidate-desc">${getCandidateDesc(c)}</p>` : ''}
                             <div class="candidate-tags">
                                 <span class="tag tag-stars">⭐ ${c.stars || 0}</span>
                                 ${c.language ? `<span class="tag tag-lang">${c.language}</span>` : ''}

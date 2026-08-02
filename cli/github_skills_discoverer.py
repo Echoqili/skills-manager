@@ -147,7 +147,10 @@ class CandidateRepo:
     reviewed_by: str = ""
     reviewed_at: str = ""
     notes: str = ""
-    
+    # 本地化描述（由 AI 生成）
+    description_zh: str = ""
+    description_en: str = ""
+
     def __post_init__(self):
         if self.skill_files is None:
             self.skill_files = []
@@ -363,7 +366,7 @@ class SkillsDiscoverer:
 
         return min(score, 100), details
 
-    def discover(self, categories: List[str] = None, max_per_category: int = 20) -> List[CandidateRepo]:
+    def discover(self, categories: List[str] = None, max_per_category: int = 10) -> List[CandidateRepo]:
         if categories is None:
             categories = list(SEARCH_QUERIES.keys())
 
@@ -417,6 +420,11 @@ class SkillsDiscoverer:
                 time.sleep(1)
 
         new_candidates.sort(key=lambda x: -x.quality_score)
+
+        # 使用 AI 批量生成更友好的中英文概括（失败时保持原描述）
+        if new_candidates:
+            self._generate_localized_descriptions(new_candidates)
+
         self.candidates.extend(new_candidates)
         self._save_candidates()
 
@@ -427,6 +435,56 @@ class SkillsDiscoverer:
 
     def get_by_category(self, category: str) -> List[CandidateRepo]:
         return [c for c in self.candidates if c.category == category]
+
+    def _generate_localized_descriptions(self, candidates: List[CandidateRepo]):
+        """使用一次 AI 调用为候选仓库批量生成中英文友好概括"""
+        url, key, model = _load_ai_config()
+        if not key:
+            print("⚠️ AI API key 未配置，跳过描述生成")
+            return
+
+        repo_list = []
+        for c in candidates:
+            repo_list.append(
+                f"- {c.full_name}: {c.description or 'No description'} (⭐{c.stars}, {c.language or 'Unknown'})"
+            )
+
+        prompt = f"""请为以下 GitHub 仓库生成更友好、简洁的一句话概括。
+要求：
+1. 每个仓库分别提供中文和英文两个版本
+2. 中文不超过 60 字，英文不超过 120 字符
+3. 重点说明该仓库作为 Claude/Cursor/Codex 等 AI Agent 的 Skill 有什么价值
+4. 如果原始描述为空，根据仓库名和语言合理推测
+
+仓库列表：
+{chr(10).join(repo_list)}
+
+请严格返回 JSON 格式，key 为仓库全名（owner/repo），value 包含 zh 和 en：
+{{"owner/repo": {{"zh": "中文概括", "en": "English summary"}}}}"""
+
+        try:
+            result = self.call_zhipu_ai(prompt)
+            if not result:
+                return
+
+            # 尝试提取 JSON
+            text = result.strip()
+            if text.startswith("```"):
+                text = text.strip("`")
+                if text.lower().startswith("json"):
+                    text = text[4:].strip()
+
+            summaries = json.loads(text)
+            if not isinstance(summaries, dict):
+                return
+
+            for c in candidates:
+                summary = summaries.get(c.full_name)
+                if isinstance(summary, dict):
+                    c.description_zh = str(summary.get("zh", "")).strip() or c.description
+                    c.description_en = str(summary.get("en", "")).strip() or c.description
+        except Exception as e:
+            print(f"⚠️ 生成本地化描述失败: {e}")
 
     def call_zhipu_ai(self, prompt: str) -> Optional[str]:
         # 每次调用重新读取 AI 配置（确保 Web 端修改后即时生效）

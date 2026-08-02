@@ -804,6 +804,8 @@ def api_discover_candidates():
                 "name": c.name,
                 "full_name": c.full_name,
                 "description": c.description,
+                "description_zh": c.description_zh or c.description,
+                "description_en": c.description_en or c.description,
                 "stars": c.stars,
                 "url": c.url,
                 "language": c.language,
@@ -848,16 +850,20 @@ def api_discover_run():
         data = request.get_json() or {}
         categories = data.get("categories")
         min_stars = data.get("min_stars", 50)
+        max_per_category = data.get("max_per_category", 10)
+        lang = data.get("lang", "zh")
         task_id = str(uuid.uuid4())
         _discover_tasks[task_id] = {
             "status": "running",
             "started_at": datetime.now().isoformat(),
             "categories": categories,
             "min_stars": min_stars,
+            "max_per_category": max_per_category,
+            "lang": lang,
         }
         thread = threading.Thread(
             target=_run_discover_task,
-            args=(task_id, categories, min_stars),
+            args=(task_id, categories, min_stars, max_per_category, lang),
             daemon=True,
         )
         thread.start()
@@ -902,7 +908,9 @@ def api_discover_ai():
                     "stars": c.stars,
                     "category": c.category,
                     "quality_score": c.quality_score,
-                    "description": c.description
+                    "description": c.description,
+                    "description_zh": c.description_zh or c.description,
+                    "description_en": c.description_en or c.description,
                 }
                 for c in new_candidates[:10]
             ]
@@ -1650,7 +1658,7 @@ def api_ai_providers():
     ]
     return jsonify(providers)
 
-def _run_discover_task(task_id, categories, min_stars):
+def _run_discover_task(task_id, categories, min_stars, max_per_category=10, lang="zh"):
     """在后台线程运行 Skills 发现"""
     try:
         d = get_discoverer()
@@ -1662,7 +1670,7 @@ def _run_discover_task(task_id, categories, min_stars):
             })
             return
         d.min_stars = min_stars
-        new_candidates = d.discover(categories)
+        new_candidates = d.discover(categories, max_per_category=max_per_category)
         _discover_tasks[task_id].update({
             "status": "completed",
             "finished_at": datetime.now().isoformat(),
@@ -1674,6 +1682,9 @@ def _run_discover_task(task_id, categories, min_stars):
                     "stars": c.stars,
                     "category": c.category,
                     "quality_score": c.quality_score,
+                    "description": c.description,
+                    "description_zh": c.description_zh or c.description,
+                    "description_en": c.description_en or c.description,
                 }
                 for c in new_candidates[:20]
             ],
