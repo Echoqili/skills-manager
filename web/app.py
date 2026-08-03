@@ -10,6 +10,7 @@ import json
 import re
 import uuid
 import zipfile
+import base64
 import requests
 import subprocess
 import threading
@@ -1199,6 +1200,26 @@ def api_generate_skill_status():
     return jsonify(response)
 
 
+def _fetch_skill_from_github_api(owner: str, repo: str, branch: str, file_path: str) -> str | None:
+    """通过 GitHub API 获取 SKILL.md 内容，用于 raw.githubusercontent.com 不可达时的回退。"""
+    try:
+        api_url = f"https://api.github.com/repos/{owner}/{repo}/contents/{file_path}"
+        resp = requests.get(api_url, params={"ref": branch}, headers={"Accept": "application/vnd.github.v3+json"}, timeout=30)
+        if resp.status_code != 200:
+            # 尝试补全 /SKILL.md
+            if not file_path.endswith('.md'):
+                api_url = f"https://api.github.com/repos/{owner}/{repo}/contents/{file_path}/SKILL.md"
+                resp = requests.get(api_url, params={"ref": branch}, headers={"Accept": "application/vnd.github.v3+json"}, timeout=30)
+            if resp.status_code != 200:
+                return None
+        data = resp.json()
+        if isinstance(data, dict) and data.get('content'):
+            return base64.b64decode(data['content']).decode('utf-8')
+        return None
+    except Exception:
+        return None
+
+
 @app.route('/api/import/github', methods=['POST'])
 def api_import_from_github():
     """从 GitHub URL 导入 Skill，支持子目录路径"""
@@ -1258,13 +1279,18 @@ def api_import_from_github():
                 raw_url = f"https://raw.githubusercontent.com/{owner}/{repo}/master/{file_path}/SKILL.md"
                 response = requests.get(raw_url, timeout=30)
 
+        # 当 raw.githubusercontent.com 不可达（如被重置）时，回退到 GitHub API
         if response.status_code != 200:
-            return jsonify({
-                "error": "SKILL.md not found",
-                "suggestion": "Please provide a full path like: https://github.com/owner/repo/tree/main/path/to/SKILL.md"
-            }), 404
-
-        content = response.text
+            content = _fetch_skill_from_github_api(owner, repo, branch, file_path)
+            if content is None and branch == "main":
+                content = _fetch_skill_from_github_api(owner, repo, "master", file_path)
+            if content is None:
+                return jsonify({
+                    "error": "SKILL.md not found",
+                    "suggestion": "Please provide a full path like: https://github.com/owner/repo/tree/main/path/to/SKILL.md"
+                }), 404
+        else:
+            content = response.text
         name_match = None
         for line in content.split('\n'):
             if line.strip().startswith('name:'):
