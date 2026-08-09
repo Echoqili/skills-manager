@@ -144,3 +144,29 @@
 ### 结论
 进度条功能线上验证通过，AI 生成 Skill 的等待体验得到明显改善。
 
+## 2026-08-09 修复 t 函数变量阴影导致核心功能崩溃
+
+### 问题背景
+线上 https://skills-manager.onrender.com 出现严重 JS 错误，导致多个核心功能不可用：
+- `TypeError: t is not a function` — 在 `showSection`、`searchSkills`、`searchGithub` 中触发
+- `SyntaxError: missing ) after argument list`
+
+### 根因分析
+`index.html` 中 4 处 `forEach(t => { ... })` 回调参数命名为 `t`，与全局翻译函数 `t(key)` 同名，形成变量阴影（variable shadowing），覆盖了翻译函数引用。当 `showSection` 等函数内部调用 `t(tagMap[section])` 时，`t` 已被回调参数覆盖，导致 TypeError。
+
+### 修复内容
+
+| 修复项 | 文件 | 说明 |
+|--------|------|------|
+| 变量阴影 | `web/templates/index.html` | 4 处 `forEach(t =>` → `forEach(tab =>`（showSection ×2、switchDiscoverMode、switchImportMode） |
+| GitHub 搜索提示 | `web/templates/index.html` | 空状态文案移除不存在的「全网」按钮引用，改为「点击上方 GitHub 切换搜索源」（中英文） |
+| 更新状态加载 | `web/templates/index.html` | 移除 `loadUpdateStatus` 中冗余的第二次 `fetch('/api/auto-update/status')`，复用初始数据对象 |
+| 用户手册 | `USER_MANUAL.md` | 对齐当前 UI 结构：侧边栏 8 标签、搜索源切换、AI 异步生成、Render 部署 FAQ |
+
+### 关键提交
+- `530b981` fix: 修复 t 函数变量阴影导致核心功能崩溃
+
+### 影响范围
+- 修复前：点击「管理」标签、搜索 Skills、搜索 GitHub 均报错不可用
+- 修复后：所有核心功能恢复正常
+
