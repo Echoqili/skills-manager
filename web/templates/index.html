@@ -3086,7 +3086,7 @@
                                 <div class="empty-state">
                                     <div class="empty-icon">🐙</div>
                                     <h3 class="empty-title" data-i18n="github_title">搜索 GitHub 仓库</h3>
-                                    <p class="empty-desc" data-i18n="github_desc">在搜索框中输入关键词，点击「全网」按钮即可搜索 GitHub 上的优质 Skills 仓库</p>
+                                    <p class="empty-desc" data-i18n="github_desc">点击上方「GitHub」切换搜索源，输入关键词后回车即可搜索 GitHub 上的优质 Skills 仓库</p>
                                 </div>
                             </div>
                         </section>
@@ -3709,7 +3709,7 @@
                 tag_local_all: '全部 {} 个 Skills',
                 tag_github: '发现优质开源项目',
                 tag_github_result: 'GitHub 找到 {} 个仓库',
-                github_desc: '在搜索框中输入关键词，点击「全网」按钮即可搜索 GitHub 上的优质 Skills 仓库',
+                github_desc: '点击上方「GitHub」切换搜索源，输入关键词后回车即可搜索 GitHub 上的优质 Skills 仓库',
                 github_title: '搜索 GitHub 仓库',
                 // Scenarios
                 sec_scenarios: '🎯 场景化推荐',
@@ -4084,7 +4084,7 @@
                 tag_local_all: 'All {} Skills',
                 tag_github: 'Discover quality open-source projects',
                 tag_github_result: 'GitHub: {} repos found',
-                github_desc: 'Enter keywords in the search box and click "Global" to search GitHub for quality Skills repos',
+                github_desc: 'Click "GitHub" above to switch search source, then type keywords and press Enter to search GitHub repos',
                 github_title: 'Search GitHub Repos',
                 // Scenarios
                 sec_scenarios: '🎯 Scenario Recommendations',
@@ -4860,15 +4860,15 @@
                 if (currentView === 'detail') currentDetailSkillName = null;
             }
             currentView = section;
-            document.querySelectorAll('.nav-tab').forEach(t => {
-                t.classList.toggle('active', t.dataset.tab === section);
+            document.querySelectorAll('.nav-tab').forEach(tab => {
+                tab.classList.toggle('active', tab.dataset.tab === section);
             });
             document.querySelectorAll('.content-section').forEach(c => {
                 c.classList.toggle('active', c.id === `${section}Section`);
             });
             // Hide nav highlight for detail page
             if (section === 'detail') {
-                document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.nav-tab').forEach(tab => tab.classList.remove('active'));
             }
             // 分类筛选条只在浏览 Skills 展示
             const catBar = document.getElementById('categoryFilterBar');
@@ -5629,12 +5629,9 @@
                 document.getElementById('totalUpdates').textContent = data.total_updates || 0;
                 document.getElementById('updateTotalSkills').textContent = data.total_skills || '-';
 
-                // Load history
-                const updateStatusFile = await fetch('/api/auto-update/status');
-                const statusData = await updateStatusFile.json();
-                // We'll try to get history from index status
-                if (statusData && statusData.history) {
-                    renderUpdateHistory(statusData.history);
+                // Render history if available
+                if (data && data.history) {
+                    renderUpdateHistory(data.history);
                 }
             } catch (e) {
                 console.error('Failed to load update status:', e);
@@ -6176,7 +6173,7 @@
         }
 
         function switchDiscoverMode(mode) {
-            document.querySelectorAll('.discover-tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.discover-tab').forEach(tab => tab.classList.remove('active'));
             document.querySelector(`[data-mode="${mode}"]`).classList.add('active');
             document.getElementById('keywordPanel').style.display = mode === 'keyword' ? 'block' : 'none';
             document.getElementById('aiPanel').style.display = mode === 'ai' ? 'block' : 'none';
@@ -6616,7 +6613,7 @@
         }
 
         function switchImportMode(mode) {
-            document.querySelectorAll('#importSection .discover-tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('#importSection .discover-tab').forEach(tab => tab.classList.remove('active'));
             document.querySelector(`#importSection [data-mode="${mode}"]`).classList.add('active');
             document.getElementById('manualPanel').style.display = mode === 'manual' ? 'block' : 'none';
             document.getElementById('aiPanel').style.display = mode === 'ai' ? 'block' : 'none';
