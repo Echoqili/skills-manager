@@ -57,7 +57,7 @@ AI_CONFIG_DIR = PROJECT_ROOT / "data" / "ai-configs"
 # 默认配置来自 Render 环境变量；每个 IP 可有自己的本地覆盖配置
 
 DEFAULT_AI_BASE_URL = "https://open.bigmodel.cn/api/paas/v4"
-DEFAULT_AI_MODEL = "glm-4"
+DEFAULT_AI_MODEL = "glm-4-flash"
 
 SKILL_GENERATION_SYSTEM_PROMPT = """You are a Skill creator for Skills Manager.
 
@@ -184,6 +184,11 @@ def call_ai_api(messages, config=None, stream=False, timeout=None):
 
     base_url = config.get("base_url", DEFAULT_AI_BASE_URL).rstrip("/")
     model = config.get("model", DEFAULT_AI_MODEL)
+    # 兼容两种填法：填到 /v4 或填完整 /v4/chat/completions
+    if base_url.endswith("/chat/completions"):
+        url = base_url
+    else:
+        url = f"{base_url}/chat/completions"
 
     headers = {
         "Authorization": f"Bearer {config['api_key']}",
@@ -199,14 +204,25 @@ def call_ai_api(messages, config=None, stream=False, timeout=None):
 
     try:
         resp = requests.post(
-            f"{base_url}/chat/completions",
+            url,
             headers=headers, json=payload, timeout=timeout or 15,
         )
         if resp.status_code == 200:
-            data = resp.json()
-            return data["choices"][0]["message"]["content"]
+            try:
+                data = resp.json()
+            except Exception:
+                return {"error": "API 返回 200 但响应不是合法 JSON"}
+            if isinstance(data, dict) and data.get("error"):
+                return {"error": f"API 返回错误: {str(data['error'])}"}
+            try:
+                return data["choices"][0]["message"]["content"]
+            except (KeyError, IndexError, TypeError):
+                return {"error": "API 返回格式异常，未找到生成内容（choices[0].message.content）"}
+        # 解析错误响应体（兼容对象/字符串/非 JSON）
         try:
             err_data = resp.json()
+            if not isinstance(err_data, dict):
+                err_data = {"raw": str(err_data)}
         except Exception:
             err_data = {}
         # 兼容 OpenAI 风格 error.message 与 NVIDIA 风格 detail/title
@@ -214,9 +230,22 @@ def call_ai_api(messages, config=None, stream=False, timeout=None):
             err_data.get("error", {}).get("message")
             or err_data.get("detail")
             or err_data.get("title")
-            or str(resp.status_code)
+            or err_data.get("raw")
+            or ""
         )
-        return {"error": f"API 错误 ({resp.status_code}): {error_msg}"}
+        # 常见错误归类为友好提示（模型名错误是最常见原因）
+        lower_msg = (error_msg or "").lower()
+        if any(kw in lower_msg for kw in ("model", "模型", "不存在", "not found", "invalid")):
+            return {"error": f"模型「{model}」不存在或不可用，请检查模型名称（服务端: {error_msg}）"}
+        if resp.status_code == 401:
+            return {"error": "API Key 无效或未授权（401），请检查 API Key 是否正确"}
+        if resp.status_code == 403:
+            return {"error": "无权限访问该模型（403），请检查 API Key 权限或模型名称"}
+        if resp.status_code == 404:
+            return {"error": "接口地址不存在（404），请检查 base_url 是否正确"}
+        if resp.status_code == 429:
+            return {"error": "请求频率超限或余额不足（429），请稍后重试或检查账户"}
+        return {"error": f"API 错误 ({resp.status_code}): {error_msg or resp.reason}"}
     except requests.exceptions.ConnectionError:
         return {"error": f"无法连接到 {base_url}，请检查地址是否正确"}
     except requests.exceptions.Timeout:
@@ -1578,7 +1607,7 @@ def api_ai_get_config():
     if safe_config.get("api_key"):
         safe_config["api_key"] = mask_api_key(safe_config["api_key"])
     safe_config["configured"] = bool(config.get("api_key"))
-    safe_config["default_from_env"] = bool(os.environ.get("ZHIPU_API_KEY", ""))
+    safe_config["default_from_env"] = bool(os.environ.get("ZHIPU_API_KEY", "")) or bool(os.environ.get("AI_API_KEY", ""))
     return jsonify(safe_config)
 
 
@@ -1628,8 +1657,8 @@ def api_ai_test():
         if result is None:
             return jsonify({"success": False, "error": "API Key 未配置"})
         if isinstance(result, dict) and "error" in result:
-            return jsonify({"success": False, "error": result["error"]})
-        return jsonify({"success": True, "reply": result})
+            return jsonify({"success": False, "error": result["error"], "model": config.get("model", "")})
+        return jsonify({"success": True, "reply": result, "model": config.get("model", "")})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -1666,7 +1695,8 @@ def api_ai_providers():
             "id": "glm",
             "name": "智谱 GLM",
             "base_url": "https://open.bigmodel.cn/api/paas/v4",
-            "models": ["glm-4", "glm-4-plus", "glm-4-flash"],
+            "models": ["glm-4-flash", "glm-4-plus", "glm-4.5", "glm-5"],
+            "tip": "glm-4-flash 完全免费，glm-5 为最新旗舰",
         },
         {
             "id": "custom",

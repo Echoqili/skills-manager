@@ -1,5 +1,25 @@
 # Skills Manager - 开发日志
 
+## 2026-08-30 智能 AI 功能块更新
+
+### 背景
+用户在使用「智能设置 → 测试连接」时遇到 `'str' object has no attribute 'get'` 异常，且配置模型 `glm-5.3` 无效。
+
+### 变更内容（web/app.py, render.yaml）
+1. **修复 `'str' object has no attribute 'get'`**：`call_ai_api` 解析错误响应时，若 `resp.json()` 返回非字典（如纯字符串），包装为 `{"raw": ...}`，避免直接调用 `.get()` 抛异常。
+2. **base_url 拼接兼容**：兼容"填到 `/v4`"与"填完整 `/v4/chat/completions`"两种写法，避免双重拼接路径。
+3. **成功路径健壮性**：200 响应若不是合法 JSON、结构缺失 `choices[0].message.content`，返回明确错误而非抛异常。
+4. **错误归类为友好提示**：模型名错误（`model/模型/不存在/not found/invalid` 关键词）、401（API Key 无效）、403（无权限）、404（base_url 错误）、429（限流/余额不足）分别给出可操作的提示。
+5. **默认模型改为 `glm-4-flash`**：免费稳定，替代 `glm-4`（代码默认值 + render.yaml 的 `ZHIPU_MODEL`）。
+6. **providers 模型列表更新**：智谱 GLM 列表更新为 `glm-4-flash / glm-4-plus / glm-4.5 / glm-5`（2026-08 有效模型），前端下拉框可直接选择，避免手填无效模型名。
+7. **测试连接回显 model**：`/api/ai/test` 响应附带实际使用的模型名，便于定位问题。
+8. **配置状态检测**：`default_from_env` 同时识别 `AI_API_KEY` 与旧 `ZHIPU_API_KEY`。
+
+### 验证
+- `web/app.py` 通过 Python 语法检查。
+- 智谱端点探活：`https://open.bigmodel.cn/api/paas/v4/chat/completions` 可达，返回标准 JSON 错误对象（401 未带 key 时）。
+- 确认 `glm-5.3` 不在智谱官方/社区有效模型列表中。
+
 ## 2026-07-19 Playwright E2E 测试（Render 线上环境）
 
 ### 测试目标

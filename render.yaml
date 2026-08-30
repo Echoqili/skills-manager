@@ -15,4 +15,4 @@ services:
       - key: ZHIPU_API_KEY
         sync: false
       - key: ZHIPU_MODEL
-        value: glm-4
+        value: glm-4-flash
