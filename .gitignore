@@ -51,6 +51,8 @@ Thumbs.db
 # Environment / Secrets
 .env
 data/ai-config.json
+# 按用户隔离的 AI 配置（含明文 API Key，禁止入库）
+data/ai-configs/
 
 # SQLite 索引（启动时自动重建）
 data/skills.db

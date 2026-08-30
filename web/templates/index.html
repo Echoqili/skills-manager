@@ -2856,6 +2856,25 @@
     </style>
 </head>
 <body>
+    <!-- 登录 / 注册 门禁 -->
+    <div id="auth-overlay" class="auth-overlay" style="display:none;">
+        <div class="auth-card">
+            <div class="auth-logo">⚡</div>
+            <h1 class="auth-title" id="auth-title">登录 Skills Manager</h1>
+            <p class="auth-sub" id="auth-sub">多用户隔离：你的 Skills 与 AI 配置仅你自己可见</p>
+            <form id="auth-form" class="auth-form" autocomplete="off">
+                <input type="text" id="auth-username" class="auth-input" placeholder="用户名" required />
+                <input type="password" id="auth-password" class="auth-input" placeholder="密码（至少 6 位）" required />
+                <div id="auth-error" class="auth-error"></div>
+                <button type="submit" id="auth-submit" class="auth-btn">登录</button>
+            </form>
+            <div class="auth-switch">
+                <span id="auth-switch-text">还没有账号？</span>
+                <a href="#" id="auth-switch-link">注册</a>
+            </div>
+        </div>
+    </div>
+
     <!-- 动态背景 -->
     <div class="aurora">
         <div class="aurora-band"></div>
@@ -4496,6 +4515,9 @@
         // ========== 初始化 ==========
         async function init() {
             console.log('[init] start');
+            // 鉴权门禁：未登录先展示登录/注册，不加载业务数据
+            const authed = await ensureAuth();
+            if (!authed) return;
             loadCart();
             setupTabs();
             setupCategoryFilterBarScroll();
@@ -6968,6 +6990,126 @@
         } else {
             init();
         }
+    </script>
+
+    <!-- ========== 鉴权逻辑 ========== -->
+    <style>
+        .auth-overlay{position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;
+            background:rgba(8,12,24,.82);backdrop-filter:blur(8px);}
+        .auth-card{width:340px;max-width:90vw;padding:32px 28px;border-radius:18px;background:rgba(20,26,44,.95);
+            border:1px solid rgba(120,140,200,.25);box-shadow:0 20px 60px rgba(0,0,0,.5);text-align:center;}
+        .auth-logo{font-size:40px;margin-bottom:8px;}
+        .auth-title{font-size:20px;margin:0 0 6px;color:#eaf0ff;}
+        .auth-sub{font-size:12px;color:#9aa6c8;margin:0 0 20px;line-height:1.5;}
+        .auth-form{display:flex;flex-direction:column;gap:12px;}
+        .auth-input{padding:11px 14px;border-radius:10px;border:1px solid rgba(120,140,200,.3);
+            background:rgba(10,14,28,.8);color:#eaf0ff;font-size:14px;outline:none;}
+        .auth-input:focus{border-color:#6c8cff;}
+        .auth-btn{padding:11px;border:none;border-radius:10px;background:linear-gradient(135deg,#6c8cff,#9b6cff);
+            color:#fff;font-size:15px;font-weight:600;cursor:pointer;transition:.2s;}
+        .auth-btn:hover{filter:brightness(1.1);}
+        .auth-error{color:#ff7a8a;font-size:12px;min-height:14px;}
+        .auth-switch{margin-top:16px;font-size:12px;color:#9aa6c8;}
+        .auth-switch a{color:#6c8cff;text-decoration:none;margin-left:4px;}
+        .auth-user{display:inline-flex;align-items:center;gap:8px;font-size:13px;color:#cdd6f4;}
+        .auth-logout{padding:5px 12px;border-radius:8px;border:1px solid rgba(120,140,200,.3);
+            background:transparent;color:#cdd6f4;cursor:pointer;font-size:12px;}
+        .auth-logout:hover{background:rgba(120,140,200,.15);}
+    </style>
+    <script>
+        (function(){
+            let authMode = 'login'; // login | register
+            const overlay = document.getElementById('auth-overlay');
+            const form = document.getElementById('auth-form');
+            const titleEl = document.getElementById('auth-title');
+            const subEl = document.getElementById('auth-sub');
+            const errEl = document.getElementById('auth-error');
+            const submitBtn = document.getElementById('auth-submit');
+            const switchText = document.getElementById('auth-switch-text');
+            const switchLink = document.getElementById('auth-switch-link');
+
+            function renderMode(){
+                if (authMode === 'login'){
+                    titleEl.textContent = '登录 Skills Manager';
+                    subEl.textContent = '多用户隔离：你的 Skills 与 AI 配置仅你自己可见';
+                    submitBtn.textContent = '登录';
+                    switchText.textContent = '还没有账号？';
+                    switchLink.textContent = '注册';
+                } else {
+                    titleEl.textContent = '注册新账号';
+                    subEl.textContent = '首个注册的账号将自动成为管理员';
+                    submitBtn.textContent = '注册并登录';
+                    switchText.textContent = '已有账号？';
+                    switchLink.textContent = '去登录';
+                }
+            }
+            switchLink.addEventListener('click', function(e){
+                e.preventDefault();
+                authMode = authMode === 'login' ? 'register' : 'login';
+                errEl.textContent = '';
+                renderMode();
+            });
+
+            form.addEventListener('submit', async function(e){
+                e.preventDefault();
+                errEl.textContent = '';
+                const username = document.getElementById('auth-username').value.trim();
+                const password = document.getElementById('auth-password').value;
+                if (!username || !password){ errEl.textContent = '请输入用户名和密码'; return; }
+                const url = authMode === 'login' ? '/api/auth/login' : '/api/auth/register';
+                try{
+                    const resp = await fetch(url, {method:'POST', headers:{'Content-Type':'application/json'},
+                        body: JSON.stringify({username, password})});
+                    const data = await resp.json();
+                    if (!resp.ok || !data.success){
+                        errEl.textContent = data.error || '操作失败';
+                        return;
+                    }
+                    overlay.style.display = 'none';
+                    showUserBadge(data.user);
+                    // 重新初始化业务数据
+                    if (typeof init === 'function') init();
+                }catch(err){
+                    errEl.textContent = '网络错误，请重试';
+                }
+            });
+
+            function showUserBadge(user){
+                let badge = document.getElementById('auth-user-badge');
+                if (!badge){
+                    badge = document.createElement('div');
+                    badge.id = 'auth-user-badge';
+                    badge.className = 'auth-user';
+                    const topbar = document.querySelector('.topbar') || document.getElementById('sidebar');
+                    (topbar || document.body).appendChild(badge);
+                }
+                const role = user.is_admin ? '（管理员）' : '';
+                badge.innerHTML = '<span>👤 ' + escapeHtml(user.username) + role + '</span>' +
+                    '<button class="auth-logout" id="auth-logout-btn">退出</button>';
+                document.getElementById('auth-logout-btn').addEventListener('click', async function(){
+                    await fetch('/api/auth/logout', {method:'POST'});
+                    location.reload();
+                });
+            }
+
+            function escapeHtml(s){
+                return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+            }
+
+            window.ensureAuth = async function(){
+                try{
+                    const resp = await fetch('/api/auth/me');
+                    const data = await resp.json();
+                    if (data.user){
+                        showUserBadge(data.user);
+                        return true;
+                    }
+                }catch(e){}
+                overlay.style.display = 'flex';
+                renderMode();
+                return false;
+            };
+        })();
     </script>
 </body>
 </html>

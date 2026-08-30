@@ -127,7 +127,7 @@ def _strip_quotes(s: str) -> Any:
 
 
 # ========== Markdown 扫描 ==========
-def scan_skill_file(md_path: Path, source: str) -> Optional[Dict[str, Any]]:
+def scan_skill_file(md_path: Path, source: str, owner: str = "") -> Optional[Dict[str, Any]]:
     """读取单个 SKILL.md，返回 skill 字典（不入库）"""
     try:
         text = md_path.read_text(encoding="utf-8")
@@ -140,7 +140,8 @@ def scan_skill_file(md_path: Path, source: str) -> Optional[Dict[str, Any]]:
 
     # 分类
     if source == "user-imports":
-        cat_key = md_path.parent.parent.name
+        # 用户导入：优先用 frontmatter 里的 category，否则归入 user-imports
+        cat_key = (meta.get("category") or "user-imports")
     else:
         cat_key = extract_category(rel_path)
 
@@ -151,6 +152,7 @@ def scan_skill_file(md_path: Path, source: str) -> Optional[Dict[str, Any]]:
         "path": rel_path,
         "abs_path": str(md_path),
         "source": source,
+        "owner": owner or "",
         "category": cat_key,
         "category_emoji": CATEGORIES_EMOJI.get(cat_key, "📦"),
         "category_name": CATEGORIES_NAME.get(cat_key, cat_key),
@@ -176,10 +178,19 @@ def scan_all_skills() -> List[Dict[str, Any]]:
             data = scan_skill_file(md, source="learning-open-source")
             if data:
                 skills.append(data)
-    # 用户导入
+    # 用户导入（按 owner 分目录：user-imports/<owner>/<skill_name>/SKILL.md）
     if USER_IMPORT_ROOT.exists():
         for md in USER_IMPORT_ROOT.rglob("SKILL.md"):
-            data = scan_skill_file(md, source="user-imports")
+            # md.parent = skill 目录, md.parent.parent = owner 目录
+            owner = md.parent.parent.name if md.parent.parent != USER_IMPORT_ROOT else ""
+            data = scan_skill_file(md, source="user-imports", owner=owner)
+            if data:
+                skills.append(data)
+    # 兼容旧版：历史导入位于 data/all-skills/user-imports/<skill_name>（无 owner，视为共享）
+    legacy_root = SKILLS_ROOT / "user-imports"
+    if legacy_root.exists():
+        for md in legacy_root.rglob("SKILL.md"):
+            data = scan_skill_file(md, source="user-imports", owner="")
             if data:
                 skills.append(data)
     return skills
@@ -188,12 +199,13 @@ def scan_all_skills() -> List[Dict[str, Any]]:
 # ========== DB Schema ==========
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS skills (
-    name TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
     name_zh TEXT DEFAULT '',
     name_en TEXT DEFAULT '',
-    path TEXT NOT NULL UNIQUE,
+    path TEXT NOT NULL,
     abs_path TEXT NOT NULL,
     source TEXT NOT NULL,
+    owner TEXT DEFAULT '',
     category TEXT NOT NULL,
     category_emoji TEXT DEFAULT '📦',
     category_name TEXT DEFAULT '',
@@ -207,11 +219,14 @@ CREATE TABLE IF NOT EXISTS skills (
     content TEXT NOT NULL,
     size_bytes INTEGER DEFAULT 0,
     mtime REAL DEFAULT 0,
-    updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (name, owner)
 );
 
+CREATE UNIQUE INDEX IF NOT EXISTS idx_skills_path ON skills(path, owner);
 CREATE INDEX IF NOT EXISTS idx_skills_source ON skills(source);
 CREATE INDEX IF NOT EXISTS idx_skills_category ON skills(category);
+CREATE INDEX IF NOT EXISTS idx_skills_owner ON skills(owner);
 CREATE INDEX IF NOT EXISTS idx_skills_name_lower ON skills(LOWER(name));
 """
 
@@ -249,6 +264,10 @@ def init_db() -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     conn = get_conn()
     conn.executescript(SCHEMA)
+    # 兼容旧库：若缺少 owner 列则迁移
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(skills)")}
+    if "owner" not in cols:
+        conn.execute("ALTER TABLE skills ADD COLUMN owner TEXT DEFAULT ''")
     rebuild_all()
 
 
@@ -261,16 +280,17 @@ def rebuild_all() -> None:
             conn.execute(
                 """
                 INSERT OR REPLACE INTO skills (
-                    name, name_zh, name_en, path, abs_path, source,
+                    name, name_zh, name_en, path, abs_path, source, owner,
                     category, category_emoji, category_name,
                     description, description_en, description_zh,
                     version, author, platforms, tags,
                     content, size_bytes, mtime, updated_at
-                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                 """,
                 (
                     s["name"], s["name_zh"], s["name_en"], s["path"], s["abs_path"],
-                    s["source"], s["category"], s["category_emoji"], s["category_name"],
+                    s["source"], s.get("owner", ""),
+                    s["category"], s["category_emoji"], s["category_name"],
                     s["description"], s["description_en"], s["description_zh"],
                     s["version"], s["author"], s["platforms"], s["tags"],
                     s["content"], s["size_bytes"], s["mtime"],
@@ -280,26 +300,26 @@ def rebuild_all() -> None:
 
 
 # ========== 增 / 删 / 改 ==========
-def upsert_skill(abs_path: Path, source: str) -> Optional[Dict[str, Any]]:
+def upsert_skill(abs_path: Path, source: str, owner: str = "") -> Optional[Dict[str, Any]]:
     """单个 Skill 入库（导入时调用）"""
-    data = scan_skill_file(abs_path, source=source)
+    data = scan_skill_file(abs_path, source=source, owner=owner)
     if not data:
         return None
     with tx() as conn:
         conn.execute(
             """
             INSERT OR REPLACE INTO skills (
-                name, name_zh, name_en, path, abs_path, source,
+                name, name_zh, name_en, path, abs_path, source, owner,
                 category, category_emoji, category_name,
                 description, description_en, description_zh,
                 version, author, platforms, tags,
                 content, size_bytes, mtime, updated_at
-            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             """,
             (
                 data["name"], data["name_zh"], data["name_en"], data["path"],
-                data["abs_path"], data["source"], data["category"],
-                data["category_emoji"], data["category_name"],
+                data["abs_path"], data["source"], data.get("owner", ""),
+                data["category"], data["category_emoji"], data["category_name"],
                 data["description"], data["description_en"], data["description_zh"],
                 data["version"], data["author"], data["platforms"], data["tags"],
                 data["content"], data["size_bytes"], data["mtime"],
@@ -309,10 +329,10 @@ def upsert_skill(abs_path: Path, source: str) -> Optional[Dict[str, Any]]:
     return data
 
 
-def delete_skill(name: str) -> bool:
-    """从 DB 删除（不删 Markdown）"""
+def delete_skill(name: str, owner: str = "") -> bool:
+    """从 DB 删除（按 name + owner，避免误删他人数据）"""
     with tx() as conn:
-        cur = conn.execute("DELETE FROM skills WHERE name = ?", (name,))
+        cur = conn.execute("DELETE FROM skills WHERE name = ? AND owner = ?", (name, owner))
         return cur.rowcount > 0
 
 
@@ -326,6 +346,16 @@ def list_all(source: Optional[str] = None) -> List[Dict[str, Any]]:
     sql += " ORDER BY category, name"
     conn = get_conn()
     return [dict(r) for r in conn.execute(sql, params).fetchall()]
+
+
+def list_visible(owner: str = "") -> List[Dict[str, Any]]:
+    """返回当前用户可见的 skills：共享（owner 为空）+ 本人拥有的"""
+    conn = get_conn()
+    rows = conn.execute(
+        "SELECT * FROM skills WHERE owner = ? OR owner = '' ORDER BY category, name",
+        (owner,),
+    ).fetchall()
+    return [dict(r) for r in rows]
 
 
 def list_by_category() -> Dict[str, List[Dict[str, Any]]]:
@@ -344,9 +374,12 @@ def list_by_source() -> Dict[str, List[Dict[str, Any]]]:
     return grouped
 
 
-def get_by_name(name: str) -> Optional[Dict[str, Any]]:
+def get_by_name(name: str, owner: str = "") -> Optional[Dict[str, Any]]:
     conn = get_conn()
-    row = conn.execute("SELECT * FROM skills WHERE name = ?", (name,)).fetchone()
+    row = conn.execute(
+        "SELECT * FROM skills WHERE name = ? AND (owner = ? OR owner = '')",
+        (name, owner),
+    ).fetchone()
     return dict(row) if row else None
 
 
@@ -380,8 +413,8 @@ def category_stats() -> List[Dict[str, Any]]:
     return [dict(r) for r in rows]
 
 
-def search(query: str, top_k: int = 20) -> List[Dict[str, Any]]:
-    """关键词搜索（中英文混合）"""
+def search(query: str, top_k: int = 20, owner: str = "") -> List[Dict[str, Any]]:
+    """关键词搜索（中英文混合），仅返回当前用户可见的 skills"""
     if not query:
         return []
     is_chinese = bool(re.search(r"[\u4e00-\u9fff]", query))
@@ -392,15 +425,18 @@ def search(query: str, top_k: int = 20) -> List[Dict[str, Any]]:
     candidates = conn.execute(
         """
         SELECT * FROM skills
-        WHERE LOWER(name) LIKE ?
+        WHERE (owner = ? OR owner = '')
+          AND (
+            LOWER(name) LIKE ?
            OR LOWER(name_zh) LIKE ?
            OR LOWER(name_en) LIKE ?
            OR LOWER(description) LIKE ?
            OR LOWER(description_zh) LIKE ?
            OR LOWER(description_en) LIKE ?
            OR LOWER(category_name) LIKE ?
+          )
         """,
-        (like, like, like, like, like, like, like),
+        (owner, like, like, like, like, like, like, like),
     ).fetchall()
 
     scored: List[Tuple[int, Dict[str, Any]]] = []

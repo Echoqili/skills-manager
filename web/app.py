@@ -16,9 +16,9 @@ import subprocess
 import threading
 from pathlib import Path
 from datetime import datetime
-from functools import lru_cache
+from functools import lru_cache, wraps
 
-from flask import Flask, render_template, request, jsonify, send_file, Response
+from flask import Flask, render_template, request, jsonify, send_file, Response, session, has_request_context
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "cli"))
 try:
@@ -30,12 +30,66 @@ except ImportError:
 sys.path.insert(0, str(Path(__file__).parent))
 import db as skills_db  # SQLite 索引层
 
+# ========== 用户与鉴权（多用户隔离） ==========
+import secrets
+from werkzeug.security import generate_password_hash, check_password_hash
+
+
+def init_users_table():
+    """建 users 表；首次运行可用环境变量 ADMIN_USER/ADMIN_PASS 播种管理员"""
+    conn = skills_db.get_conn()
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE NOT NULL,
+            password_hash TEXT NOT NULL,
+            is_admin INTEGER DEFAULT 0,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+    cur = conn.execute("SELECT COUNT(*) FROM users").fetchone()
+    if cur[0] == 0:
+        admin_user = os.environ.get("ADMIN_USER", "").strip()
+        admin_pass = os.environ.get("ADMIN_PASS", "").strip()
+        if admin_user and admin_pass:
+            conn.execute(
+                "INSERT INTO users (username, password_hash, is_admin) VALUES (?,?,1)",
+                (admin_user, generate_password_hash(admin_pass)),
+            )
+            conn.commit()
+
+
+def get_current_user():
+    """返回当前登录用户（dict）或 None"""
+    uid = session.get("user_id")
+    if not uid:
+        return None
+    row = skills_db.get_conn().execute(
+        "SELECT id, username, is_admin FROM users WHERE id=?", (uid,)
+    ).fetchone()
+    return dict(row) if row else None
+
+
+def login_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not get_current_user():
+            return jsonify({"error": "unauthorized", "code": 401}), 401
+        return f(*args, **kwargs)
+    return decorated
+
+
 # 启动时建表 + 全量重建
 skills_db.init_db()
+init_users_table()
 
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024
 app.config['TEMPLATES_AUTO_RELOAD'] = True
+# 会话签名密钥：生产环境务必通过环境变量 SECRET_KEY 设置固定值
+app.secret_key = os.environ.get("SECRET_KEY") or secrets.token_hex(32)
 
 
 @app.after_request
@@ -47,6 +101,18 @@ def _no_store_cache(resp):
         resp.headers['Pragma'] = 'no-cache'
         resp.headers['Expires'] = '0'
     return resp
+
+@app.before_request
+def _require_auth():
+    """除鉴权接口外，所有 /api/* 必须登录；页面与静态资源可匿名访问（用于展示登录页）"""
+    p = request.path
+    if p.startswith('/api/'):
+        if p.startswith('/api/auth/'):
+            return None
+        if not get_current_user():
+            return jsonify({"error": "unauthorized", "code": 401}), 401
+    return None
+
 
 # 后台自动更新任务状态
 _update_tasks = {}
@@ -82,20 +148,10 @@ Rules:
 - content: must include a # heading, usage scenario, system prompt/workflow for an AI agent, and optional examples"""
 
 
-def _get_client_ip():
-    """获取客户端 IP（优先 X-Forwarded-For）"""
-    xff = request.headers.get("X-Forwarded-For", "")
-    if xff:
-        return xff.split(",")[0].strip()
-    return request.remote_addr or "unknown"
-
-
-def _ai_config_file(ip: str):
-    """获取某 IP 对应的配置文件路径"""
-    # 简单安全处理：去掉可能的路径特殊字符
-    safe_ip = ip.replace("/", "_").replace("\\", "_")
+def _ai_config_file(user_id):
+    """获取某用户对应的配置文件路径（按用户隔离，不再按 IP）"""
     AI_CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-    return AI_CONFIG_DIR / f"ai-config-{safe_ip}.json"
+    return AI_CONFIG_DIR / f"ai-config-user-{user_id}.json"
 
 
 def _load_env_ai_config():
@@ -137,12 +193,16 @@ def _default_ai_config():
     return config
 
 
-def load_ai_config(ip: str = None):
-    """加载某 IP 的 AI 配置；环境变量为默认，本地配置可覆盖 provider/model 等，enabled 由环境变量决定"""
-    ip = ip or _get_client_ip()
+def load_ai_config(user_id=None):
+    """加载某用户的 AI 配置；未传 user_id 时自动取当前登录用户；无用户仅返回环境变量默认值"""
+    if user_id is None and has_request_context():
+        u = get_current_user()
+        user_id = u["id"] if u else None
     config = _default_ai_config()
+    if user_id is None:
+        return config
 
-    cfg_file = _ai_config_file(ip)
+    cfg_file = _ai_config_file(user_id)
     if cfg_file.exists():
         try:
             local = json.loads(cfg_file.read_text(encoding="utf-8"))
@@ -157,12 +217,13 @@ def load_ai_config(ip: str = None):
     return config
 
 
-def save_ai_config(config, ip: str = None):
-    """保存某 IP 的 AI 配置"""
-    ip = ip or _get_client_ip()
-    cfg_file = _ai_config_file(ip)
+def save_ai_config(config, user_id=None):
+    """保存某用户的 AI 配置；未登录不写入文件"""
+    if user_id is None:
+        return _default_ai_config()
 
-    current = load_ai_config(ip)
+    cfg_file = _ai_config_file(user_id)
+    current = load_ai_config(user_id)
     # api_key 传 ******** 时不覆盖
     if config.get("api_key") == "********":
         config["api_key"] = current.get("api_key", "")
@@ -177,7 +238,7 @@ def save_ai_config(config, ip: str = None):
         "enabled": bool(config.get("enabled", False)),
     }
     cfg_file.write_text(json.dumps(to_save, ensure_ascii=False, indent=2), encoding="utf-8")
-    return load_ai_config(ip)
+    return load_ai_config(user_id)
 
 
 def mask_api_key(key: str) -> str:
@@ -496,8 +557,10 @@ def enrich_skill(skill: dict) -> dict:
 
 
 def build_skills_cache():
-    """从 SQLite 读取 skills，返回 (all_skills, by_category, by_name)"""
-    all_skills = skills_db.list_all()
+    """从 SQLite 读取 skills，返回 (all_skills, by_category, by_name)，仅含当前用户可见（共享+本人）"""
+    user = get_current_user()
+    owner = str(user["id"]) if user else ""
+    all_skills = skills_db.list_visible(owner)
     by_category: Dict[str, list] = {}
     by_name: Dict[str, dict] = {}
     for s in all_skills:
@@ -512,10 +575,12 @@ def _strip_content(skills):
 
 
 def search_skills(query, top_k=20):
-    """走 DB 搜索"""
+    """走 DB 搜索，仅含当前用户可见（共享+本人）"""
     if not query:
         return []
-    return skills_db.search(query, top_k)
+    user = get_current_user()
+    owner = str(user["id"]) if user else ""
+    return skills_db.search(query, top_k, owner)
 
 
 def search_github_repos(query: str, per_page: int = 10):
@@ -568,6 +633,60 @@ def index():
 def favicon():
     svg = "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>"
     return Response(svg, mimetype='image/svg+xml')
+
+
+# ========== 鉴权接口 ==========
+@app.route('/api/auth/register', methods=['POST'])
+def api_auth_register():
+    data = request.get_json() or {}
+    username = (data.get('username') or '').strip()
+    password = data.get('password') or ''
+    if not username or not password:
+        return jsonify({"error": "用户名和密码必填"}), 400
+    if len(password) < 6:
+        return jsonify({"error": "密码至少 6 位"}), 400
+    conn = skills_db.get_conn()
+    exists = conn.execute("SELECT id FROM users WHERE username=?", (username,)).fetchone()
+    if exists:
+        return jsonify({"error": "用户名已存在"}), 409
+    # 首个注册用户自动成为管理员
+    cnt = conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]
+    is_admin = 1 if cnt == 0 else 0
+    cur = conn.execute(
+        "INSERT INTO users (username, password_hash, is_admin) VALUES (?,?,?)",
+        (username, generate_password_hash(password), is_admin),
+    )
+    conn.commit()
+    session['user_id'] = cur.lastrowid
+    return jsonify({"success": True, "user": {"id": cur.lastrowid, "username": username, "is_admin": bool(is_admin)}})
+
+
+@app.route('/api/auth/login', methods=['POST'])
+def api_auth_login():
+    data = request.get_json() or {}
+    username = (data.get('username') or '').strip()
+    password = data.get('password') or ''
+    row = skills_db.get_conn().execute(
+        "SELECT id, username, password_hash, is_admin FROM users WHERE username=?", (username,)
+    ).fetchone()
+    if not row or not check_password_hash(row["password_hash"], password):
+        return jsonify({"error": "用户名或密码错误"}), 401
+    session['user_id'] = row["id"]
+    return jsonify({"success": True, "user": {"id": row["id"], "username": row["username"], "is_admin": bool(row["is_admin"])}})
+
+
+@app.route('/api/auth/logout', methods=['POST'])
+def api_auth_logout():
+    session.pop('user_id', None)
+    return jsonify({"success": True})
+
+
+@app.route('/api/auth/me')
+def api_auth_me():
+    u = get_current_user()
+    if not u:
+        return jsonify({"user": None})
+    return jsonify({"user": u})
 
 
 @app.route('/api/stats')
@@ -1035,7 +1154,12 @@ def api_discover_clone():
 
 @app.route('/api/import/user', methods=['POST'])
 def api_import_user_skill():
-    """导入用户自定义的 Skill"""
+    """导入用户自定义的 Skill（写入当前用户目录，归属当前用户）"""
+    user = get_current_user()
+    if not user:
+        return jsonify({"error": "unauthorized", "code": 401}), 401
+    uid = str(user["id"])
+
     data = request.get_json()
     if not data:
         return jsonify({"error": "No data provided"}), 400
@@ -1054,7 +1178,7 @@ def api_import_user_skill():
     # 安全校验：防止路径遍历
     if '..' in skill_name or '/' in skill_name or '\\' in skill_name:
         return jsonify({"error": "Invalid skill name"}), 400
-    skill_dir = SKILLS_ROOT / "user-imports" / skill_name
+    skill_dir = skills_db.USER_IMPORT_ROOT / uid / skill_name
     skill_file = skill_dir / "SKILL.md"
 
     if skill_dir.exists():
@@ -1066,13 +1190,14 @@ def api_import_user_skill():
 name: {skill_name}
 description: {description}
 source: user-imports
+category: {category}
 ---
 
 {content}
 """
         skill_file.write_text(skill_content, encoding='utf-8')
-        # 双写：DB 入库
-        skills_db.upsert_skill(skill_file, source="user-imports")
+        # 双写：DB 入库，记录 owner
+        skills_db.upsert_skill(skill_file, source="user-imports", owner=uid)
         return jsonify({
             "success": True,
             "message": f"Skill '{skill_name}' imported successfully",
@@ -1444,8 +1569,12 @@ def api_browse_github_skills():
 
 @app.route('/api/import/list-user', methods=['GET'])
 def api_list_user_skills():
-    """列出用户导入的 Skills"""
-    user_imports_dir = SKILLS_ROOT / "user-imports"
+    """列出当前登录用户导入的 Skills（按 owner 隔离）"""
+    user = get_current_user()
+    if not user:
+        return jsonify({"skills": []})
+    uid = str(user["id"])
+    user_imports_dir = skills_db.USER_IMPORT_ROOT / uid
     if not user_imports_dir.exists():
         return jsonify({"skills": []})
 
@@ -1474,7 +1603,12 @@ def api_list_user_skills():
 
 @app.route('/api/import/delete', methods=['POST'])
 def api_delete_user_skill():
-    """删除用户导入的 Skill"""
+    """删除当前登录用户导入的 Skill（校验归属，防别人删我的）"""
+    user = get_current_user()
+    if not user:
+        return jsonify({"error": "unauthorized", "code": 401}), 401
+    uid = str(user["id"])
+
     data = request.get_json()
     if not data:
         return jsonify({"error": "No data provided"}), 400
@@ -1486,15 +1620,20 @@ def api_delete_user_skill():
     if '..' in skill_name or '/' in skill_name or '\\' in skill_name:
         return jsonify({"error": "Invalid skill name"}), 400
 
-    skill_dir = SKILLS_ROOT / "user-imports" / skill_name
+    # 校验归属：DB 中该 skill 的 owner 必须是当前用户
+    existing = skills_db.get_by_name(skill_name, uid)
+    if not existing or existing.get("owner") != uid:
+        return jsonify({"error": "Skill not found or not yours"}), 404
+
+    skill_dir = skills_db.USER_IMPORT_ROOT / uid / skill_name
     if not skill_dir.exists():
         return jsonify({"error": "Skill not found"}), 404
 
     try:
         import shutil
         shutil.rmtree(skill_dir)
-        # 双写：DB 删除
-        skills_db.delete_skill(skill_name)
+        # 双写：DB 删除（按 name+owner）
+        skills_db.delete_skill(skill_name, uid)
         return jsonify({
             "success": True,
             "message": f"Skill '{skill_name}' deleted"
@@ -1614,8 +1753,9 @@ def api_release_detail(version):
 
 @app.route('/api/ai/config', methods=['GET'])
 def api_ai_get_config():
-    """获取当前 IP 的 AI 配置（API Key 脱敏，默认来自 Render 环境变量）"""
-    config = load_ai_config()
+    """获取当前登录用户的 AI 配置（API Key 脱敏，默认来自 Render 环境变量）"""
+    user = get_current_user()
+    config = load_ai_config(user["id"] if user else None)
     safe_config = dict(config)
     if safe_config.get("api_key"):
         safe_config["api_key"] = mask_api_key(safe_config["api_key"])
@@ -1626,8 +1766,10 @@ def api_ai_get_config():
 
 @app.route('/api/ai/config', methods=['POST'])
 def api_ai_save_config():
-    """保存当前 IP 的 AI 配置"""
+    """保存当前登录用户的 AI 配置"""
     try:
+        user = get_current_user()
+        user_id = user["id"] if user else None
         data = request.get_json()
         if not data:
             return jsonify({"success": False, "error": "无效的配置数据"}), 400
@@ -1635,8 +1777,8 @@ def api_ai_save_config():
         for field in required:
             if field not in data:
                 return jsonify({"success": False, "error": f"缺少字段: {field}"}), 400
-        save_ai_config(data)
-        config = load_ai_config()
+        save_ai_config(data, user_id)
+        config = load_ai_config(user_id)
         safe_config = dict(config)
         if safe_config.get("api_key"):
             safe_config["api_key"] = mask_api_key(safe_config["api_key"])
@@ -1647,10 +1789,11 @@ def api_ai_save_config():
 
 @app.route('/api/ai/test', methods=['POST'])
 def api_ai_test():
-    """测试当前 IP 的 AI 连接"""
+    """测试当前登录用户的 AI 连接"""
     try:
+        user = get_current_user()
         data = request.get_json() or {}
-        config = load_ai_config()
+        config = load_ai_config(user["id"] if user else None)
         # 用请求中的值覆盖临时测试；如果传入的是脱敏 key，则继续使用本地存储的真实 key
         test_key = data.get("api_key", "")
         if test_key and test_key != "********" and "****" not in test_key:
