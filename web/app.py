@@ -11,6 +11,7 @@ import re
 import time
 import hmac
 import uuid
+import random
 import zipfile
 import base64
 import smtplib
@@ -353,7 +354,7 @@ def _security_headers(resp):
 # 未登录时 owner="" 只能看到共享(owner='')数据，不会泄露任何私有 Skill。
 _PUBLIC_EXACT = {
     "/api/stats", "/api/categories", "/api/skills/all", "/api/search",
-    "/api/releases", "/api/package", "/api/package-all",
+    "/api/releases", "/api/package", "/api/package-all", "/api/config",
 }
 
 
@@ -374,6 +375,9 @@ def _require_auth():
     p = request.path
     if p.startswith('/api/'):
         if p.startswith('/api/auth/'):
+            return None
+        if p.startswith('/api/captcha/'):
+            # 滑块验证码：登录/注册前必须可用（自身带限流，见 api_captcha_new）
             return None
         if p.startswith('/api/admin/'):
             # 管理员接口由密钥/管理员登录把关（见 admin_only），不在此处要求登录
@@ -895,6 +899,14 @@ def index():
     return render_template('index.html')
 
 
+@app.route('/api/config')
+def api_config():
+    """全局配置（游客可访问）：前端据此决定是否展示邮箱验证码步骤"""
+    return jsonify({
+        "email_verify_required": _email_verify_required(),
+    })
+
+
 @app.route('/favicon.ico')
 def favicon():
     svg = "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>"
@@ -907,12 +919,126 @@ def favicon():
 _EMAIL_CODES: dict = {}
 
 
+# ========== 滑块验证码（登录 / 注册 / 发码 通用） ==========
+# 原理：后端生成随机缺口位置，返回 SVG 背景图；用户把滑块拖到缺口处，
+# 前端提交拖动终点 x，后端与缺口 x 比对（容差 6px），通过后发一次性 token。
+# 记录存进程内存（单 worker 有效），5 分钟过期、最多 5 次尝试。
+_CAPTCHAS: dict = {}
+_CAPTCHA_TOLERANCE = 6
+
+
+def _gen_captcha_svg(w: int, h: int, gap_x: int, gap_y: int, gap_size: int) -> str:
+    """生成带缺口的 SVG 背景（渐变 + 随机几何干扰 + 缺口槽）"""
+    hue = random.randint(180, 265)  # 蓝紫系主色
+    parts = [
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{w}" height="{h}" viewBox="0 0 {w} {h}">',
+        f'<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">'
+        f'<stop offset="0" stop-color="hsl({hue},55%,80%)"/>'
+        f'<stop offset="1" stop-color="hsl({hue + 35},55%,64%)"/></linearGradient></defs>',
+        f'<rect width="{w}" height="{h}" fill="url(#g)"/>',
+    ]
+    for _ in range(7):
+        parts.append(f'<circle cx="{random.randint(0, w)}" cy="{random.randint(0, h)}" '
+                     f'r="{random.randint(8, 42)}" fill="hsla({random.randint(0, 360)},60%,60%,0.22)"/>')
+    for _ in range(6):
+        x0, y0 = random.randint(0, w), random.randint(0, h)
+        x1, y1 = random.randint(0, w), random.randint(0, h)
+        parts.append(f'<line x1="{x0}" y1="{y0}" x2="{x1}" y2="{y1}" '
+                     f'stroke="hsla({random.randint(0, 360)},50%,50%,0.3)" stroke-width="{random.randint(1, 3)}"/>')
+    for _ in range(2):
+        d = f'M0,{random.randint(20, h - 20)}'
+        for x in range(0, w + 1, 40):
+            d += f' Q{x + 20},{random.randint(0, h)} {x + 40},{random.randint(20, h - 20)}'
+        parts.append(f'<path d="{d}" fill="none" stroke="hsla(0,0%,100%,0.5)" stroke-width="2"/>')
+    # 缺口槽：暗色填充 + 亮描边（前端可见目标位置）
+    parts.append(f'<rect x="{gap_x}" y="{gap_y}" width="{gap_size}" height="{gap_size}" '
+                 f'fill="rgba(0,0,0,0.35)" stroke="rgba(255,255,255,0.9)" stroke-width="2" rx="4"/>')
+    parts.append('</svg>')
+    return ''.join(parts)
+
+
+def _check_captcha(data: dict):
+    """校验请求中的滑块验证（captcha_id 必须已通过验证且未被使用）"""
+    cid = (data.get('captcha_id') or '').strip()
+    if not cid:
+        return False, "请先完成滑块验证"
+    rec = _CAPTCHAS.get(cid)
+    if not rec or rec.get("expires", 0) < time.time():
+        return False, "滑块验证已过期，请重新验证"
+    if not rec.get("verified"):
+        return False, "请先完成滑块验证"
+    if rec.get("used"):
+        return False, "滑块验证已使用，请重新验证"
+    return True, ""
+
+
+def _consume_captcha(data: dict) -> None:
+    """标记滑块验证为已使用（一次性，防重放）"""
+    cid = (data.get('captcha_id') or '').strip()
+    rec = _CAPTCHAS.get(cid)
+    if rec:
+        rec["used"] = True
+
+
+@app.route('/api/captcha/new', methods=['GET'])
+def api_captcha_new():
+    """生成滑块验证码：返回背景 SVG（不含缺口 x，缺口位置仅存服务端）"""
+    if not _rate_limit(f"captcha-new:{_client_ip()}", 20, 60):
+        return jsonify({"error": "操作过于频繁，请稍后再试"}), 429
+    now = time.time()
+    for k in [k for k, v in _CAPTCHAS.items() if v.get("expires", 0) < now]:
+        _CAPTCHAS.pop(k, None)
+    w, h, gs = 320, 160, 42
+    gap_x = random.randint(40, w - gs - 20)  # 40 ~ 258
+    gap_y = random.randint(25, h - gs - 5)   # 25 ~ 113
+    cid = secrets.token_hex(8)
+    _CAPTCHAS[cid] = {
+        "gap_x": gap_x, "gap_y": gap_y, "expires": now + 300,
+        "attempts": 0, "verified": False, "used": False,
+    }
+    return jsonify({
+        "id": cid, "svg": _gen_captcha_svg(w, h, gap_x, gap_y, gs),
+        "width": w, "height": h, "gap_y": gap_y, "gap_size": gs,
+    })
+
+
+@app.route('/api/captcha/verify', methods=['POST'])
+def api_captcha_verify():
+    """校验滑块位置：|x - gap_x| <= 6 即通过，返回一次性 token"""
+    if not _rate_limit(f"captcha-verify:{_client_ip()}", 60, 60):
+        return jsonify({"error": "操作过于频繁，请稍后再试"}), 429
+    data = request.get_json() or {}
+    cid = (data.get('id') or '').strip()
+    rec = _CAPTCHAS.get(cid)
+    if not rec or rec.get("expires", 0) < time.time():
+        return jsonify({"error": "验证码已过期，请刷新重试"}), 400
+    if rec.get("verified"):
+        return jsonify({"success": True, "token": cid})
+    rec["attempts"] = rec.get("attempts", 0) + 1
+    if rec["attempts"] > 5:
+        _CAPTCHAS.pop(cid, None)
+        return jsonify({"error": "尝试次数过多，请刷新重试"}), 400
+    try:
+        x = int(data.get('x'))
+    except (TypeError, ValueError):
+        return jsonify({"error": "参数错误"}), 400
+    if abs(x - rec["gap_x"]) <= _CAPTCHA_TOLERANCE:
+        rec["verified"] = True
+        return jsonify({"success": True, "token": cid})
+    return jsonify({"error": "未对准缺口，请重试"}), 400
+
+
 def _gen_code() -> str:
     return str(secrets.randbelow(1_000_000)).zfill(6)
 
 
 def _is_valid_email(email: str) -> bool:
     return bool(re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email))
+
+
+def _email_verify_required() -> bool:
+    """注册是否强制邮箱验证码。邮件服务不可用时可设 EMAIL_VERIFY=0 临时关闭（邮箱变为可选）。"""
+    return os.environ.get("EMAIL_VERIFY", "1").strip() != "0"
 
 
 def _smtp_connect_ipv4(host: str, port: int, timeout: float = 15.0):
@@ -969,6 +1095,8 @@ def _send_verification_email(to: str, code: str) -> None:
     user = os.environ.get("SMTP_USER", "").strip()
     pwd = os.environ.get("SMTP_PASS", "").strip()
     sender = os.environ.get("SMTP_FROM", "").strip() or user
+    # 超时默认 15s（云平台冷启动/网络慢时可调大）；避免 8s 误报超时
+    smtp_timeout = float(os.environ.get("SMTP_TIMEOUT", "15") or 15)
     # 脱敏打印：日志可见在连哪个 SMTP 服务器（不含密码），便于 Render 排查
     print(f"[MAIL] 发送验证码 -> {to} | host={host} port={port} user={user or '(未配置)'}")
     body = (
@@ -981,17 +1109,17 @@ def _send_verification_email(to: str, code: str) -> None:
     msg["From"] = formataddr((str(Header("Skills Manager", "utf-8")), sender))
     msg["To"] = to
     try:
-        # 超时取 8s：避免 SMTP 慢时累计超过 gunicorn 默认 30s 被砍 worker
         if port == 465:
-            s = _IPv4SMTP_SSL(host, port, timeout=8)
+            s = _IPv4SMTP_SSL(host, port, timeout=smtp_timeout)
         else:
-            s = _IPv4SMTP(host, port, timeout=8)
+            s = _IPv4SMTP(host, port, timeout=smtp_timeout)
             s.starttls()
     except (OSError, smtplib.SMTPException) as e:
         raise RuntimeError(
-            f"连接 SMTP 服务器失败 {host}:{port}（{e}）。"
-            f"已强制 IPv4 建连；仍失败请检查 SMTP_HOST/SMTP_PORT 是否正确，"
-            f"或云平台是否拦截了 465 端口（可改用 587）"
+            f"连接 SMTP 服务器失败 {host}:{port}（{e}）。已强制 IPv4 建连。"
+            f"排查：若运行在海外云平台（Render 等），QQ/163 等国内邮箱 SMTP 常因服务商限制境外 IP 而超时，"
+            f"建议改用 465(SSL) 或换用海外 SMTP 服务（SendGrid/Brevo/SMTP2GO）或腾讯企业邮；"
+            f"本机连通性可用: python -c \"import socket;socket.create_connection(('{host}',{port}),10)\" 验证。"
         ) from e
     try:
         if user:
@@ -1004,6 +1132,96 @@ def _send_verification_email(to: str, code: str) -> None:
             pass
 
 
+def _mail_diagnostics() -> dict:
+    """SMTP 连通性自检：分阶段诊断（DNS / TCP / STARTTLS / login / sendmail），不抛错只报告"""
+    host = os.environ.get("SMTP_HOST", "").strip()
+    port = int(os.environ.get("SMTP_PORT", "465") or 465)
+    user = os.environ.get("SMTP_USER", "").strip()
+    pwd = os.environ.get("SMTP_PASS", "").strip()
+    timeout = float(os.environ.get("SMTP_TIMEOUT", "15") or 15)
+    steps = {"host": host or "(未配置)", "port": port, "user": user or "(未配置)"}
+    if not host:
+        steps["result"] = "未配置 SMTP_HOST，邮件功能不可用"
+        steps["ok"] = False
+        return steps
+    import time as _t, socket as _socket
+
+    # 1. DNS 解析（IPv4）
+    t0 = _t.time()
+    try:
+        infos = _socket.getaddrinfo(host, port, _socket.AF_INET, _socket.SOCK_STREAM)
+        steps["dns"] = f"OK，{_t.time()-t0:.1f}s，IP: {[i[4][0] for i in infos][:3]}"
+    except Exception as e:
+        steps["dns"] = f"失败：{e}"
+        steps["result"] = "DNS 解析失败，检查 SMTP_HOST 拼写"
+        steps["ok"] = False
+        return steps
+
+    # 2. TCP 建连
+    t0 = _t.time()
+    s = None
+    try:
+        s = _smtp_connect_ipv4(host, port, timeout)
+        steps["tcp"] = f"OK，{_t.time()-t0:.1f}s（{s.getpeername()}）"
+    except OSError as e:
+        steps["tcp"] = f"失败：{e}"
+        steps["result"] = (f"TCP 连接超时/被拒：{host}:{port}。若部署在海外云平台，国内邮箱 SMTP 常限制境外 IP，"
+                           f"建议改用 465(SSL) 端口或换海外 SMTP 服务/腾讯企业邮")
+        steps["ok"] = False
+        return steps
+
+    # 3. SMTP 握手（465=SSL / 其他=STARTTLS）+ 4. login + 5. sendmail（RCPT 校验即可）
+    server = None
+    try:
+        if port == 465:
+            server = smtplib.SMTP_SSL(host, port, timeout=timeout)
+        else:
+            server = smtplib.SMTP(host, port, timeout=timeout)
+            server.starttls()
+        ehlo = server.ehlo()
+        steps["ehlo"] = f"OK（{str(ehlo[0])}）"
+        if user:
+            t0 = _t.time()
+            try:
+                server.login(user, pwd)
+                steps["login"] = f"OK，{_t.time()-t0:.1f}s"
+            except smtplib.SMTPAuthenticationError as e:
+                steps["login"] = f"认证失败（{e.smtp_code}）：授权码错误或未开启 SMTP 服务"
+                steps["result"] = "SMTP 账号/授权码错误，请在邮箱设置中开启 SMTP 服务并生成授权码"
+                steps["ok"] = False
+                return steps
+        # 5. 校验收件人（不发信，确认 RCPT 阶段）
+        try:
+            server.verify("probe@example.invalid")
+            steps["rcpt_probe"] = "OK（服务端接受 RCPT 探测）"
+        except Exception:
+            steps["rcpt_probe"] = "跳过（服务端不支持 VRFY，属正常）"
+        steps["result"] = "SMTP 握手与认证全部通过，邮件服务可用"
+        steps["ok"] = True
+        return steps
+    except (OSError, smtplib.SMTPException) as e:
+        steps["handshake"] = f"失败：{e}"
+        steps["result"] = f"SMTP 协议阶段失败：{e}"
+        steps["ok"] = False
+        return steps
+    finally:
+        try:
+            if s:
+                s.close()
+            if server:
+                server.quit()
+        except Exception:
+            pass
+
+
+@app.route('/api/admin/mail-test', methods=['POST'])
+@admin_only
+def api_admin_mail_test():
+    """管理员邮件自检：返回分阶段诊断结果（DNS→TCP→TLS→认证），不发真实邮件"""
+    diag = _mail_diagnostics()
+    return jsonify(diag), (200 if diag.get("ok") else 502)
+
+
 @app.route('/api/auth/send-code', methods=['POST'])
 def api_auth_send_code():
     """发送邮箱验证码（注册前置步骤）"""
@@ -1011,6 +1229,9 @@ def api_auth_send_code():
     email = (data.get('email') or '').strip().lower()
     if not _is_valid_email(email):
         return jsonify({"error": "邮箱格式不正确"}), 400
+    ok, msg = _check_captcha(data)
+    if not ok:
+        return jsonify({"error": msg}), 400
     if not _rate_limit(f"code-ip:{_client_ip()}", 10, 3600):
         return jsonify({"error": "发送过于频繁，请 1 小时后再试", "code": "rate_limited"}), 429
     now = time.time()
@@ -1033,6 +1254,7 @@ def api_auth_send_code():
         _tb.print_exc()
         print(f"[MAIL-ERROR] 发送验证码到 {email} 失败：{e}")
         return jsonify({"error": f"邮件发送失败：{e}"}), 500
+    _consume_captcha(data)  # 发码成功即消耗滑块验证（一次性）
     return jsonify({"success": True, "message": "验证码已发送到邮箱（10 分钟有效）"})
 
 
@@ -1056,25 +1278,37 @@ def api_auth_register():
         return jsonify({"error": "密码至少 6 位"}), 400
     if len(password) > 64:
         return jsonify({"error": "密码最多 64 位"}), 400
-    if not _is_valid_email(email) or len(email) > 254:
-        return jsonify({"error": "邮箱格式不正确"}), 400
-    if not re.fullmatch(r"\d{6}", code):
-        return jsonify({"error": "验证码为 6 位数字"}), 400
+    verify = _email_verify_required()
+    if verify:
+        if not _is_valid_email(email) or len(email) > 254:
+            return jsonify({"error": "邮箱格式不正确"}), 400
+        if not re.fullmatch(r"\d{6}", code):
+            return jsonify({"error": "验证码为 6 位数字"}), 400
+    else:
+        # EMAIL_VERIFY=0（邮件服务不可用时的临时开关）：邮箱可选、不需要验证码
+        if email and (not _is_valid_email(email) or len(email) > 254):
+            return jsonify({"error": "邮箱格式不正确"}), 400
+        email = email or ""
+    # 滑块验证（人机校验）
+    ok, msg = _check_captcha(data)
+    if not ok:
+        return jsonify({"error": msg}), 400
     # 注册限流：每 IP 每小时最多 N 次（默认 5，防垃圾注册；可用 REGISTER_LIMIT_PER_HOUR 调整）
     reg_limit = int(os.environ.get("REGISTER_LIMIT_PER_HOUR", "5") or 5)
     if not _rate_limit(f"register:{_client_ip()}", reg_limit, 3600):
         return jsonify({"error": "注册过于频繁，请 1 小时后再试", "code": "rate_limited"}), 429
-    # 校验邮箱验证码（加密比较 + 尝试次数限制）
-    rec = _EMAIL_CODES.get(email)
-    if not rec or rec.get("expires", 0) < time.time():
-        return jsonify({"error": "验证码无效或已过期，请重新获取"}), 400
-    if rec.get("attempts", 0) >= 5:
-        _EMAIL_CODES.pop(email, None)
-        return jsonify({"error": "验证码尝试次数过多，请重新获取", "code": "rate_limited"}), 429
-    if not hmac.compare_digest(rec.get("code", ""), code):
-        rec["attempts"] = rec.get("attempts", 0) + 1
-        return jsonify({"error": "验证码错误"}), 400
-    _EMAIL_CODES.pop(email, None)  # 验证通过即作废
+    if verify:
+        # 校验邮箱验证码（加密比较 + 尝试次数限制）
+        rec = _EMAIL_CODES.get(email)
+        if not rec or rec.get("expires", 0) < time.time():
+            return jsonify({"error": "验证码无效或已过期，请重新获取"}), 400
+        if rec.get("attempts", 0) >= 5:
+            _EMAIL_CODES.pop(email, None)
+            return jsonify({"error": "验证码尝试次数过多，请重新获取", "code": "rate_limited"}), 429
+        if not hmac.compare_digest(rec.get("code", ""), code):
+            rec["attempts"] = rec.get("attempts", 0) + 1
+            return jsonify({"error": "验证码错误"}), 400
+        _EMAIL_CODES.pop(email, None)  # 验证通过即作废
     conn = skills_db.get_conn()
     existing = conn.execute(
         "SELECT id, status FROM users WHERE username=?", (username,)
@@ -1096,6 +1330,7 @@ def api_auth_register():
             (generate_password_hash(password), email, now, existing["id"]),
         )
         conn.commit()
+        _consume_captcha(data)
         return jsonify({"success": True, "status": "pending",
                         "message": "注册成功，请等待管理员审批"})
     cur = conn.execute(
@@ -1103,6 +1338,7 @@ def api_auth_register():
         (username, generate_password_hash(password), email, now),
     )
     conn.commit()
+    _consume_captcha(data)
     return jsonify({"success": True, "status": "pending",
                     "message": "注册成功，请等待管理员审批"})
 
@@ -1112,6 +1348,10 @@ def api_auth_login():
     data = request.get_json() or {}
     username = (data.get('username') or '').strip()
     password = data.get('password') or ''
+    # 滑块验证（人机校验）
+    ok, msg = _check_captcha(data)
+    if not ok:
+        return jsonify({"error": msg}), 400
     # 登录失败限流：每 IP+用户名 15 分钟最多 10 次失败（防暴力破解）
     bucket = f"login:{_client_ip()}:{username}"
     if not _rate_limit(bucket, 10, 900):
@@ -1127,6 +1367,7 @@ def api_auth_login():
         return jsonify({"error": "账号待审批，请等待管理员批准", "code": "pending"}), 403
     _rate_clear(bucket)
     session['user_id'] = row["id"]
+    _consume_captcha(data)  # 登录成功即消耗滑块验证（一次性）
     return jsonify({"success": True, "user": {
         "id": row["id"], "username": row["username"], "is_admin": bool(row["is_admin"]),
         "permissions": _parse_permissions(row["permissions"]),

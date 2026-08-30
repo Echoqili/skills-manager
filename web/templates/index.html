@@ -2870,6 +2870,19 @@
                     <input type="text" id="auth-code" class="auth-input" placeholder="邮箱验证码" autocomplete="off" inputmode="numeric" maxlength="6" />
                     <button type="button" id="auth-send-code" class="auth-send-btn">发送验证码</button>
                 </div>
+                <!-- 滑块验证码 -->
+                <div id="auth-captcha-box" class="auth-captcha-box">
+                    <div class="captcha-img-wrap">
+                        <canvas id="auth-captcha-canvas" width="320" height="160"></canvas>
+                        <button type="button" class="captcha-refresh" id="auth-captcha-refresh" title="换一张">↻</button>
+                    </div>
+                    <div class="captcha-track" id="auth-captcha-track">
+                        <span class="captcha-hint" id="auth-captcha-hint">按住滑块，拖到缺口位置</span>
+                        <span class="captcha-pass" id="auth-captcha-pass" style="display:none;">✓ 验证通过</span>
+                        <div class="captcha-handle" id="auth-captcha-handle">▶</div>
+                    </div>
+                    <div class="captcha-msg" id="auth-captcha-msg"></div>
+                </div>
                 <div id="auth-error" class="auth-error"></div>
                 <button type="submit" id="auth-submit" class="auth-btn">登录</button>
             </form>
@@ -4586,6 +4599,13 @@
         // ========== 初始化 ==========
         async function init() {
             console.log('[init] start');
+            // 读取全局配置（游客可访问）：EMAIL_VERIFY 开关决定注册是否要邮箱验证码
+            window.EMAIL_VERIFY_REQUIRED = true;
+            try{
+                const rc = await fetch('/api/config');
+                const jc = await rc.json();
+                if (jc && jc.email_verify_required === false) window.EMAIL_VERIFY_REQUIRED = false;
+            }catch(e){}
             // 鉴权门禁：已登录走完整模式；未登录进入游客模式（只读浏览）
             const authed = await ensureAuth();
             if (!authed) return;
@@ -7204,6 +7224,29 @@
             cursor:pointer;transition:.2s;}
         .auth-send-btn:hover{background:rgba(108,140,255,.22);}
         .auth-send-btn:disabled{opacity:.5;cursor:not-allowed;}
+        /* 滑块验证码 */
+        .auth-captcha-box{margin-top:2px;text-align:left;}
+        .captcha-img-wrap{position:relative;border-radius:10px;overflow:hidden;border:1px solid rgba(120,140,200,.3);}
+        .captcha-img-wrap canvas{display:block;width:100%;height:auto;background:#182038;}
+        .captcha-refresh{position:absolute;top:8px;right:8px;width:30px;height:30px;border-radius:8px;
+            border:1px solid rgba(120,140,200,.35);background:rgba(10,14,28,.75);color:#cdd6f4;
+            font-size:15px;cursor:pointer;line-height:1;z-index:3;}
+        .captcha-refresh:hover{background:rgba(108,140,255,.3);}
+        .captcha-track{position:relative;height:40px;margin-top:10px;border-radius:10px;
+            background:rgba(10,14,28,.8);border:1px solid rgba(120,140,200,.3);
+            overflow:hidden;user-select:none;touch-action:none;}
+        .captcha-hint{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+            font-size:12px;color:#9aa6c8;pointer-events:none;}
+        .captcha-pass{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+            font-size:13px;color:#4ade80;font-weight:600;pointer-events:none;background:rgba(20,40,30,.55);}
+        .captcha-handle{position:absolute;top:0;left:0;width:44px;height:40px;border-radius:9px;
+            background:linear-gradient(135deg,#6c8cff,#9b6cff);color:#fff;font-size:14px;
+            display:flex;align-items:center;justify-content:center;cursor:grab;z-index:2;
+            box-shadow:0 2px 8px rgba(0,0,0,.35);}
+        .captcha-handle.dragging{cursor:grabbing;box-shadow:0 0 14px rgba(108,140,255,.85);}
+        .captcha-msg{font-size:12px;min-height:14px;margin-top:6px;color:#9aa6c8;}
+        .captcha-msg.err{color:#ff7a8a;}
+        .captcha-msg.ok{color:#4ade80;}
         .auth-guest-link{color:#6c8cff;text-decoration:underline;cursor:pointer;margin-left:4px;}
         .sidebar-guest{display:flex;flex-direction:column;align-items:stretch;gap:8px;
             padding:10px;margin-bottom:8px;border:1px solid rgba(120,140,200,.25);
@@ -7232,6 +7275,7 @@
             const sendBtn = document.getElementById('auth-send-code');
 
             function renderMode(){
+                const needVerify = window.EMAIL_VERIFY_REQUIRED !== false;
                 if (authMode === 'login'){
                     titleEl.textContent = '登录 Skills Manager';
                     subEl.textContent = '多用户隔离：你的 Skills 与 AI 配置仅你自己可见';
@@ -7242,12 +7286,12 @@
                     codeRow.style.display = 'none';
                 } else {
                     titleEl.textContent = '注册新账号';
-                    subEl.textContent = '注册需邮箱验证码，注册后待管理员审批';
+                    subEl.textContent = needVerify ? '注册需邮箱验证码，注册后待管理员审批' : '注册后需管理员审批，通过后方可登录';
                     submitBtn.textContent = '提交注册';
                     switchText.textContent = '已有账号？';
                     switchLink.textContent = '去登录';
-                    emailEl.style.display = '';
-                    codeRow.style.display = 'flex';
+                    emailEl.style.display = needVerify ? '' : 'none';
+                    codeRow.style.display = needVerify ? 'flex' : 'none';
                 }
             }
             switchLink.addEventListener('click', function(e){
@@ -7255,6 +7299,7 @@
                 authMode = authMode === 'login' ? 'register' : 'login';
                 errEl.textContent = '';
                 renderMode();
+                loadCaptcha();
             });
 
             function showGuestContinueLink(msg){
@@ -7278,6 +7323,7 @@
                 renderMode();
                 errEl.textContent = '';
                 overlay.style.display = 'flex';
+                loadCaptcha();
             };
 
             function showGuestBar(){
@@ -7291,6 +7337,102 @@
             const guestLoginBtn = document.getElementById('guest-login-btn');
             if (guestLoginBtn) guestLoginBtn.addEventListener('click', function(){ window.openAuthModal('login'); });
 
+            // ---------- 滑块验证码（登录/注册/发码通用） ----------
+            const captchaCanvas = document.getElementById('auth-captcha-canvas');
+            const captchaCtx = captchaCanvas.getContext('2d');
+            const captchaTrack = document.getElementById('auth-captcha-track');
+            const captchaHandle = document.getElementById('auth-captcha-handle');
+            const captchaHint = document.getElementById('auth-captcha-hint');
+            const captchaPassEl = document.getElementById('auth-captcha-pass');
+            const captchaMsg = document.getElementById('auth-captcha-msg');
+            const captchaRefresh = document.getElementById('auth-captcha-refresh');
+            let captchaId = '', captchaGapY = 0, captchaGapSize = 42, captchaW = 320, captchaH = 160;
+            let captchaToken = '';       // 验证通过后的一次性 token（后端 consume）
+            let captchaBg = null;        // 离屏背景
+            let dragging = false;
+
+            function drawCaptchaPiece(px){
+                if (!captchaBg) return;
+                captchaCtx.clearRect(0, 0, captchaW, captchaH);
+                captchaCtx.drawImage(captchaBg, 0, 0, captchaW, captchaH);
+                captchaCtx.fillStyle = 'rgba(108,140,255,.55)';
+                captchaCtx.fillRect(px, captchaGapY, captchaGapSize, captchaGapSize);
+                captchaCtx.strokeStyle = 'rgba(255,255,255,.9)';
+                captchaCtx.lineWidth = 2;
+                captchaCtx.strokeRect(px, captchaGapY, captchaGapSize, captchaGapSize);
+            }
+
+            async function loadCaptcha(){
+                captchaToken = '';
+                captchaPassEl.style.display = 'none';
+                captchaHint.style.display = '';
+                captchaHandle.style.left = '0px';
+                captchaMsg.textContent = ''; captchaMsg.className = 'captcha-msg';
+                try{
+                    const r = await fetch('/api/captcha/new');
+                    const d = await r.json();
+                    if (!r.ok){ captchaMsg.textContent = d.error || '验证码加载失败'; captchaMsg.className='captcha-msg err'; return; }
+                    captchaId = d.id; captchaGapY = d.gap_y; captchaGapSize = d.gap_size;
+                    captchaW = d.width; captchaH = d.height;
+                    captchaCanvas.width = captchaW; captchaCanvas.height = captchaH;
+                    const url = URL.createObjectURL(new Blob([d.svg], {type:'image/svg+xml'}));
+                    const img = new Image();
+                    img.onload = function(){
+                        captchaBg = document.createElement('canvas');
+                        captchaBg.width = captchaW; captchaBg.height = captchaH;
+                        captchaBg.getContext('2d').drawImage(img, 0, 0, captchaW, captchaH);
+                        URL.revokeObjectURL(url);
+                        drawCaptchaPiece(0);
+                    };
+                    img.onerror = function(){ URL.revokeObjectURL(url); captchaMsg.textContent='验证码加载失败'; captchaMsg.className='captcha-msg err'; };
+                    img.src = url;
+                }catch(e){ captchaMsg.textContent = '网络错误：' + e.message; captchaMsg.className='captcha-msg err'; }
+            }
+
+            async function verifyCaptcha(){
+                const trackW = captchaTrack.clientWidth;
+                const handleW = captchaHandle.offsetWidth;
+                const left = Math.min(parseFloat(captchaHandle.style.left) || 0, trackW - handleW);
+                const ratio = (trackW - handleW) > 0 ? left / (trackW - handleW) : 0;
+                const x = Math.round(ratio * (captchaW - captchaGapSize));
+                try{
+                    const r = await fetch('/api/captcha/verify', {method:'POST',
+                        headers:{'Content-Type':'application/json'}, body: JSON.stringify({id: captchaId, x})});
+                    const d = await r.json().catch(()=>({}));
+                    if (r.ok && d.success){
+                        captchaToken = d.token || captchaId;
+                        captchaHint.style.display = 'none';
+                        captchaPassEl.style.display = '';
+                        captchaMsg.textContent = ''; captchaMsg.className = 'captcha-msg';
+                    } else {
+                        captchaMsg.textContent = d.error || '验证失败，请重试'; captchaMsg.className = 'captcha-msg err';
+                        if (/过期|次数过多/.test(d.error || '')){ loadCaptcha(); }
+                        else { captchaHandle.style.left = '0px'; drawCaptchaPiece(0); }
+                    }
+                }catch(e){ captchaMsg.textContent = '网络错误：' + e.message; captchaMsg.className='captcha-msg err'; }
+            }
+
+            captchaHandle.addEventListener('pointerdown', function(e){ if (captchaToken) return; e.preventDefault(); dragging = true; captchaHandle.classList.add('dragging'); });
+            window.addEventListener('pointermove', function(e){
+                if (!dragging) return;
+                const trackW = captchaTrack.clientWidth;
+                const handleW = captchaHandle.offsetWidth;
+                const rect = captchaTrack.getBoundingClientRect();
+                let left = e.clientX - rect.left - handleW / 2;
+                left = Math.max(0, Math.min(left, trackW - handleW));
+                captchaHandle.style.left = left + 'px';
+                const ratio = (trackW - handleW) > 0 ? left / (trackW - handleW) : 0;
+                drawCaptchaPiece(Math.round(ratio * (captchaW - captchaGapSize)));
+            });
+            window.addEventListener('pointerup', function(){
+                if (!dragging) return;
+                dragging = false;
+                captchaHandle.classList.remove('dragging');
+                verifyCaptcha();
+            });
+            captchaRefresh.addEventListener('click', loadCaptcha);
+            loadCaptcha();
+
             form.addEventListener('submit', async function(e){
                 e.preventDefault();
                 errEl.textContent = '';
@@ -7300,23 +7442,33 @@
                 const email = emailEl.value.trim();
                 const code = document.getElementById('auth-code').value.trim();
                 if (!username || !password){ errEl.textContent = '请输入用户名和密码'; return; }
+                if (!captchaToken){ errEl.textContent = '请先完成滑块验证'; return; }
                 const url = authMode === 'login' ? '/api/auth/login' : '/api/auth/register';
-                const payload = {username, password};
+                const payload = {username, password, captcha_id: captchaToken};
                 if (authMode === 'register'){
-                    if (!/^[A-Za-z0-9_\u4e00-\u9fa5]{3,20}$/.test(username)){
-                        errEl.textContent = '用户名需 3-20 位，仅限中文/字母/数字/下划线'; return;
+                    const needVerify = window.EMAIL_VERIFY_REQUIRED !== false;
+                    if (needVerify){
+                        if (!/^[A-Za-z0-9_\u4e00-\u9fa5]{3,20}$/.test(username)){
+                            errEl.textContent = '用户名需 3-20 位，仅限中文/字母/数字/下划线'; return;
+                        }
+                        if (password.length < 6 || password.length > 64){
+                            errEl.textContent = '密码需 6-64 位'; return;
+                        }
+                        if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) || email.length > 254){
+                            errEl.textContent = '请输入正确的邮箱'; return;
+                        }
+                        if (!/^\d{6}$/.test(code)){
+                            errEl.textContent = '验证码为 6 位数字'; return;
+                        }
+                        payload.email = email;
+                        payload.code = code;
+                    } else if (email){
+                        // 邮箱验证码已关闭（EMAIL_VERIFY=0）：邮箱可选，填了才带上并校验格式
+                        if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) || email.length > 254){
+                            errEl.textContent = '请输入正确的邮箱'; return;
+                        }
+                        payload.email = email;
                     }
-                    if (password.length < 6 || password.length > 64){
-                        errEl.textContent = '密码需 6-64 位'; return;
-                    }
-                    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) || email.length > 254){
-                        errEl.textContent = '请输入正确的邮箱'; return;
-                    }
-                    if (!/^\d{6}$/.test(code)){
-                        errEl.textContent = '验证码为 6 位数字'; return;
-                    }
-                    payload.email = email;
-                    payload.code = code;
                 }
                 try{
                     const resp = await fetch(url, {method:'POST', headers:{'Content-Type':'application/json'},
@@ -7338,6 +7490,7 @@
                         showGuestContinueLink(data.message || '注册成功，请等待管理员审批，');
                         document.getElementById('auth-password').value = '';
                         document.getElementById('auth-code').value = '';
+                        loadCaptcha();
                         return;
                     }
                     overlay.style.display = 'none';
@@ -7355,13 +7508,14 @@
             sendBtn.addEventListener('click', async function(){
                 const email = emailEl.value.trim();
                 if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){ errEl.textContent = '请输入正确的邮箱'; return; }
+                if (!captchaToken){ errEl.textContent = '请先完成滑块验证'; return; }
                 sendBtn.disabled = true;
                 errEl.textContent = '';
                 errEl.style.color = '';
                 let sendOk = false;
                 try{
                     const r = await fetch('/api/auth/send-code', {method:'POST',
-                        headers:{'Content-Type':'application/json'}, body: JSON.stringify({email})});
+                        headers:{'Content-Type':'application/json'}, body: JSON.stringify({email, captcha_id: captchaToken})});
                     let d;
                     try { d = await r.json(); }
                     catch { d = {error: `服务器返回非 JSON（HTTP ${r.status}）`}; }
@@ -7369,6 +7523,7 @@
                         sendOk = true;
                         errEl.style.color = 'var(--green, #16a34a)';
                         errEl.textContent = d.message || '验证码已发送';
+                        loadCaptcha();
                     } else {
                         errEl.textContent = (d && d.error) || `发送失败（HTTP ${r.status}）`;
                     }

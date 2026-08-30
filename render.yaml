@@ -32,6 +32,10 @@ services:
         sync: false
       - key: MAIL_DEBUG_PRINT
         value: "false"
+      # 注册邮箱验证码开关：EMAIL_VERIFY=0 关闭（当前邮件服务不可用，先关掉；
+      # SMTP 修好后改回 "1" 即可恢复邮箱验证码）
+      - key: EMAIL_VERIFY
+        value: "0"
       - key: AI_BASE_URL
         value: https://open.bigmodel.cn/api/paas/v4
       - key: AI_API_KEY
