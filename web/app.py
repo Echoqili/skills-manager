@@ -969,6 +969,8 @@ def _send_verification_email(to: str, code: str) -> None:
     user = os.environ.get("SMTP_USER", "").strip()
     pwd = os.environ.get("SMTP_PASS", "").strip()
     sender = os.environ.get("SMTP_FROM", "").strip() or user
+    # 脱敏打印：日志可见在连哪个 SMTP 服务器（不含密码），便于 Render 排查
+    print(f"[MAIL] 发送验证码 -> {to} | host={host} port={port} user={user or '(未配置)'}")
     body = (
         "【Skills Manager】\n\n"
         f"你的注册验证码是：{code}\n\n"
@@ -979,10 +981,11 @@ def _send_verification_email(to: str, code: str) -> None:
     msg["From"] = formataddr((str(Header("Skills Manager", "utf-8")), sender))
     msg["To"] = to
     try:
+        # 超时取 8s：避免 SMTP 慢时累计超过 gunicorn 默认 30s 被砍 worker
         if port == 465:
-            s = _IPv4SMTP_SSL(host, port, timeout=15)
+            s = _IPv4SMTP_SSL(host, port, timeout=8)
         else:
-            s = _IPv4SMTP(host, port, timeout=15)
+            s = _IPv4SMTP(host, port, timeout=8)
             s.starttls()
     except (OSError, smtplib.SMTPException) as e:
         raise RuntimeError(
@@ -1025,6 +1028,10 @@ def api_auth_send_code():
     try:
         _send_verification_email(email, code)
     except Exception as e:
+        # 打印完整 traceback 到服务日志（Render Logs 可见），否则只剩错误文案无法定位
+        import traceback as _tb
+        _tb.print_exc()
+        print(f"[MAIL-ERROR] 发送验证码到 {email} 失败：{e}")
         return jsonify({"error": f"邮件发送失败：{e}"}), 500
     return jsonify({"success": True, "message": "验证码已发送到邮箱（10 分钟有效）"})
 
