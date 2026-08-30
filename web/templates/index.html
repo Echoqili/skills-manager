@@ -7305,13 +7305,15 @@
                 try{
                     const resp = await fetch(url, {method:'POST', headers:{'Content-Type':'application/json'},
                         body: JSON.stringify(payload)});
-                    const data = await resp.json();
+                    let data;
+                    try { data = await resp.json(); }
+                    catch { data = {error: `服务器返回非 JSON（HTTP ${resp.status}），请检查服务是否正常`}; }
                     if (!resp.ok || !data.success){
                         if (data.code === 'pending' || data.code === 'rejected'){
                             showGuestContinueLink((data.error || '账号暂不可用') + '，');
                             return;
                         }
-                        errEl.textContent = data.error || '操作失败';
+                        errEl.textContent = data.error || `请求失败（HTTP ${resp.status}）`;
                         return;
                     }
                     if (authMode === 'register' && data.status === 'pending'){
@@ -7328,7 +7330,7 @@
                     // 重新初始化业务数据
                     if (typeof init === 'function') init();
                 }catch(err){
-                    errEl.textContent = '网络错误，请重试';
+                    errEl.textContent = '网络错误：' + (err && err.message ? err.message : '请检查网络或服务');
                 }
             });
 
@@ -7340,19 +7342,29 @@
                 sendBtn.disabled = true;
                 errEl.textContent = '';
                 errEl.style.color = '';
+                let sendOk = false;
                 try{
                     const r = await fetch('/api/auth/send-code', {method:'POST',
                         headers:{'Content-Type':'application/json'}, body: JSON.stringify({email})});
-                    const d = await r.json();
+                    let d;
+                    try { d = await r.json(); }
+                    catch { d = {error: `服务器返回非 JSON（HTTP ${r.status}）`}; }
                     if (r.ok){
+                        sendOk = true;
                         errEl.style.color = 'var(--green, #16a34a)';
                         errEl.textContent = d.message || '验证码已发送';
                     } else {
-                        errEl.textContent = d.error || '发送失败';
+                        errEl.textContent = (d && d.error) || `发送失败（HTTP ${r.status}）`;
                     }
                 }catch(err){
-                    errEl.textContent = '网络错误，请重试';
+                    errEl.textContent = '网络错误：' + (err && err.message ? err.message : '请检查服务');
                 }
+                if (!sendOk){
+                    // 发送失败：立即恢复按钮，不要误导性的倒计时
+                    sendBtn.disabled = false;
+                    return;
+                }
+                // 只有真发成功才启动 60s 倒计时
                 let left = 60;
                 sendBtn.textContent = left + 's 后重发';
                 if (sendTimer) clearInterval(sendTimer);
