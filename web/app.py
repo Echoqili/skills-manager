@@ -39,6 +39,7 @@ import db as skills_db  # SQLite 索引层
 # ========== 用户与鉴权（多用户隔离） ==========
 import secrets
 from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.exceptions import HTTPException
 
 
 def init_users_table():
@@ -312,6 +313,20 @@ app.secret_key = os.environ.get("SECRET_KEY") or secrets.token_hex(32)
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 app.config['SESSION_COOKIE_SECURE'] = os.environ.get('SESSION_COOKIE_SECURE', '0') == '1'
+
+
+@app.errorhandler(Exception)
+def _handle_uncaught_exc(exc):
+    """统一异常出口：所有 /api/* 保证返回 JSON，未捕获异常打印完整 traceback 到日志，
+    避免 Flask 默认返回 HTML 500 导致前端「服务器返回非 JSON（HTTP 500）」。"""
+    import traceback as _tb
+    _tb.print_exc()
+    if isinstance(exc, HTTPException):
+        return jsonify({
+            "error": getattr(exc, "description", str(exc)),
+            "code": getattr(exc, "code", 500),
+        }), exc.code
+    return jsonify({"error": f"服务器内部错误：{type(exc).__name__}: {exc}"}), 500
 
 
 @app.after_request
