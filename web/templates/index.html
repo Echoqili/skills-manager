@@ -2936,6 +2936,11 @@
                             <span class="nav-icon">⚙️</span>
                             <span data-i18n="tab_ai">智能设置</span>
                         </button>
+                        <button class="nav-tab" data-tab="trash">
+                            <span class="nav-icon">🗑️</span>
+                            <span data-i18n="tab_trash">回收站</span>
+                            <span class="count" id="trashCount" style="display:none;">0</span>
+                        </button>
                     </div>
                 </nav>
                 <div class="sidebar-footer">
@@ -3316,6 +3321,21 @@
                             <div id="listPanel" class="discover-panel" style="display:none;">
                                 <div id="userSkillsList"></div>
                             </div>
+                        </section>
+
+                        <!-- 回收站（软删除恢复） -->
+                        <section id="trashSection" class="content-section">
+                            <div class="section-header">
+                                <div class="section-title">
+                                    <h2 data-i18n="sec_trash">🗑️ 回收站</h2>
+                                    <span class="tag" id="trashTag" data-i18n="trash_tag">误删可恢复，保留 30 天</span>
+                                </div>
+                            </div>
+                            <div style="margin-bottom:16px;color:var(--text-muted);font-size:0.86rem;" data-i18n="trash_hint">删除的 Skill 会先进入回收站，30 天内可一键恢复；超过期限将自动永久清除。</div>
+                            <div id="trashToolbar" style="margin-bottom:16px;display:none;">
+                                <button class="btn btn-secondary" onclick="emptyTrash()" data-i18n="trash_empty">🧹 清空回收站</button>
+                            </div>
+                            <div id="trashList"></div>
                         </section>
 
                         <!-- 自动更新管理 -->
@@ -3921,7 +3941,7 @@
                 toast_info: '提示',
                 // Confirm dialog
                 confirm_title: '确认删除',
-                confirm_delete: '确定要删除 Skill "{}" 吗？此操作不可撤销。',
+                confirm_delete: '确定要删除 Skill "{}" 吗？将移入回收站，30 天内可恢复。',
                 btn_cancel: '取消',
                 btn_confirm: '确认删除',
                 // Empty states
@@ -3971,6 +3991,27 @@
                 desc_ai_product: 'Prompt、安全',
                 desc_design_system: 'UI/UX组件库',
                 desc_skill_creation: '官方创建工具',
+                // Trash (回收站)
+                tab_trash: '回收站',
+                sec_trash: '🗑️ 回收站',
+                trash_tag: '误删可恢复，保留 30 天',
+                trash_hint: '删除的 Skill 会先进入回收站，30 天内可一键恢复；超过期限将自动永久清除。',
+                trash_empty: '🧹 清空回收站',
+                trash_empty_title: '回收站是空的',
+                trash_empty_desc: '误删的 Skill 会出现在这里，30 天内可恢复。',
+                trash_expire: '剩余保留',
+                days_left_unit: '天',
+                trash_restore: '恢复',
+                trash_purge: '彻底删除',
+                trash_restored: '已恢复',
+                trash_purged: '已永久删除',
+                trash_emptied: '回收站已清空',
+                trash_confirm_restore: '确定要恢复 Skill "{}" 吗？',
+                trash_confirm_purge: '确定要永久删除 Skill "{}" 吗？此操作不可撤销。',
+                trash_confirm_empty: '确定要清空回收站吗？所有项目将被永久删除。',
+                trash_restore_failed: '恢复失败',
+                trash_purge_failed: '删除失败',
+                moved_to_trash: '已移入回收站',
             },
             en: {
                 // Hero
@@ -4296,7 +4337,7 @@
                 toast_info: 'Info',
                 // Confirm dialog
                 confirm_title: 'Confirm Delete',
-                confirm_delete: 'Are you sure you want to delete Skill "{}"? This action cannot be undone.',
+                confirm_delete: 'Delete Skill "{}"? It will be moved to Trash and can be restored within 30 days.',
                 btn_cancel: 'Cancel',
                 btn_confirm: 'Delete',
                 // Empty states
@@ -4346,6 +4387,27 @@
                 desc_ai_product: 'Prompt, Safety',
                 desc_design_system: 'UI/UX Component Library',
                 desc_skill_creation: 'Official creation tools',
+                // Trash
+                tab_trash: 'Trash',
+                sec_trash: '🗑️ Trash',
+                trash_tag: 'Recoverable, kept 30 days',
+                trash_hint: 'Deleted Skills go to Trash and can be restored within 30 days; expired items are purged automatically.',
+                trash_empty: '🧹 Empty Trash',
+                trash_empty_title: 'Trash is empty',
+                trash_empty_desc: 'Accidentally deleted Skills appear here and can be restored within 30 days.',
+                trash_expire: 'Retention left',
+                days_left_unit: 'd',
+                trash_restore: 'Restore',
+                trash_purge: 'Delete permanently',
+                trash_restored: 'Restored',
+                trash_purged: 'Permanently deleted',
+                trash_emptied: 'Trash emptied',
+                trash_confirm_restore: 'Restore Skill "{}"?',
+                trash_confirm_purge: 'Permanently delete Skill "{}"? This cannot be undone.',
+                trash_confirm_empty: 'Empty the trash? All items will be permanently deleted.',
+                trash_restore_failed: 'Restore failed',
+                trash_purge_failed: 'Delete failed',
+                moved_to_trash: 'Moved to Trash',
             }
         };
 
@@ -4899,6 +4961,8 @@
             }
             // 渲染打包清单页面
             if (section === 'cart') renderCart();
+            // 渲染回收站
+            if (section === 'trash') loadTrash();
             // Update section tags
             const tagMap = {
                 'github': 'tag_github',
@@ -6925,13 +6989,114 @@
                 });
                 const data = await res.json();
                 if (data.success) {
-                    showToast(`${t('deleted')}: ${name}`, 'success');
+                    showToast(`${t('moved_to_trash')}: ${name}`, 'success');
                     loadUserSkills();
                 } else {
                     showToast(`${t('delete_failed')}: ${data.error || ''}`, 'error');
                 }
             } catch (e) {
                 showToast(`${t('delete_failed')}: ${e.message}`, 'error');
+            }
+        }
+
+        // ========== 回收站（软删除恢复） ==========
+        async function loadTrash() {
+            try {
+                const res = await fetch('/api/trash');
+                const data = await res.json();
+                const container = document.getElementById('trashList');
+                const toolbar = document.getElementById('trashToolbar');
+                const badge = document.getElementById('trashCount');
+                const count = data.count || 0;
+                if (badge) {
+                    badge.style.display = count > 0 ? 'inline-block' : 'none';
+                    badge.textContent = count;
+                }
+                if (toolbar) toolbar.style.display = count > 0 ? 'block' : 'none';
+                if (!data.trash || count === 0) {
+                    container.innerHTML = `
+                        <div class="empty-state">
+                            <div class="empty-icon">🗑️</div>
+                            <h3 class="empty-title">${t('trash_empty_title')}</h3>
+                            <p class="empty-desc">${t('trash_empty_desc')}</p>
+                        </div>`;
+                    return;
+                }
+                container.innerHTML = `<div class="skills-grid">${data.trash.map(s => `
+                    <div class="skill-card">
+                        <div class="skill-card-header">
+                            <div class="skill-emoji">🗑️</div>
+                            <div class="skill-info">
+                                <div class="skill-name">${escHtml(s.name)}</div>
+                                <span class="skill-category">${t('user_import')}</span>
+                            </div>
+                        </div>
+                        <p class="skill-desc">${escHtml(s.description || '')}</p>
+                        <div class="skill-meta" style="font-size:0.8rem;color:var(--text-muted);margin-bottom:8px;">
+                            ${t('trash_expire')}: ${s.days_left != null ? s.days_left + ' ' + t('days_left_unit') : '-'}
+                        </div>
+                        <div class="skill-actions">
+                            <button class="skill-action secondary" onclick="restoreTrashSkill('${escHtml(s.name)}')">♻️ ${t('trash_restore')}</button>
+                            <button class="skill-action danger" onclick="purgeTrashSkill('${escHtml(s.name)}')">❌ ${t('trash_purge')}</button>
+                        </div>
+                    </div>`).join('')}</div>`;
+            } catch (e) {
+                showToast(`${t('load_failed')}: ${e.message}`, 'error');
+            }
+        }
+
+        async function restoreTrashSkill(name) {
+            if (!(await showConfirm(t('trash_confirm_restore', name)))) return;
+            try {
+                const res = await fetch('/api/trash/restore', {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({name})
+                });
+                const data = await res.json();
+                if (data.success) {
+                    showToast(`${t('trash_restored')}: ${name}`, 'success');
+                    loadTrash();
+                    if (window.loadUserSkills) loadUserSkills();
+                } else {
+                    showToast(`${t('trash_restore_failed')}: ${data.error || ''}`, 'error');
+                }
+            } catch (e) {
+                showToast(`${t('trash_restore_failed')}: ${e.message}`, 'error');
+            }
+        }
+
+        async function purgeTrashSkill(name) {
+            if (!(await showConfirm(t('trash_confirm_purge', name)))) return;
+            try {
+                const res = await fetch('/api/trash/purge', {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({name})
+                });
+                const data = await res.json();
+                if (data.success) {
+                    showToast(`${t('trash_purged')}: ${name}`, 'success');
+                    loadTrash();
+                } else {
+                    showToast(`${t('trash_purge_failed')}: ${data.error || ''}`, 'error');
+                }
+            } catch (e) {
+                showToast(`${t('trash_purge_failed')}: ${e.message}`, 'error');
+            }
+        }
+
+        async function emptyTrash() {
+            if (!(await showConfirm(t('trash_confirm_empty')))) return;
+            try {
+                const res = await fetch('/api/trash/empty', {method: 'POST'});
+                const data = await res.json();
+                if (data.success) {
+                    showToast(t('trash_emptied'), 'success');
+                    loadTrash();
+                } else {
+                    showToast(`${t('trash_purge_failed')}: ${data.error || ''}`, 'error');
+                }
+            } catch (e) {
+                showToast(`${t('trash_purge_failed')}: ${e.message}`, 'error');
             }
         }
 

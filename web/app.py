@@ -15,7 +15,7 @@ import requests
 import subprocess
 import threading
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from functools import lru_cache, wraps
 
 from flask import Flask, render_template, request, jsonify, send_file, Response, session, has_request_context
@@ -1603,7 +1603,7 @@ def api_list_user_skills():
 
 @app.route('/api/import/delete', methods=['POST'])
 def api_delete_user_skill():
-    """删除当前登录用户导入的 Skill（校验归属，防别人删我的）"""
+    """软删除当前登录用户导入的 Skill（移入回收站，30 天内可恢复；校验归属防别人删我的）"""
     user = get_current_user()
     if not user:
         return jsonify({"error": "unauthorized", "code": 401}), 401
@@ -1625,21 +1625,100 @@ def api_delete_user_skill():
     if not existing or existing.get("owner") != uid:
         return jsonify({"error": "Skill not found or not yours"}), 404
 
-    skill_dir = skills_db.USER_IMPORT_ROOT / uid / skill_name
-    if not skill_dir.exists():
+    # 软删除：标记 deleted_at + 移入回收站（文件不立即销毁）
+    ok = skills_db.soft_delete_skill(skill_name, uid)
+    if not ok:
         return jsonify({"error": "Skill not found"}), 404
+    return jsonify({
+        "success": True,
+        "message": f"Skill '{skill_name}' 已移入回收站，30 天内可恢复",
+        "retention_days": 30
+    })
 
-    try:
-        import shutil
-        shutil.rmtree(skill_dir)
-        # 双写：DB 删除（按 name+owner）
-        skills_db.delete_skill(skill_name, uid)
-        return jsonify({
-            "success": True,
-            "message": f"Skill '{skill_name}' deleted"
+
+# ========== 回收站（软删除恢复） ==========
+@app.route('/api/trash', methods=['GET'])
+def api_trash_list():
+    """列出当前用户的回收站（访问时自动清理超期项）"""
+    user = get_current_user()
+    if not user:
+        return jsonify({"error": "unauthorized", "code": 401}), 401
+    uid = str(user["id"])
+    skills_db.purge_expired(uid, days=30)
+    items = skills_db.list_trash(uid)
+    now = datetime.now(timezone.utc)
+    out = []
+    for s in items:
+        deleted_at = s.get("deleted_at")
+        dt = None
+        if deleted_at:
+            try:
+                dt = datetime.fromisoformat(deleted_at.replace("Z", "+00:00"))
+            except Exception:
+                dt = None
+        expires_at = None
+        days_left = None
+        if dt:
+            expires = dt + timedelta(days=30)
+            days_left = (expires - now).days
+            expires_at = expires.isoformat()
+        out.append({
+            "name": s["name"],
+            "name_zh": s.get("name_zh", ""),
+            "description": s.get("description", ""),
+            "category": s.get("category", ""),
+            "deleted_at": deleted_at,
+            "expires_at": expires_at,
+            "days_left": max(days_left, 0) if days_left is not None else None,
         })
-    except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+    return jsonify({"trash": out, "count": len(out), "retention_days": 30})
+
+
+@app.route('/api/trash/restore', methods=['POST'])
+def api_trash_restore():
+    """从回收站恢复指定 Skill"""
+    user = get_current_user()
+    if not user:
+        return jsonify({"error": "unauthorized", "code": 401}), 401
+    uid = str(user["id"])
+    data = request.get_json() or {}
+    name = (data.get('name') or '').strip()
+    if not name:
+        return jsonify({"error": "Skill name required"}), 400
+    if '..' in name or '/' in name or '\\' in name:
+        return jsonify({"error": "Invalid skill name"}), 400
+    if skills_db.restore_skill(name, uid):
+        return jsonify({"success": True, "message": f"Skill '{name}' 已恢复"})
+    return jsonify({"error": "Skill not found in trash"}), 404
+
+
+@app.route('/api/trash/purge', methods=['POST'])
+def api_trash_purge():
+    """从回收站彻底删除指定 Skill（不可恢复）"""
+    user = get_current_user()
+    if not user:
+        return jsonify({"error": "unauthorized", "code": 401}), 401
+    uid = str(user["id"])
+    data = request.get_json() or {}
+    name = (data.get('name') or '').strip()
+    if not name:
+        return jsonify({"error": "Skill name required"}), 400
+    if '..' in name or '/' in name or '\\' in name:
+        return jsonify({"error": "Invalid skill name"}), 400
+    if skills_db.purge_skill(name, uid):
+        return jsonify({"success": True, "message": f"Skill '{name}' 已永久删除"})
+    return jsonify({"error": "Skill not found in trash"}), 404
+
+
+@app.route('/api/trash/empty', methods=['POST'])
+def api_trash_empty():
+    """清空当前用户的回收站"""
+    user = get_current_user()
+    if not user:
+        return jsonify({"error": "unauthorized", "code": 401}), 401
+    uid = str(user["id"])
+    n = skills_db.empty_trash(uid)
+    return jsonify({"success": True, "message": f"已清空回收站（{n} 项）", "purged": n})
 
 
 # ========== 版本发布功能 (从 GitHub 获取) ==========

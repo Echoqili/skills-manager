@@ -11,10 +11,11 @@ Skills Manager Web - SQLite 索引层
 
 import json
 import re
+import shutil
 import sqlite3
 import threading
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -27,6 +28,9 @@ DB_PATH = DATA_DIR / "skills.db"
 
 # 用户导入目录
 USER_IMPORT_ROOT = DATA_DIR / "user-imports"
+
+# 回收站（软删除暂存，文件不立即销毁）
+TRASH_ROOT = USER_IMPORT_ROOT / ".trash"
 
 
 # ========== 分类辅助（与 app.py 同步） ==========
@@ -116,6 +120,11 @@ def parse_frontmatter(text: str) -> Tuple[Dict[str, Any], str]:
                 current_list = None
                 meta[key] = _strip_quotes(val)
     body = text[m.end():]
+    # 空值（形如 `key:` 且无后续列表项）不应解析为列表，归为字符串，
+    # 否则后续 INSERT 会因绑定 list 而报错
+    for _k, _v in list(meta.items()):
+        if isinstance(_v, list) and len(_v) == 0:
+            meta[_k] = ""
     return meta, body
 
 
@@ -181,6 +190,9 @@ def scan_all_skills() -> List[Dict[str, Any]]:
     # 用户导入（按 owner 分目录：user-imports/<owner>/<skill_name>/SKILL.md）
     if USER_IMPORT_ROOT.exists():
         for md in USER_IMPORT_ROOT.rglob("SKILL.md"):
+            # 跳过回收站目录（.trash），避免软删除项被重新扫描复活
+            if ".trash" in md.parts:
+                continue
             # md.parent = skill 目录, md.parent.parent = owner 目录
             owner = md.parent.parent.name if md.parent.parent != USER_IMPORT_ROOT else ""
             data = scan_skill_file(md, source="user-imports", owner=owner)
@@ -190,6 +202,8 @@ def scan_all_skills() -> List[Dict[str, Any]]:
     legacy_root = SKILLS_ROOT / "user-imports"
     if legacy_root.exists():
         for md in legacy_root.rglob("SKILL.md"):
+            if ".trash" in md.parts:
+                continue
             data = scan_skill_file(md, source="user-imports", owner="")
             if data:
                 skills.append(data)
@@ -220,6 +234,7 @@ CREATE TABLE IF NOT EXISTS skills (
     size_bytes INTEGER DEFAULT 0,
     mtime REAL DEFAULT 0,
     updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    deleted_at TEXT DEFAULT NULL,
     PRIMARY KEY (name, owner)
 );
 
@@ -228,6 +243,7 @@ CREATE INDEX IF NOT EXISTS idx_skills_source ON skills(source);
 CREATE INDEX IF NOT EXISTS idx_skills_category ON skills(category);
 CREATE INDEX IF NOT EXISTS idx_skills_owner ON skills(owner);
 CREATE INDEX IF NOT EXISTS idx_skills_name_lower ON skills(LOWER(name));
+CREATE INDEX IF NOT EXISTS idx_skills_deleted ON skills(deleted_at);
 """
 
 
@@ -264,39 +280,54 @@ def init_db() -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     conn = get_conn()
     conn.executescript(SCHEMA)
-    # 兼容旧库：若缺少 owner 列则迁移
+    # 兼容旧库：若缺少 owner / deleted_at 列则迁移
     cols = {r[1] for r in conn.execute("PRAGMA table_info(skills)")}
     if "owner" not in cols:
         conn.execute("ALTER TABLE skills ADD COLUMN owner TEXT DEFAULT ''")
+    if "deleted_at" not in cols:
+        conn.execute("ALTER TABLE skills ADD COLUMN deleted_at TEXT DEFAULT NULL")
     rebuild_all()
 
 
+def _insert_skill(conn, s: Dict[str, Any], deleted_at: Optional[str] = None) -> None:
+    """写入（或覆盖）一条 skill 记录；deleted_at 用于回收站保留"""
+    now = datetime.now(timezone.utc).isoformat()
+    conn.execute(
+        """
+        INSERT OR REPLACE INTO skills (
+            name, name_zh, name_en, path, abs_path, source, owner,
+            category, category_emoji, category_name,
+            description, description_en, description_zh,
+            version, author, platforms, tags,
+            content, size_bytes, mtime, updated_at, deleted_at
+        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+        """,
+        (
+            s["name"], s.get("name_zh", ""), s.get("name_en", s["name"]),
+            s["path"], s.get("abs_path", ""),
+            s["source"], s.get("owner", ""),
+            s["category"], s.get("category_emoji", "📦"), s.get("category_name", s.get("category", "")),
+            s.get("description", ""), s.get("description_en", ""), s.get("description_zh", ""),
+            str(s.get("version", "1.0.0")), s.get("author", ""), s.get("platforms", ""), s.get("tags", ""),
+            s["content"], s.get("size_bytes", 0), s.get("mtime", 0),
+            now, deleted_at,
+        ),
+    )
+
+
 def rebuild_all() -> None:
-    """全量重建 skills 表（启动时调用）"""
+    """全量重建 skills 表（启动时调用）；保留回收站内软删除记录"""
+    conn = get_conn()
+    # 先取出回收站中的软删除记录，重建后重新插入，避免被整体 DELETE 清掉
+    trash_rows = [dict(r) for r in conn.execute(
+        "SELECT * FROM skills WHERE deleted_at IS NOT NULL").fetchall()]
     skills = scan_all_skills()
     with tx() as conn:
         conn.execute("DELETE FROM skills")
         for s in skills:
-            conn.execute(
-                """
-                INSERT OR REPLACE INTO skills (
-                    name, name_zh, name_en, path, abs_path, source, owner,
-                    category, category_emoji, category_name,
-                    description, description_en, description_zh,
-                    version, author, platforms, tags,
-                    content, size_bytes, mtime, updated_at
-                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-                """,
-                (
-                    s["name"], s["name_zh"], s["name_en"], s["path"], s["abs_path"],
-                    s["source"], s.get("owner", ""),
-                    s["category"], s["category_emoji"], s["category_name"],
-                    s["description"], s["description_en"], s["description_zh"],
-                    s["version"], s["author"], s["platforms"], s["tags"],
-                    s["content"], s["size_bytes"], s["mtime"],
-                    datetime.now(timezone.utc).isoformat(),
-                ),
-            )
+            _insert_skill(conn, s, deleted_at=None)
+        for tr in trash_rows:
+            _insert_skill(conn, tr, deleted_at=tr.get("deleted_at"))
 
 
 # ========== 增 / 删 / 改 ==========
@@ -306,26 +337,7 @@ def upsert_skill(abs_path: Path, source: str, owner: str = "") -> Optional[Dict[
     if not data:
         return None
     with tx() as conn:
-        conn.execute(
-            """
-            INSERT OR REPLACE INTO skills (
-                name, name_zh, name_en, path, abs_path, source, owner,
-                category, category_emoji, category_name,
-                description, description_en, description_zh,
-                version, author, platforms, tags,
-                content, size_bytes, mtime, updated_at
-            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-            """,
-            (
-                data["name"], data["name_zh"], data["name_en"], data["path"],
-                data["abs_path"], data["source"], data.get("owner", ""),
-                data["category"], data["category_emoji"], data["category_name"],
-                data["description"], data["description_en"], data["description_zh"],
-                data["version"], data["author"], data["platforms"], data["tags"],
-                data["content"], data["size_bytes"], data["mtime"],
-                datetime.utcnow().isoformat(),
-            ),
-        )
+        _insert_skill(conn, data, deleted_at=None)
     return data
 
 
@@ -336,23 +348,157 @@ def delete_skill(name: str, owner: str = "") -> bool:
         return cur.rowcount > 0
 
 
+# ========== 软删除 / 回收站 ==========
+def soft_delete_skill(name: str, owner: str = "") -> bool:
+    """软删除：标记 deleted_at 并移入 .trash 目录（文件不立即销毁，可恢复）"""
+    conn = get_conn()
+    row = conn.execute(
+        "SELECT * FROM skills WHERE name = ? AND owner = ? AND deleted_at IS NULL",
+        (name, owner),
+    ).fetchone()
+    if not row:
+        return False
+    s = dict(row)
+    src = Path(s["abs_path"])
+    trash_dir = TRASH_ROOT / owner / name
+    try:
+        if src.exists():
+            trash_dir.mkdir(parents=True, exist_ok=True)
+            dst = trash_dir / "SKILL.md"
+            if dst.exists():
+                dst.unlink()
+            shutil.move(str(src), str(dst))
+            # 移除已空的原始父目录
+            try:
+                src.parent.rmdir()
+            except OSError:
+                pass
+    except Exception:
+        # 文件移动失败也继续：DB 标记使该项进入回收站，恢复时可依据 content 重建
+        pass
+    with tx() as conn:
+        conn.execute(
+            "UPDATE skills SET deleted_at = ? WHERE name = ? AND owner = ?",
+            (datetime.now(timezone.utc).isoformat(), name, owner),
+        )
+    return True
+
+
+def list_trash(owner: str = "") -> List[Dict[str, Any]]:
+    """列出某用户的回收站（按删除时间倒序）"""
+    conn = get_conn()
+    rows = conn.execute(
+        "SELECT * FROM skills WHERE owner = ? AND deleted_at IS NOT NULL ORDER BY deleted_at DESC",
+        (owner,),
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def trash_count(owner: str = "") -> int:
+    conn = get_conn()
+    return conn.execute(
+        "SELECT COUNT(*) FROM skills WHERE owner = ? AND deleted_at IS NOT NULL",
+        (owner,),
+    ).fetchone()[0]
+
+
+def restore_skill(name: str, owner: str = "") -> bool:
+    """从回收站恢复：文件移回原路径（缺失则按 content 重建），清除 deleted_at"""
+    conn = get_conn()
+    row = conn.execute(
+        "SELECT * FROM skills WHERE name = ? AND owner = ? AND deleted_at IS NOT NULL",
+        (name, owner),
+    ).fetchone()
+    if not row:
+        return False
+    s = dict(row)
+    trash_dir = TRASH_ROOT / owner / name
+    src = trash_dir / "SKILL.md"
+    dst = Path(s["abs_path"])
+    try:
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        if src.exists():
+            if dst.exists():
+                dst.unlink()
+            shutil.move(str(src), str(dst))
+        else:
+            # 物理文件丢失，依据已保存的 content 重建
+            dst.write_text(s.get("content", ""), encoding="utf-8")
+        # 清理已空的回收站子目录
+        try:
+            trash_dir.rmdir()
+        except OSError:
+            pass
+    except Exception:
+        return False
+    with tx() as conn:
+        conn.execute(
+            "UPDATE skills SET deleted_at = NULL WHERE name = ? AND owner = ?",
+            (name, owner),
+        )
+    return True
+
+
+def purge_skill(name: str, owner: str = "") -> bool:
+    """彻底删除（从回收站永久移除）：清 DB 行 + 删除 .trash 物理目录"""
+    row = conn_get_row(name, owner)
+    if not row:
+        return False
+    trash_dir = TRASH_ROOT / owner / name
+    if trash_dir.exists():
+        shutil.rmtree(trash_dir, ignore_errors=True)
+    with tx() as conn:
+        conn.execute("DELETE FROM skills WHERE name = ? AND owner = ?", (name, owner))
+    return True
+
+
+def conn_get_row(name: str, owner: str):
+    """内部：取回收站中的某行（供 purge 判断）"""
+    return get_conn().execute(
+        "SELECT * FROM skills WHERE name = ? AND owner = ? AND deleted_at IS NOT NULL",
+        (name, owner),
+    ).fetchone()
+
+
+def purge_expired(owner: str = "", days: int = 30) -> int:
+    """清理超期回收站项（默认保留 30 天）"""
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+    rows = get_conn().execute(
+        "SELECT name FROM skills WHERE owner = ? AND deleted_at IS NOT NULL AND deleted_at < ?",
+        (owner, cutoff),
+    ).fetchall()
+    for r in rows:
+        purge_skill(r["name"], owner)
+    return len(rows)
+
+
+def empty_trash(owner: str = "") -> int:
+    """清空某用户的回收站，返回清除数量"""
+    rows = list_trash(owner)
+    for r in rows:
+        purge_skill(r["name"], owner)
+    return len(rows)
+
+
 # ========== 查询 ==========
 def list_all(source: Optional[str] = None) -> List[Dict[str, Any]]:
     sql = "SELECT * FROM skills"
     params: Tuple = ()
     if source:
-        sql += " WHERE source = ?"
+        sql += " WHERE source = ? AND deleted_at IS NULL"
         params = (source,)
+    else:
+        sql += " WHERE deleted_at IS NULL"
     sql += " ORDER BY category, name"
     conn = get_conn()
     return [dict(r) for r in conn.execute(sql, params).fetchall()]
 
 
 def list_visible(owner: str = "") -> List[Dict[str, Any]]:
-    """返回当前用户可见的 skills：共享（owner 为空）+ 本人拥有的"""
+    """返回当前用户可见的 skills：共享（owner 为空）+ 本人拥有的（软删除项除外）"""
     conn = get_conn()
     rows = conn.execute(
-        "SELECT * FROM skills WHERE owner = ? OR owner = '' ORDER BY category, name",
+        "SELECT * FROM skills WHERE (owner = ? OR owner = '') AND deleted_at IS NULL ORDER BY category, name",
         (owner,),
     ).fetchall()
     return [dict(r) for r in rows]
@@ -377,7 +523,7 @@ def list_by_source() -> Dict[str, List[Dict[str, Any]]]:
 def get_by_name(name: str, owner: str = "") -> Optional[Dict[str, Any]]:
     conn = get_conn()
     row = conn.execute(
-        "SELECT * FROM skills WHERE name = ? AND (owner = ? OR owner = '')",
+        "SELECT * FROM skills WHERE name = ? AND (owner = ? OR owner = '') AND deleted_at IS NULL",
         (name, owner),
     ).fetchone()
     return dict(row) if row else None
@@ -389,23 +535,24 @@ def get_by_names(names: List[str]) -> List[Dict[str, Any]]:
     placeholders = ",".join("?" for _ in names)
     conn = get_conn()
     rows = conn.execute(
-        f"SELECT * FROM skills WHERE name IN ({placeholders})", names
+        f"SELECT * FROM skills WHERE name IN ({placeholders}) AND deleted_at IS NULL", names
     ).fetchall()
     return [dict(r) for r in rows]
 
 
 def count_all() -> int:
     conn = get_conn()
-    return conn.execute("SELECT COUNT(*) FROM skills").fetchone()[0]
+    return conn.execute("SELECT COUNT(*) FROM skills WHERE deleted_at IS NULL").fetchone()[0]
 
 
 def category_stats() -> List[Dict[str, Any]]:
-    """分类聚合统计"""
+    """分类聚合统计（软删除项除外）"""
     conn = get_conn()
     rows = conn.execute(
         """
         SELECT category, category_emoji, category_name, COUNT(*) AS cnt
         FROM skills
+        WHERE deleted_at IS NULL
         GROUP BY category
         ORDER BY cnt DESC
         """
@@ -426,6 +573,7 @@ def search(query: str, top_k: int = 20, owner: str = "") -> List[Dict[str, Any]]
         """
         SELECT * FROM skills
         WHERE (owner = ? OR owner = '')
+          AND deleted_at IS NULL
           AND (
             LOWER(name) LIKE ?
            OR LOWER(name_zh) LIKE ?
