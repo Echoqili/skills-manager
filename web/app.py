@@ -900,6 +900,45 @@ def _is_valid_email(email: str) -> bool:
     return bool(re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email))
 
 
+def _smtp_connect_ipv4(host: str, port: int, timeout: float = 15.0):
+    """强制 IPv4 建连。
+
+    部分云环境（如 Render 免费实例、无 IPv6 默认路由的网络）在连接
+    smtp.qq.com / smtp.163.com 等带 AAAA 记录的主机时，会报
+    [Errno 101] Network is unreachable。这里只解析 IPv4 并逐个尝试连接。
+    """
+    import socket as _socket
+    try:
+        infos = _socket.getaddrinfo(host, port, _socket.AF_INET, _socket.SOCK_STREAM)
+    except _socket.gaierror as e:
+        raise OSError(f"SMTP 域名解析失败 {host}（{e}）") from e
+    last_err = None
+    for af, socktype, proto, _cn, sa in infos:
+        sock = _socket.socket(af, socktype, proto)
+        sock.settimeout(timeout)
+        try:
+            sock.connect(sa)
+            return sock
+        except OSError as e:
+            last_err = e
+            sock.close()
+    raise OSError(f"无法连接 SMTP 服务器 {host}:{port}（{last_err}）") from last_err
+
+
+class _IPv4SMTP(smtplib.SMTP):
+    """强制 IPv4 的 SMTP（587/25，STARTTLS）"""
+
+    def _get_socket(self, host, port, timeout):
+        return _smtp_connect_ipv4(host, port, timeout)
+
+
+class _IPv4SMTP_SSL(smtplib.SMTP_SSL):
+    """强制 IPv4 的 SMTP_SSL（465）"""
+
+    def _get_socket(self, host, port, timeout):
+        return _smtp_connect_ipv4(host, port, timeout)
+
+
 def _send_verification_email(to: str, code: str) -> None:
     """通过 SMTP 发送验证码。未配置 SMTP_HOST 时：
     - MAIL_DEBUG_PRINT=1 时把验证码打印到日志（本地调试用）
@@ -924,11 +963,18 @@ def _send_verification_email(to: str, code: str) -> None:
     msg["Subject"] = Header("【Skills Manager】注册验证码", "utf-8")
     msg["From"] = formataddr((str(Header("Skills Manager", "utf-8")), sender))
     msg["To"] = to
-    if port == 465:
-        s = smtplib.SMTP_SSL(host, port, timeout=15)
-    else:
-        s = smtplib.SMTP(host, port, timeout=15)
-        s.starttls()
+    try:
+        if port == 465:
+            s = _IPv4SMTP_SSL(host, port, timeout=15)
+        else:
+            s = _IPv4SMTP(host, port, timeout=15)
+            s.starttls()
+    except (OSError, smtplib.SMTPException) as e:
+        raise RuntimeError(
+            f"连接 SMTP 服务器失败 {host}:{port}（{e}）。"
+            f"已强制 IPv4 建连；仍失败请检查 SMTP_HOST/SMTP_PORT 是否正确，"
+            f"或云平台是否拦截了 465 端口（可改用 587）"
+        ) from e
     try:
         if user:
             s.login(user, pwd)
