@@ -1050,10 +1050,16 @@ def api_auth_register():
     code = (data.get('code') or '').strip()
     if not username or not password:
         return jsonify({"error": "用户名和密码必填"}), 400
+    if not re.fullmatch(r"[A-Za-z0-9_\u4e00-\u9fa5]{3,20}", username):
+        return jsonify({"error": "用户名需 3-20 位，仅限中文/字母/数字/下划线"}), 400
     if len(password) < 6:
         return jsonify({"error": "密码至少 6 位"}), 400
-    if not _is_valid_email(email):
+    if len(password) > 64:
+        return jsonify({"error": "密码最多 64 位"}), 400
+    if not _is_valid_email(email) or len(email) > 254:
         return jsonify({"error": "邮箱格式不正确"}), 400
+    if not re.fullmatch(r"\d{6}", code):
+        return jsonify({"error": "验证码为 6 位数字"}), 400
     # 注册限流：每 IP 每小时最多 N 次（默认 5，防垃圾注册；可用 REGISTER_LIMIT_PER_HOUR 调整）
     reg_limit = int(os.environ.get("REGISTER_LIMIT_PER_HOUR", "5") or 5)
     if not _rate_limit(f"register:{_client_ip()}", reg_limit, 3600):
@@ -1210,9 +1216,13 @@ def api_admin_create():
     make_admin = bool(data.get('is_admin'))
     if not username or not password:
         return jsonify({"error": "用户名和密码必填"}), 400
+    if not re.fullmatch(r"[A-Za-z0-9_\u4e00-\u9fa5]{3,20}", username):
+        return jsonify({"error": "用户名需 3-20 位，仅限中文/字母/数字/下划线"}), 400
     if len(password) < 6:
         return jsonify({"error": "密码至少 6 位"}), 400
-    if email and not _is_valid_email(email):
+    if len(password) > 64:
+        return jsonify({"error": "密码最多 64 位"}), 400
+    if email and (not _is_valid_email(email) or len(email) > 254):
         return jsonify({"error": "邮箱格式不正确"}), 400
     conn = skills_db.get_conn()
     if conn.execute("SELECT id FROM users WHERE username=?", (username,)).fetchone():
