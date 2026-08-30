@@ -13,9 +13,13 @@ import hmac
 import uuid
 import zipfile
 import base64
+import smtplib
 import requests
 import subprocess
 import threading
+from email.mime.text import MIMEText
+from email.header import Header
+from email.utils import formataddr
 from pathlib import Path
 from datetime import datetime, timedelta, timezone
 from functools import lru_cache, wraps
@@ -51,32 +55,42 @@ def init_users_table():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             username TEXT UNIQUE NOT NULL,
             password_hash TEXT NOT NULL,
+            email TEXT DEFAULT '',
             is_admin INTEGER DEFAULT 0,
             status TEXT DEFAULT 'approved',
             approved_at TEXT,
             approved_by TEXT,
+            permissions TEXT DEFAULT '["*"]',
             created_at TEXT DEFAULT CURRENT_TIMESTAMP
         )
         """
     )
     # 兼容旧库迁移
     cols = {r[1] for r in conn.execute("PRAGMA table_info(users)").fetchall()}
+    if "email" not in cols:
+        conn.execute("ALTER TABLE users ADD COLUMN email TEXT DEFAULT ''")
     if "status" not in cols:
         conn.execute("ALTER TABLE users ADD COLUMN status TEXT DEFAULT 'approved'")
     if "approved_at" not in cols:
         conn.execute("ALTER TABLE users ADD COLUMN approved_at TEXT")
     if "approved_by" not in cols:
         conn.execute("ALTER TABLE users ADD COLUMN approved_by TEXT")
-    cur = conn.execute("SELECT COUNT(*) FROM users").fetchone()
-    if cur[0] == 0:
-        admin_user = os.environ.get("ADMIN_USER", "").strip()
-        admin_pass = os.environ.get("ADMIN_PASS", "").strip()
-        if admin_user and admin_pass:
-            conn.execute(
-                "INSERT INTO users (username, password_hash, is_admin, status) VALUES (?,?,1,'approved')",
-                (admin_user, generate_password_hash(admin_pass)),
-            )
-            conn.commit()
+    if "permissions" not in cols:
+        conn.execute("ALTER TABLE users ADD COLUMN permissions TEXT DEFAULT '[\"*\"]'")
+    # 审批日志表：完整追溯每次审批/权限变更动作
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS approval_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT NOT NULL,
+            action TEXT NOT NULL,
+            detail TEXT DEFAULT '',
+            actor TEXT DEFAULT 'admin',
+            created_at TEXT
+        )
+        """
+    )
+    conn.commit()
 
 
 def get_current_user():
@@ -85,7 +99,7 @@ def get_current_user():
     if not uid:
         return None
     row = skills_db.get_conn().execute(
-        "SELECT id, username, is_admin, status FROM users WHERE id=?", (uid,)
+        "SELECT id, username, is_admin, status, permissions FROM users WHERE id=?", (uid,)
     ).fetchone()
     return dict(row) if row else None
 
@@ -215,6 +229,74 @@ def admin_only(f):
     return decorated
 
 
+# ========== 权限模型 ==========
+# 权限点定义；"*"（全权限）等价于拥有全部权限点。
+# 新注册/创建的账号默认 permissions='["*"]'，即默认全权限。
+PERMISSIONS = [
+    {"key": "skill_view", "name": "查看与搜索 Skills", "desc": "浏览、搜索、查看 Skill 详情"},
+    {"key": "skill_import", "name": "导入 Skill", "desc": "文件 / GitHub / API 方式导入 Skill"},
+    {"key": "skill_export", "name": "打包下载 Skills", "desc": "打包并下载 Skill 集合"},
+    {"key": "skill_manage", "name": "管理自有 Skill", "desc": "删除、恢复、清空回收站"},
+    {"key": "ai_generate", "name": "AI 生成 Skill", "desc": "使用 AI 根据需求生成 Skill 草稿"},
+    {"key": "discover", "name": "GitHub 发现", "desc": "运行发现任务、审批候选仓库"},
+    {"key": "admin", "name": "管理员", "desc": "账号审批、权限分配、密钥管理"},
+]
+ALL_PERMISSIONS = "*"
+
+
+def _parse_permissions(raw) -> list:
+    """解析 users.permissions（JSON 字符串 / 列表 / None）为列表；空视为全权限"""
+    if not raw:
+        return [ALL_PERMISSIONS]
+    if isinstance(raw, list):
+        perms = raw
+    else:
+        try:
+            perms = json.loads(raw)
+        except Exception:
+            perms = []
+    if not perms:
+        return [ALL_PERMISSIONS]
+    return perms
+
+
+def has_permission(user, perm) -> bool:
+    """用户是否拥有指定权限；user 为 dict（须含 permissions / is_admin）。管理员天然全权限。"""
+    if not user:
+        return False
+    if user.get("is_admin"):
+        return True
+    perms = _parse_permissions(user.get("permissions"))
+    return ALL_PERMISSIONS in perms or perm in perms
+
+
+def permission_required(perm):
+    """装饰器：已登录用户须拥有 perm 权限，否则 403；管理员 / 全权限用户不受限"""
+    def deco(f):
+        @wraps(f)
+        def decorated(*args, **kwargs):
+            user = get_current_user()
+            if not user:
+                return jsonify({"error": "unauthorized", "code": 401}), 401
+            if not has_permission(user, perm):
+                return jsonify({"error": "无权限执行该操作（缺少权限：" + perm + "）", "code": "forbidden"}), 403
+            return f(*args, **kwargs)
+        return decorated
+    return deco
+
+
+def _log_approval(username, action, detail="", actor="admin"):
+    """写入审批日志（action: approve / reject / create / update_permission）"""
+    conn = skills_db.get_conn()
+    me = get_current_user()
+    actor = (me or {}).get("username") or actor
+    conn.execute(
+        "INSERT INTO approval_logs (username, action, detail, actor, created_at) VALUES (?,?,?,?,?)",
+        (username, action, detail, actor, datetime.now(timezone.utc).isoformat()),
+    )
+    conn.commit()
+
+
 # 启动时建表 + 全量重建 + 设置表
 skills_db.init_db()
 init_users_table()
@@ -251,15 +333,38 @@ def _security_headers(resp):
     resp.headers.setdefault('Referrer-Policy', 'same-origin')
     return resp
 
+# 游客模式可访问的公开只读接口（其余 /api/* 需登录）。
+# 这些接口内部均通过 build_skills_cache / search_skills 按当前用户过滤，
+# 未登录时 owner="" 只能看到共享(owner='')数据，不会泄露任何私有 Skill。
+_PUBLIC_EXACT = {
+    "/api/stats", "/api/categories", "/api/skills/all", "/api/search",
+    "/api/releases", "/api/package", "/api/package-all",
+}
+
+
+def _is_public_route(p: str) -> bool:
+    if p in _PUBLIC_EXACT:
+        return True
+    return (
+        p.startswith("/api/category/")
+        or p.startswith("/api/scenario/")
+        or p.startswith("/api/skill/")
+        or p.startswith("/api/releases/")
+    )
+
+
 @app.before_request
 def _require_auth():
-    """除鉴权接口外，所有 /api/* 必须登录；页面与静态资源可匿名访问（用于展示登录页）"""
+    """游客模式：公开只读接口可匿名访问；其余 /api/* 必须登录。"""
     p = request.path
     if p.startswith('/api/'):
         if p.startswith('/api/auth/'):
             return None
         if p.startswith('/api/admin/'):
             # 管理员接口由密钥/管理员登录把关（见 admin_only），不在此处要求登录
+            return None
+        if _is_public_route(p):
+            # 游客/未登录用户可浏览公开数据（内部按 owner 过滤）
             return None
         if not get_current_user():
             return jsonify({"error": "unauthorized", "code": 401}), 401
@@ -787,6 +892,88 @@ def favicon():
     return Response(svg, mimetype='image/svg+xml')
 
 
+# ========== 邮箱验证码（注册用） ==========
+# 验证码存进程内存（单 worker 有效），10 分钟有效、最多 5 次尝试；
+# 发送频率：同一邮箱 60 秒 1 次 / 每小时 5 次，同一 IP 每小时 10 次。
+_EMAIL_CODES: dict = {}
+
+
+def _gen_code() -> str:
+    return str(secrets.randbelow(1_000_000)).zfill(6)
+
+
+def _is_valid_email(email: str) -> bool:
+    return bool(re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email))
+
+
+def _send_verification_email(to: str, code: str) -> None:
+    """通过 SMTP 发送验证码。未配置 SMTP_HOST 时：
+    - MAIL_DEBUG_PRINT=1 时把验证码打印到日志（本地调试用）
+    - 否则抛错，注册发码接口返回失败
+    """
+    host = os.environ.get("SMTP_HOST", "").strip()
+    if not host:
+        if os.environ.get("MAIL_DEBUG_PRINT", "0") == "1":
+            print(f"[MAIL-DEBUG] 注册验证码 {code} -> {to}")
+            return
+        raise RuntimeError("邮件服务未配置（请设置 SMTP_HOST 等环境变量）")
+    port = int(os.environ.get("SMTP_PORT", "465") or 465)
+    user = os.environ.get("SMTP_USER", "").strip()
+    pwd = os.environ.get("SMTP_PASS", "").strip()
+    sender = os.environ.get("SMTP_FROM", "").strip() or user
+    body = (
+        "【Skills Manager】\n\n"
+        f"你的注册验证码是：{code}\n\n"
+        "验证码 10 分钟内有效，请勿泄露给他人。若非本人操作，请忽略本邮件。\n"
+    )
+    msg = MIMEText(body, "plain", "utf-8")
+    msg["Subject"] = Header("【Skills Manager】注册验证码", "utf-8")
+    msg["From"] = formataddr((str(Header("Skills Manager", "utf-8")), sender))
+    msg["To"] = to
+    if port == 465:
+        s = smtplib.SMTP_SSL(host, port, timeout=15)
+    else:
+        s = smtplib.SMTP(host, port, timeout=15)
+        s.starttls()
+    try:
+        if user:
+            s.login(user, pwd)
+        s.sendmail(sender, [to], msg.as_string())
+    finally:
+        try:
+            s.quit()
+        except Exception:
+            pass
+
+
+@app.route('/api/auth/send-code', methods=['POST'])
+def api_auth_send_code():
+    """发送邮箱验证码（注册前置步骤）"""
+    data = request.get_json() or {}
+    email = (data.get('email') or '').strip().lower()
+    if not _is_valid_email(email):
+        return jsonify({"error": "邮箱格式不正确"}), 400
+    if not _rate_limit(f"code-ip:{_client_ip()}", 10, 3600):
+        return jsonify({"error": "发送过于频繁，请 1 小时后再试", "code": "rate_limited"}), 429
+    now = time.time()
+    rec = _EMAIL_CODES.get(email)
+    if rec and now - rec.get("first", now) < 60:
+        return jsonify({"error": "发送过于频繁，请 60 秒后再试", "code": "rate_limited"}), 429
+    if not rec or now - rec.get("first", now) > 3600:
+        rec = {"first": now, "count": 0}
+        _EMAIL_CODES[email] = rec
+    if rec["count"] >= 5:
+        return jsonify({"error": "该邮箱发送次数已达上限，请稍后再试", "code": "rate_limited"}), 429
+    code = _gen_code()
+    rec.update({"code": code, "expires": now + 600, "attempts": 0,
+                "count": rec["count"] + 1, "sent_at": now})
+    try:
+        _send_verification_email(email, code)
+    except Exception as e:
+        return jsonify({"error": f"邮件发送失败：{e}"}), 500
+    return jsonify({"success": True, "message": "验证码已发送到邮箱（10 分钟有效）"})
+
+
 # ========== 鉴权接口 ==========
 @app.route('/api/auth/register', methods=['POST'])
 def api_auth_register():
@@ -797,32 +984,55 @@ def api_auth_register():
     data = request.get_json() or {}
     username = (data.get('username') or '').strip()
     password = data.get('password') or ''
+    email = (data.get('email') or '').strip().lower()
+    code = (data.get('code') or '').strip()
     if not username or not password:
         return jsonify({"error": "用户名和密码必填"}), 400
     if len(password) < 6:
         return jsonify({"error": "密码至少 6 位"}), 400
-    # 注册限流：每 IP 每小时最多 5 次（防垃圾注册）
-    if not _rate_limit(f"register:{_client_ip()}", 5, 3600):
+    if not _is_valid_email(email):
+        return jsonify({"error": "邮箱格式不正确"}), 400
+    # 注册限流：每 IP 每小时最多 N 次（默认 5，防垃圾注册；可用 REGISTER_LIMIT_PER_HOUR 调整）
+    reg_limit = int(os.environ.get("REGISTER_LIMIT_PER_HOUR", "5") or 5)
+    if not _rate_limit(f"register:{_client_ip()}", reg_limit, 3600):
         return jsonify({"error": "注册过于频繁，请 1 小时后再试", "code": "rate_limited"}), 429
+    # 校验邮箱验证码（加密比较 + 尝试次数限制）
+    rec = _EMAIL_CODES.get(email)
+    if not rec or rec.get("expires", 0) < time.time():
+        return jsonify({"error": "验证码无效或已过期，请重新获取"}), 400
+    if rec.get("attempts", 0) >= 5:
+        _EMAIL_CODES.pop(email, None)
+        return jsonify({"error": "验证码尝试次数过多，请重新获取", "code": "rate_limited"}), 429
+    if not hmac.compare_digest(rec.get("code", ""), code):
+        rec["attempts"] = rec.get("attempts", 0) + 1
+        return jsonify({"error": "验证码错误"}), 400
+    _EMAIL_CODES.pop(email, None)  # 验证通过即作废
     conn = skills_db.get_conn()
     existing = conn.execute(
         "SELECT id, status FROM users WHERE username=?", (username,)
     ).fetchone()
     if existing and existing["status"] != "rejected":
         return jsonify({"error": "用户名已存在，请直接登录或联系管理员", "code": "exists"}), 409
+    # 邮箱唯一性（被拒用户重新注册时允许继续使用自己的邮箱：排除自身）
+    dup = conn.execute(
+        "SELECT id FROM users WHERE email=? AND email!='' AND username!=?",
+        (email, username),
+    ).fetchone()
+    if dup:
+        return jsonify({"error": "该邮箱已注册，请直接登录", "code": "email_exists"}), 409
     now = datetime.now(timezone.utc).isoformat()
     if existing and existing["status"] == "rejected":
         # 被拒用户重新申请：重置为待审批
         conn.execute(
-            "UPDATE users SET password_hash=?, status='pending', approved_at=NULL, approved_by=NULL, created_at=? WHERE id=?",
-            (generate_password_hash(password), now, existing["id"]),
+            "UPDATE users SET password_hash=?, email=?, status='pending', approved_at=NULL, approved_by=NULL, created_at=? WHERE id=?",
+            (generate_password_hash(password), email, now, existing["id"]),
         )
         conn.commit()
         return jsonify({"success": True, "status": "pending",
                         "message": "注册成功，请等待管理员审批"})
     cur = conn.execute(
-        "INSERT INTO users (username, password_hash, is_admin, status, created_at) VALUES (?,?,0,'pending',?)",
-        (username, generate_password_hash(password), now),
+        "INSERT INTO users (username, password_hash, email, is_admin, status, created_at) VALUES (?,?,?,0,'pending',?)",
+        (username, generate_password_hash(password), email, now),
     )
     conn.commit()
     return jsonify({"success": True, "status": "pending",
@@ -839,7 +1049,7 @@ def api_auth_login():
     if not _rate_limit(bucket, 10, 900):
         return jsonify({"error": "失败次数过多，请 15 分钟后再试", "code": "rate_limited"}), 429
     row = skills_db.get_conn().execute(
-        "SELECT id, username, password_hash, is_admin, status FROM users WHERE username=?", (username,)
+        "SELECT id, username, password_hash, is_admin, status, permissions FROM users WHERE username=?", (username,)
     ).fetchone()
     if not row or not check_password_hash(row["password_hash"], password):
         return jsonify({"error": "用户名或密码错误"}), 401
@@ -849,7 +1059,10 @@ def api_auth_login():
         return jsonify({"error": "账号待审批，请等待管理员批准", "code": "pending"}), 403
     _rate_clear(bucket)
     session['user_id'] = row["id"]
-    return jsonify({"success": True, "user": {"id": row["id"], "username": row["username"], "is_admin": bool(row["is_admin"])}})
+    return jsonify({"success": True, "user": {
+        "id": row["id"], "username": row["username"], "is_admin": bool(row["is_admin"]),
+        "permissions": _parse_permissions(row["permissions"]),
+    }})
 
 
 @app.route('/api/auth/logout', methods=['POST'])
@@ -863,6 +1076,8 @@ def api_auth_me():
     u = get_current_user()
     if not u:
         return jsonify({"user": None})
+    u = dict(u)
+    u["permissions"] = _parse_permissions(u.get("permissions"))
     return jsonify({"user": u})
 
 
@@ -875,7 +1090,7 @@ def api_auth_me():
 def api_admin_pending():
     """列出待审批用户"""
     rows = skills_db.get_conn().execute(
-        "SELECT id, username, is_admin, status, created_at FROM users WHERE status='pending' ORDER BY created_at"
+        "SELECT id, username, email, is_admin, status, created_at FROM users WHERE status='pending' ORDER BY created_at"
     ).fetchall()
     return jsonify({"users": [dict(r) for r in rows]})
 
@@ -898,6 +1113,7 @@ def api_admin_approve():
         (datetime.now(timezone.utc).isoformat(), username),
     )
     conn.commit()
+    _log_approval(username, "approve", detail="批准注册")
     return jsonify({"success": True, "message": f"已批准 {username}", "status": "approved"})
 
 
@@ -917,6 +1133,7 @@ def api_admin_reject():
         (datetime.now(timezone.utc).isoformat(), username),
     )
     conn.commit()
+    _log_approval(username, "reject", detail="拒绝注册")
     return jsonify({"success": True, "message": f"已拒绝 {username}", "status": "rejected"})
 
 
@@ -927,22 +1144,26 @@ def api_admin_create():
     data = request.get_json() or {}
     username = (data.get('username') or '').strip()
     password = data.get('password') or ''
+    email = (data.get('email') or '').strip().lower()
     make_admin = bool(data.get('is_admin'))
     if not username or not password:
         return jsonify({"error": "用户名和密码必填"}), 400
     if len(password) < 6:
         return jsonify({"error": "密码至少 6 位"}), 400
+    if email and not _is_valid_email(email):
+        return jsonify({"error": "邮箱格式不正确"}), 400
     conn = skills_db.get_conn()
     if conn.execute("SELECT id FROM users WHERE username=?", (username,)).fetchone():
         return jsonify({"error": "用户名已存在"}), 409
     conn.execute(
-        "INSERT INTO users (username, password_hash, is_admin, status, approved_at, approved_by, created_at) "
-        "VALUES (?,?,?,'approved',?,?,?)",
-        (username, generate_password_hash(password), 1 if make_admin else 0,
+        "INSERT INTO users (username, password_hash, email, is_admin, status, approved_at, approved_by, created_at) "
+        "VALUES (?,?,?,?,'approved',?,?,?)",
+        (username, generate_password_hash(password), email, 1 if make_admin else 0,
          datetime.now(timezone.utc).isoformat(), "admin",
          datetime.now(timezone.utc).isoformat()),
     )
     conn.commit()
+    _log_approval(username, "create", detail="创建账号" + ("（管理员）" if make_admin else ""))
     return jsonify({"success": True, "message": f"已创建 {'管理员' if make_admin else '用户'} {username}"})
 
 
@@ -964,6 +1185,93 @@ def api_admin_set_key():
 def admin_approvals_page():
     """密钥门禁的管理员审批页（不对外开放，无主界面入口）"""
     return render_template('admin_approvals.html')
+
+
+# ========== 管理员：历史审批 / 用户与权限 ==========
+
+@app.route('/api/admin/permissions', methods=['GET'])
+@admin_only
+def api_admin_permissions_def():
+    """返回权限点定义（供审批台权限分配界面使用）"""
+    return jsonify({"permissions": PERMISSIONS, "all": ALL_PERMISSIONS})
+
+
+@app.route('/api/admin/history', methods=['GET'])
+@admin_only
+def api_admin_history():
+    """历史审批记录：审批日志 + 存量用户状态兜底
+
+    logs 为每次审批动作（批准/拒绝/创建/权限变更）的完整追溯；
+    老库中无日志的已审批用户由 users 兜底补充，保证历史可见。
+    """
+    limit = min(request.args.get('limit', 200, type=int), 500)
+    conn = skills_db.get_conn()
+    logs = conn.execute(
+        "SELECT id, username, action, detail, actor, created_at FROM approval_logs ORDER BY id DESC LIMIT ?",
+        (limit,),
+    ).fetchall()
+    users = conn.execute(
+        "SELECT username, is_admin, status, approved_at, approved_by, created_at "
+        "FROM users WHERE status != 'pending' ORDER BY id DESC"
+    ).fetchall()
+    return jsonify({
+        "logs": [dict(r) for r in logs],
+        "users": [dict(r) for r in users],
+    })
+
+
+@app.route('/api/admin/users', methods=['GET'])
+@admin_only
+def api_admin_users():
+    """列出全部用户（含状态、权限、审批信息），供权限分配"""
+    rows = skills_db.get_conn().execute(
+        "SELECT id, username, email, is_admin, status, approved_at, approved_by, permissions, created_at "
+        "FROM users ORDER BY id DESC"
+    ).fetchall()
+    out = []
+    for r in rows:
+        d = dict(r)
+        d["permissions"] = _parse_permissions(d.get("permissions"))
+        out.append(d)
+    return jsonify({"users": out})
+
+
+@app.route('/api/admin/permissions', methods=['POST'])
+@admin_only
+def api_admin_set_permissions():
+    """为指定用户分配权限；permissions 传 ['*'] 或不传 = 全权限（默认）"""
+    data = request.get_json() or {}
+    username = (data.get('username') or '').strip()
+    if not username:
+        return jsonify({"error": "用户名必填"}), 400
+    conn = skills_db.get_conn()
+    row = conn.execute("SELECT id, username, is_admin FROM users WHERE username=?", (username,)).fetchone()
+    if not row:
+        return jsonify({"error": "用户不存在"}), 404
+
+    valid_keys = {p["key"] for p in PERMISSIONS}
+    perms = data.get('permissions')
+    if perms is None or perms == []:
+        perms = [ALL_PERMISSIONS]  # 默认全权限
+    elif not isinstance(perms, list):
+        return jsonify({"error": "permissions 必须是数组"}), 400
+    else:
+        perms = [p for p in perms if p in valid_keys or p == ALL_PERMISSIONS]
+
+    # 安全：不允许移除自己的管理员权限（防止把自己锁死）
+    me = get_current_user()
+    if row["is_admin"] and me and me.get("id") == row["id"] \
+            and "admin" not in perms and ALL_PERMISSIONS not in perms:
+        return jsonify({"error": "不能移除自己的管理员权限，请由其他管理员操作"}), 400
+
+    conn.execute(
+        "UPDATE users SET permissions=? WHERE id=?",
+        (json.dumps(perms, ensure_ascii=False), row["id"]),
+    )
+    conn.commit()
+    detail = "权限：全权限" if ALL_PERMISSIONS in perms else "权限：" + ", ".join(perms)
+    _log_approval(username, "update_permission", detail=detail)
+    return jsonify({"success": True, "message": f"已更新 {username} 的权限", "permissions": perms})
 
 
 @app.route('/api/stats')
@@ -1169,6 +1477,7 @@ def api_skill(name):
 
 
 @app.route('/api/package', methods=['POST'])
+@permission_required('skill_export')
 def api_package():
     data = request.get_json() or {}
     skill_names = data.get('skills', [])
@@ -1180,6 +1489,7 @@ def api_package():
 
 
 @app.route('/api/package-all', methods=['POST'])
+@permission_required('skill_export')
 def api_package_all():
     all_skills, _, _ = build_skills_cache()
     return package_skills(all_skills, f"all_skills_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip")
@@ -1283,6 +1593,7 @@ def api_discover_stats():
 
 
 @app.route('/api/discover/run', methods=['POST'])
+@permission_required('discover')
 def api_discover_run():
     """启动 Skills 发现任务（后台异步执行）"""
     try:
@@ -1362,6 +1673,7 @@ def api_discover_ai():
 
 
 @app.route('/api/discover/approve', methods=['POST'])
+@permission_required('discover')
 def api_discover_approve():
     d = get_discoverer()
     if not d:
@@ -1378,6 +1690,7 @@ def api_discover_approve():
 
 
 @app.route('/api/discover/reject', methods=['POST'])
+@permission_required('discover')
 def api_discover_reject():
     d = get_discoverer()
     if not d:
@@ -1394,6 +1707,7 @@ def api_discover_reject():
 
 
 @app.route('/api/discover/clone', methods=['POST'])
+@permission_required('discover')
 def api_discover_clone():
     d = get_discoverer()
     if not d:
@@ -1430,6 +1744,7 @@ def api_discover_clone():
 
 
 @app.route('/api/import/user', methods=['POST'])
+@permission_required('skill_import')
 def api_import_user_skill():
     """导入用户自定义的 Skill（写入当前用户目录，归属当前用户）"""
     user = get_current_user()
@@ -1486,6 +1801,7 @@ category: {category}
 
 
 @app.route('/api/import/validate', methods=['POST'])
+@permission_required('skill_import')
 def api_validate_skill():
     """验证 Skill 内容是否有效"""
     data = request.get_json()
@@ -1525,6 +1841,7 @@ def api_validate_skill():
 
 
 @app.route('/api/import/generate', methods=['POST'])
+@permission_required('ai_generate')
 def api_generate_skill():
     """根据用户需求使用 AI 生成 Skill 草稿"""
     data = request.get_json() or {}
@@ -1665,6 +1982,7 @@ def _fetch_skill_from_github_api(owner: str, repo: str, branch: str, file_path: 
 
 
 @app.route('/api/import/github', methods=['POST'])
+@permission_required('skill_import')
 def api_import_from_github():
     """从 GitHub URL 导入 Skill，支持子目录路径"""
     data = request.get_json()
@@ -1771,6 +2089,7 @@ def api_import_from_github():
 
 
 @app.route('/api/import/github/browse', methods=['POST'])
+@permission_required('skill_import')
 def api_browse_github_skills():
     """浏览 GitHub 仓库中的 SKILL.md 文件"""
     data = request.get_json()
@@ -1879,6 +2198,7 @@ def api_list_user_skills():
 
 
 @app.route('/api/import/delete', methods=['POST'])
+@permission_required('skill_manage')
 def api_delete_user_skill():
     """软删除当前登录用户导入的 Skill（移入回收站，30 天内可恢复；校验归属防别人删我的）"""
     user = get_current_user()
@@ -1952,6 +2272,7 @@ def api_trash_list():
 
 
 @app.route('/api/trash/restore', methods=['POST'])
+@permission_required('skill_manage')
 def api_trash_restore():
     """从回收站恢复指定 Skill"""
     user = get_current_user()
@@ -1970,6 +2291,7 @@ def api_trash_restore():
 
 
 @app.route('/api/trash/purge', methods=['POST'])
+@permission_required('skill_manage')
 def api_trash_purge():
     """从回收站彻底删除指定 Skill（不可恢复）"""
     user = get_current_user()
@@ -1988,6 +2310,7 @@ def api_trash_purge():
 
 
 @app.route('/api/trash/empty', methods=['POST'])
+@permission_required('skill_manage')
 def api_trash_empty():
     """清空当前用户的回收站"""
     user = get_current_user()

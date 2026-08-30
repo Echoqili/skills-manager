@@ -10,11 +10,12 @@
     --bg:#f5f7fa; --card:#ffffff; --border:#e3e8ef; --text:#1f2937;
     --muted:#6b7280; --primary:#2563eb; --primary-d:#1d4ed8;
     --green:#16a34a; --red:#dc2626; --green-bg:#dcfce7; --red-bg:#fee2e2;
+    --purple:#7c3aed; --purple-bg:#ede9fe; --blue-bg:#dbeafe; --blue:#1d4ed8;
   }
   *{box-sizing:border-box}
   body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif;
     background:var(--bg);color:var(--text);padding:32px 16px}
-  .wrap{max-width:760px;margin:0 auto}
+  .wrap{max-width:860px;margin:0 auto}
   h1{font-size:20px;margin:0 0 4px}
   .sub{color:var(--muted);font-size:13px;margin-bottom:20px}
   .card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:18px}
@@ -28,18 +29,44 @@
   .btn-ok{background:var(--green);color:#fff}
   .btn-no{background:var(--red);color:#fff}
   .btn-ghost{background:#eef2f7;color:var(--text)}
+  .btn-sm{padding:5px 10px;font-size:12px;border-radius:6px}
   .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
   .hidden{display:none}
   table{width:100%;border-collapse:collapse;font-size:14px}
-  th,td{text-align:left;padding:10px 8px;border-bottom:1px solid var(--border)}
+  th,td{text-align:left;padding:10px 8px;border-bottom:1px solid var(--border);vertical-align:middle}
   th{color:var(--muted);font-weight:600;font-size:12px}
   .badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;font-weight:600}
   .b-pending{background:#fef9c3;color:#854d0e}
+  .b-approved{background:var(--green-bg);color:#166534}
+  .b-rejected{background:var(--red-bg);color:#991b1b}
+  .b-admin{background:var(--blue-bg);color:var(--blue)}
+  .b-perm{background:var(--purple-bg);color:var(--purple)}
   .msg{font-size:13px;margin-top:10px}
   .err{color:var(--red)} .ok{color:var(--green)}
   .tip{font-size:12px;color:var(--muted);margin-top:8px}
   .create-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
   @media(max-width:540px){.create-grid{grid-template-columns:1fr}}
+
+  /* 标签页 */
+  .tabs{display:flex;gap:6px;border-bottom:1px solid var(--border);margin-bottom:16px;flex-wrap:wrap}
+  .tab{background:transparent;color:var(--muted);border:1px solid transparent;border-bottom:none;
+    padding:8px 16px;font-size:14px;border-radius:8px 8px 0 0}
+  .tab.active{background:var(--primary);color:#fff;border-radius:8px}
+  .tab:hover:not(.active){background:#eef2f7;color:var(--text)}
+  .h2{font-size:15px;margin:0 0 10px}
+  .perm-tag{display:inline-block;background:#eef2f7;color:var(--text);border-radius:6px;
+    padding:2px 8px;font-size:12px;margin:2px}
+  .perm-tag.all{background:var(--green-bg);color:#166534;font-weight:600}
+
+  /* 权限分配弹窗 */
+  .modal-mask{position:fixed;inset:0;background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;z-index:99}
+  .modal{background:#fff;border-radius:12px;padding:20px;width:min(520px,92vw);max-height:80vh;overflow:auto}
+  .modal h3{margin:0 0 4px;font-size:16px}
+  .perm-item{display:flex;align-items:flex-start;gap:8px;padding:8px 6px;border-bottom:1px solid var(--border)}
+  .perm-item input{width:16px;height:16px;margin-top:2px}
+  .perm-item b{font-size:14px}
+  .perm-item small{display:block;color:var(--muted);font-size:12px}
+  .modal .actions{display:flex;gap:10px;justify-content:flex-end;margin-top:16px}
 </style>
 </head>
 <body>
@@ -58,18 +85,40 @@
     <div class="tip">密钥仅在本地内存中保存，用于后续接口调用；刷新页面需重新输入。</div>
   </div>
 
-  <!-- 审批区 -->
+  <!-- 管理面板 -->
   <div class="card hidden" id="panel">
-    <h1 style="font-size:16px">待审批注册</h1>
-    <div class="tip" style="margin-bottom:12px">批准的账号即可登录；拒绝的账号将永久无法登录（可重新注册再次申请）。</div>
-    <div id="listWrap"><div class="msg">加载中…</div></div>
-    <div class="msg err hidden" id="panelErr"></div>
+    <div class="tabs">
+      <button class="tab active" data-tab="pending">待审批</button>
+      <button class="tab" data-tab="history">历史审批</button>
+      <button class="tab" data-tab="perms">用户与权限</button>
+    </div>
+
+    <!-- 待审批 -->
+    <div id="tab-pending">
+      <div class="h2">待审批注册</div>
+      <div class="tip" style="margin-bottom:12px">批准的账号即可登录，默认授予全权限；拒绝的账号将无法登录（可重新注册再次申请）。</div>
+      <div id="listWrap"><div class="msg">加载中…</div></div>
+    </div>
+
+    <!-- 历史审批 -->
+    <div id="tab-history" class="hidden">
+      <div class="h2">历史审批记录</div>
+      <div class="tip" style="margin-bottom:12px">记录每一次批准 / 拒绝 / 创建账号 / 权限变更动作；老账号无日志的由当前状态兜底展示。</div>
+      <div id="historyWrap"><div class="msg">加载中…</div></div>
+    </div>
+
+    <!-- 用户与权限 -->
+    <div id="tab-perms" class="hidden">
+      <div class="h2">用户与权限</div>
+      <div class="tip" style="margin-bottom:12px">为每个用户分配权限，默认全权限（拥有全部功能）。管理员天然拥有全部权限。</div>
+      <div id="usersWrap"><div class="msg">加载中…</div></div>
+    </div>
   </div>
 
   <!-- 创建账号 -->
   <div class="card hidden" id="createCard">
     <h1 style="font-size:16px">创建账号</h1>
-    <div class="tip" style="margin-bottom:12px">用于引导首位管理员，或直接为团队成员开通已批准账号。</div>
+    <div class="tip" style="margin-bottom:12px">用于引导首位管理员，或直接为团队成员开通已批准账号（默认全权限）。</div>
     <div class="create-grid">
       <div>
         <label for="cUser">用户名</label>
@@ -100,28 +149,51 @@
   </div>
 </div>
 
+<!-- 权限分配弹窗 -->
+<div class="modal-mask hidden" id="permMask">
+  <div class="modal">
+    <h3>分配权限</h3>
+    <div class="tip" style="margin-bottom:10px" id="permTarget"></div>
+    <div class="row" style="margin-bottom:8px">
+      <button class="btn-ghost btn-sm" id="permAll">全选（= 全权限）</button>
+      <span class="tip">取消部分勾选可自定义权限；保存时全选将按「全权限」授予。</span>
+    </div>
+    <div id="permList">加载中…</div>
+    <div class="actions">
+      <button class="btn-ghost" id="permCancel">取消</button>
+      <button class="btn-primary" id="permSave">保存</button>
+    </div>
+    <div class="msg err hidden" id="permErr"></div>
+  </div>
+</div>
+
 <script>
 let ADMIN_KEY = sessionStorage.getItem('admin_key') || '';
+let PERM_DEFS = [];           // 权限点定义
+const ACTION_LABEL = {approve:['批准','b-approved'], reject:['拒绝','b-rejected'],
+                      create:['创建账号','b-admin'], update_permission:['权限变更','b-perm']};
+const STATUS_LABEL = {approved:['已批准','b-approved'], pending:['待审批','b-pending'], rejected:['已拒绝','b-rejected']};
+let permEditing = null;       // 正在编辑权限的用户名
 
-function authHeaders(){
-  return {'Content-Type':'application/json', 'X-Admin-Key': ADMIN_KEY};
-}
+function authHeaders(){ return {'Content-Type':'application/json', 'X-Admin-Key': ADMIN_KEY}; }
 function show(id, on){ document.getElementById(id).classList.toggle('hidden', !on); }
+function esc(s){ return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function fmtTime(s){ return s ? String(s).replace('T',' ').slice(0,19) : ''; }
 
 async function enter(){
   const key = document.getElementById('key').value.trim();
   if(!key){ document.getElementById('gateErr').textContent='请输入密钥'; show('gateErr', true); return; }
   ADMIN_KEY = key; sessionStorage.setItem('admin_key', key);
-  // 验证密钥
   const r = await fetch('/api/admin/pending', {headers: authHeaders()});
   if(r.status === 401){
     document.getElementById('gateErr').textContent='密钥错误，拒绝访问'; show('gateErr', true);
     ADMIN_KEY=''; sessionStorage.removeItem('admin_key'); return;
   }
   show('gate', false); show('panel', true); show('createCard', true); show('keyCard', true);
-  loadPending();
+  loadPending(); loadHistory(); loadUsers(); loadPermDefs();
 }
 
+// ---------- 待审批 ----------
 async function loadPending(){
   const wrap = document.getElementById('listWrap');
   wrap.innerHTML = '<div class="msg">加载中…</div>';
@@ -134,11 +206,11 @@ async function loadPending(){
     for(const u of d.users){
       html += `<tr>
         <td>${esc(u.username)}</td>
-        <td>${esc((u.created_at||'').replace('T',' ').slice(0,19))}</td>
+        <td>${esc(fmtTime(u.created_at))}</td>
         <td><span class="badge b-pending">待审批</span></td>
         <td class="row">
-          <button class="btn-ok" data-act="approve" data-u="${esc(u.username)}">批准</button>
-          <button class="btn-no" data-act="reject" data-u="${esc(u.username)}">拒绝</button>
+          <button class="btn-ok btn-sm" data-act="approve" data-u="${esc(u.username)}">批准</button>
+          <button class="btn-no btn-sm" data-act="reject" data-u="${esc(u.username)}">拒绝</button>
         </td></tr>`;
     }
     html += '</tbody></table>';
@@ -153,8 +225,127 @@ async function decide(act, username){
   const r = await fetch('/api/admin/'+act, {method:'POST', headers: authHeaders(),
     body: JSON.stringify({username})});
   const d = await r.json().catch(()=>({}));
-  if(r.ok){ loadPending(); }
-  else { document.getElementById('panelErr').textContent = d.error||'操作失败'; show('panelErr', true); }
+  if(r.ok){ loadPending(); loadHistory(); loadUsers(); }
+  else { document.getElementById('listWrap').insertAdjacentHTML('beforeend',
+    '<div class="msg err">'+(d.error||'操作失败')+'</div>'); }
+}
+
+// ---------- 历史审批 ----------
+async function loadHistory(){
+  const wrap = document.getElementById('historyWrap');
+  wrap.innerHTML = '<div class="msg">加载中…</div>';
+  try{
+    const r = await fetch('/api/admin/history', {headers: authHeaders()});
+    const d = await r.json();
+    if(!r.ok){ wrap.innerHTML = '<div class="msg err">'+(d.error||'加载失败')+'</div>'; return; }
+    let rows = [];
+    for(const L of d.logs){
+      const lab = ACTION_LABEL[L.action] || [L.action, 'b-pending'];
+      rows.push(`<tr>
+        <td>${esc(L.username)}</td>
+        <td><span class="badge ${lab[1]}">${lab[0]}</span></td>
+        <td>${esc(L.detail || '')}</td>
+        <td>${esc(L.actor || 'admin')}</td>
+        <td>${esc(fmtTime(L.created_at))}</td></tr>`);
+    }
+    // 存量兜底：无日志的老审批用户
+    const known = new Set(d.logs.map(l=>l.username));
+    for(const u of d.users){
+      if(known.has(u.username)) continue;
+      const lab = STATUS_LABEL[u.status] || [u.status, 'b-pending'];
+      rows.push(`<tr>
+        <td>${esc(u.username)}</td>
+        <td><span class="badge ${lab[1]}">${lab[0]}（存量）</span></td>
+        <td>${u.status==='approved' ? '历史批准' : '历史拒绝'}</td>
+        <td>${esc(u.approved_by || 'admin')}</td>
+        <td>${esc(fmtTime(u.approved_at || u.created_at))}</td></tr>`);
+    }
+    if(!rows.length){ wrap.innerHTML = '<div class="msg">暂无历史审批记录</div>'; return; }
+    wrap.innerHTML = `<table><thead><tr><th>用户名</th><th>动作</th><th>详情</th><th>审批人</th><th>时间</th></tr></thead><tbody>
+      ${rows.join('')}</tbody></table>`;
+  }catch(e){ wrap.innerHTML = '<div class="msg err">网络错误：'+e.message+'</div>'; }
+}
+
+// ---------- 用户与权限 ----------
+async function loadUsers(){
+  const wrap = document.getElementById('usersWrap');
+  wrap.innerHTML = '<div class="msg">加载中…</div>';
+  try{
+    const r = await fetch('/api/admin/users', {headers: authHeaders()});
+    const d = await r.json();
+    if(!r.ok){ wrap.innerHTML = '<div class="msg err">'+(d.error||'加载失败')+'</div>'; return; }
+    if(!d.users.length){ wrap.innerHTML = '<div class="msg">暂无用户</div>'; return; }
+    let html = '<table><thead><tr><th>用户名</th><th>状态</th><th>角色</th><th>权限</th><th>审批时间</th><th>操作</th></tr></thead><tbody>';
+    for(const u of d.users){
+      const st = STATUS_LABEL[u.status] || [u.status, 'b-pending'];
+      const role = u.is_admin ? '<span class="badge b-admin">管理员</span>' : '<span class="badge">普通用户</span>';
+      const perms = (u.permissions || []);
+      let permHtml;
+      if(perms.includes('*')){ permHtml = '<span class="perm-tag all">全权限</span>'; }
+      else if(perms.length){ permHtml = perms.map(p=>`<span class="perm-tag">${esc(p)}</span>`).join(''); }
+      else { permHtml = '<span class="perm-tag all">全权限</span>'; }
+      html += `<tr>
+        <td>${esc(u.username)}</td>
+        <td><span class="badge ${st[1]}">${st[0]}</span></td>
+        <td>${role}</td>
+        <td>${permHtml}</td>
+        <td>${esc(fmtTime(u.approved_at || u.created_at))}</td>
+        <td><button class="btn-ghost btn-sm" data-perm="${esc(u.username)}">分配权限</button></td></tr>`;
+    }
+    html += '</tbody></table>';
+    wrap.innerHTML = html;
+    wrap.querySelectorAll('button[data-perm]').forEach(b=>{
+      b.addEventListener('click', ()=>openPermModal(b.dataset.perm, d.users.find(x=>x.username===b.dataset.perm)));
+    });
+  }catch(e){ wrap.innerHTML = '<div class="msg err">网络错误：'+e.message+'</div>'; }
+}
+
+async function loadPermDefs(){
+  try{
+    const r = await fetch('/api/admin/permissions', {headers: authHeaders()});
+    const d = await r.json();
+    PERM_DEFS = d.permissions || [];
+  }catch(e){ PERM_DEFS = []; }
+}
+
+function openPermModal(username, user){
+  permEditing = username;
+  document.getElementById('permTarget').textContent = '用户：' + username + (user && user.is_admin ? '（管理员，天然全权限）' : '');
+  show('permErr', false);
+  const list = document.getElementById('permList');
+  const cur = (user && user.permissions) || ['*'];
+  list.innerHTML = PERM_DEFS.map(p=>
+    `<div class="perm-item"><input type="checkbox" id="perm-${esc(p.key)}" value="${esc(p.key)}" checked>
+      <div><b>${esc(p.name)}</b><small>${esc(p.desc)}</small></div></div>`).join('')
+    || '<div class="msg">权限点定义加载失败</div>';
+  if(cur.includes('*')){
+    list.querySelectorAll('input').forEach(i=>i.checked = true);
+  } else {
+    list.querySelectorAll('input').forEach(i=>i.checked = cur.includes(i.value));
+  }
+  show('permMask', true);
+}
+
+function currentPermSelection(){
+  const list = document.getElementById('permList');
+  const checked = [...list.querySelectorAll('input:checked')].map(i=>i.value);
+  // 全选 -> 全权限；否则保存勾选的权限点
+  return checked.length === PERM_DEFS.length ? ['*'] : checked;
+}
+
+async function savePerms(){
+  show('permErr', false);
+  const perms = currentPermSelection();
+  const r = await fetch('/api/admin/permissions', {method:'POST', headers: authHeaders(),
+    body: JSON.stringify({username: permEditing, permissions: perms})});
+  const d = await r.json().catch(()=>({}));
+  if(r.ok){
+    show('permMask', false);
+    loadUsers(); loadHistory();
+  } else {
+    document.getElementById('permErr').textContent = d.error||'保存失败';
+    show('permErr', true);
+  }
 }
 
 async function setKey(){
@@ -168,7 +359,7 @@ async function setKey(){
     document.getElementById('keyOk').textContent = d.message||'已更新';
     show('keyOk', true);
     document.getElementById('newKey').value='';
-    ADMIN_KEY = key; sessionStorage.setItem('admin_key', key); // 切换为使用新密钥
+    ADMIN_KEY = key; sessionStorage.setItem('admin_key', key);
   } else {
     document.getElementById('keyErr').textContent = d.error||'保存失败';
     show('keyErr', true);
@@ -184,18 +375,33 @@ async function createUser(){
   const r = await fetch('/api/admin/create', {method:'POST', headers: authHeaders(),
     body: JSON.stringify({username, password, is_admin})});
   const d = await r.json().catch(()=>({}));
-  if(r.ok){ document.getElementById('createOk').textContent = d.message||'创建成功'; show('createOk', true);
-    document.getElementById('cUser').value=''; document.getElementById('cPass').value=''; }
-  else { document.getElementById('createErr').textContent = d.error||'创建失败'; show('createErr', true); }
+  if(r.ok){
+    document.getElementById('createOk').textContent = d.message||'创建成功'; show('createOk', true);
+    document.getElementById('cUser').value=''; document.getElementById('cPass').value='';
+    loadUsers(); loadHistory();
+  } else { document.getElementById('createErr').textContent = d.error||'创建失败'; show('createErr', true); }
 }
 
-function esc(s){ return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
-
+// ---------- 事件绑定 ----------
 document.getElementById('enterBtn').addEventListener('click', enter);
 document.getElementById('key').addEventListener('keydown', e=>{ if(e.key==='Enter') enter(); });
 document.getElementById('createBtn').addEventListener('click', createUser);
 document.getElementById('setKeyBtn').addEventListener('click', setKey);
-if(ADMIN_KEY){ /* 已有缓存密钥，自动尝试进入 */ enter(); }
+document.getElementById('permSave').addEventListener('click', savePerms);
+document.getElementById('permCancel').addEventListener('click', ()=>{ show('permMask', false); });
+document.getElementById('permAll').addEventListener('click', ()=>{
+  document.getElementById('permList').querySelectorAll('input').forEach(i=>i.checked = true);
+});
+document.querySelectorAll('.tab').forEach(t=>{
+  t.addEventListener('click', ()=>{
+    document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+    t.classList.add('active');
+    ['pending','history','perms'].forEach(k=>{
+      show('tab-'+k, t.dataset.tab === k);
+    });
+  });
+});
+if(ADMIN_KEY){ enter(); }
 </script>
 </body>
 </html>

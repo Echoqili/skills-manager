@@ -21,6 +21,17 @@ services:
         sync: false
       - key: SESSION_COOKIE_SECURE
         value: "true"
+      # 邮箱验证码发送（SMTP，如 QQ/163 邮箱授权码；本地调试可设 MAIL_DEBUG_PRINT=1 打印验证码）
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        value: "465"
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: MAIL_DEBUG_PRINT
+        value: "false"
       - key: ZHIPU_API_URL
         value: https://open.bigmodel.cn/api/paas/v4
       - key: ZHIPU_API_KEY

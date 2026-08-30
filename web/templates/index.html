@@ -2865,6 +2865,11 @@
             <form id="auth-form" class="auth-form" autocomplete="off">
                 <input type="text" id="auth-username" class="auth-input" placeholder="用户名" required />
                 <input type="password" id="auth-password" class="auth-input" placeholder="密码（至少 6 位）" required />
+                <input type="text" id="auth-email" class="auth-input" placeholder="邮箱（用于接收验证码）" autocomplete="off" style="display:none;" />
+                <div id="auth-code-row" class="auth-code-row" style="display:none;">
+                    <input type="text" id="auth-code" class="auth-input" placeholder="邮箱验证码" autocomplete="off" inputmode="numeric" maxlength="6" />
+                    <button type="button" id="auth-send-code" class="auth-send-btn">发送验证码</button>
+                </div>
                 <div id="auth-error" class="auth-error"></div>
                 <button type="submit" id="auth-submit" class="auth-btn">登录</button>
             </form>
@@ -2873,6 +2878,12 @@
                 <a href="#" id="auth-switch-link">注册</a>
             </div>
         </div>
+    </div>
+
+    <!-- 游客模式提示条 -->
+    <div id="guest-bar" class="guest-bar" style="display:none;">
+        <span>👤 游客模式（只读浏览）</span>
+        <button class="auth-logout" id="guest-login-btn">登录 / 注册</button>
     </div>
 
     <!-- 动态背景 -->
@@ -4577,13 +4588,15 @@
         // ========== 初始化 ==========
         async function init() {
             console.log('[init] start');
-            // 鉴权门禁：未登录先展示登录/注册，不加载业务数据
+            // 鉴权门禁：已登录走完整模式；未登录进入游客模式（只读浏览）
             const authed = await ensureAuth();
             if (!authed) return;
-            loadCart();
+            if (!window.VIEWER_MODE){
+                loadCart();
+                setupManageMenu();
+            }
             setupTabs();
             setupCategoryFilterBarScroll();
-            setupManageMenu();
             console.log('[init] before applyI18n');
             applyI18n();  // 应用初始语言
             console.log('[init] after applyI18n, source_local text:', document.querySelector('[data-source="local"]')?.textContent);
@@ -4598,7 +4611,12 @@
                 tab.addEventListener('click', () => {
                     const section = tab.dataset.tab;
                     closeMobileSidebar();
-                    const manageSections = ['discover', 'import', 'update', 'releases', 'ai'];
+                    const manageSections = ['discover', 'import', 'update', 'releases', 'ai', 'trash'];
+                    // 游客模式：管理类功能需登录
+                    if (window.VIEWER_MODE && manageSections.includes(section)) {
+                        if (window.openAuthModal) window.openAuthModal('login');
+                        return;
+                    }
                     if (manageSections.includes(section)) {
                         showManage(section);
                     } else {
@@ -7176,6 +7194,17 @@
         .auth-error{color:#ff7a8a;font-size:12px;min-height:14px;}
         .auth-switch{margin-top:16px;font-size:12px;color:#9aa6c8;}
         .auth-switch a{color:#6c8cff;text-decoration:none;margin-left:4px;}
+        .auth-code-row{display:flex;gap:8px;}
+        .auth-code-row .auth-input{flex:1;}
+        .auth-send-btn{padding:11px 12px;font-size:13px;white-space:nowrap;border-radius:10px;
+            background:rgba(108,140,255,.12);color:#6c8cff;border:1px solid rgba(108,140,255,.4);
+            cursor:pointer;transition:.2s;}
+        .auth-send-btn:hover{background:rgba(108,140,255,.22);}
+        .auth-send-btn:disabled{opacity:.5;cursor:not-allowed;}
+        .auth-guest-link{color:#6c8cff;text-decoration:underline;cursor:pointer;margin-left:4px;}
+        .guest-bar{position:fixed;top:14px;right:14px;z-index:9000;display:flex;align-items:center;gap:10px;
+            padding:8px 14px;border-radius:999px;background:rgba(20,26,44,.92);border:1px solid rgba(120,140,200,.3);
+            color:#cdd6f4;font-size:12px;box-shadow:0 8px 24px rgba(0,0,0,.35);}
         .auth-user{display:inline-flex;align-items:center;gap:8px;font-size:13px;color:#cdd6f4;}
         .auth-logout{padding:5px 12px;border-radius:8px;border:1px solid rgba(120,140,200,.3);
             background:transparent;color:#cdd6f4;cursor:pointer;font-size:12px;}
@@ -7193,6 +7222,10 @@
             const switchText = document.getElementById('auth-switch-text');
             const switchLink = document.getElementById('auth-switch-link');
 
+            const emailEl = document.getElementById('auth-email');
+            const codeRow = document.getElementById('auth-code-row');
+            const sendBtn = document.getElementById('auth-send-code');
+
             function renderMode(){
                 if (authMode === 'login'){
                     titleEl.textContent = '登录 Skills Manager';
@@ -7200,12 +7233,16 @@
                     submitBtn.textContent = '登录';
                     switchText.textContent = '还没有账号？';
                     switchLink.textContent = '注册';
+                    emailEl.style.display = 'none';
+                    codeRow.style.display = 'none';
                 } else {
                     titleEl.textContent = '注册新账号';
-                    subEl.textContent = '注册后需管理员审批，通过后方可登录';
+                    subEl.textContent = '注册需邮箱验证码，注册后待管理员审批';
                     submitBtn.textContent = '提交注册';
                     switchText.textContent = '已有账号？';
                     switchLink.textContent = '去登录';
+                    emailEl.style.display = '';
+                    codeRow.style.display = 'flex';
                 }
             }
             switchLink.addEventListener('click', function(e){
@@ -7215,38 +7252,120 @@
                 renderMode();
             });
 
+            function showGuestContinueLink(msg){
+                errEl.style.color = '';
+                errEl.innerHTML = msg + '<a href="#" class="auth-guest-link" id="guest-continue">以游客身份继续浏览</a>';
+                const link = document.getElementById('guest-continue');
+                if (link) link.addEventListener('click', function(e){
+                    e.preventDefault();
+                    enterGuestMode();
+                });
+            }
+
+            function enterGuestMode(){
+                window.VIEWER_MODE = true;
+                overlay.style.display = 'none';
+                showGuestBar();
+            }
+
+            window.openAuthModal = function(mode){
+                authMode = (mode === 'register') ? 'register' : 'login';
+                renderMode();
+                errEl.textContent = '';
+                overlay.style.display = 'flex';
+            };
+
+            function showGuestBar(){
+                const bar = document.getElementById('guest-bar');
+                if (bar) bar.style.display = 'flex';
+            }
+            window.hideGuestBar = function(){
+                const bar = document.getElementById('guest-bar');
+                if (bar) bar.style.display = 'none';
+            };
+            const guestLoginBtn = document.getElementById('guest-login-btn');
+            if (guestLoginBtn) guestLoginBtn.addEventListener('click', function(){ window.openAuthModal('login'); });
+
             form.addEventListener('submit', async function(e){
                 e.preventDefault();
                 errEl.textContent = '';
+                errEl.style.color = '';
                 const username = document.getElementById('auth-username').value.trim();
                 const password = document.getElementById('auth-password').value;
+                const email = emailEl.value.trim();
+                const code = document.getElementById('auth-code').value.trim();
                 if (!username || !password){ errEl.textContent = '请输入用户名和密码'; return; }
                 const url = authMode === 'login' ? '/api/auth/login' : '/api/auth/register';
+                const payload = {username, password};
+                if (authMode === 'register'){
+                    if (!email || !code){ errEl.textContent = '请填写邮箱和验证码'; return; }
+                    payload.email = email;
+                    payload.code = code;
+                }
                 try{
                     const resp = await fetch(url, {method:'POST', headers:{'Content-Type':'application/json'},
-                        body: JSON.stringify({username, password})});
+                        body: JSON.stringify(payload)});
                     const data = await resp.json();
                     if (!resp.ok || !data.success){
+                        if (data.code === 'pending' || data.code === 'rejected'){
+                            showGuestContinueLink((data.error || '账号暂不可用') + '，');
+                            return;
+                        }
                         errEl.textContent = data.error || '操作失败';
                         return;
                     }
                     if (authMode === 'register' && data.status === 'pending'){
-                        // 注册成功但待审批：不自动登录，提示后切回登录
+                        // 注册成功但待审批：不自动登录，提示后可游客浏览
                         errEl.style.color = 'var(--green, #16a34a)';
-                        errEl.textContent = data.message || '注册成功，请等待管理员审批';
+                        showGuestContinueLink(data.message || '注册成功，请等待管理员审批，');
                         document.getElementById('auth-password').value = '';
-                        authMode = 'login';
-                        renderMode();
-                        errEl.style.color = '';
+                        document.getElementById('auth-code').value = '';
                         return;
                     }
                     overlay.style.display = 'none';
+                    window.hideGuestBar && window.hideGuestBar();
                     showUserBadge(data.user);
                     // 重新初始化业务数据
                     if (typeof init === 'function') init();
                 }catch(err){
                     errEl.textContent = '网络错误，请重试';
                 }
+            });
+
+            // 发送邮箱验证码（60s 倒计时）
+            let sendTimer = null;
+            sendBtn.addEventListener('click', async function(){
+                const email = emailEl.value.trim();
+                if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){ errEl.textContent = '请输入正确的邮箱'; return; }
+                sendBtn.disabled = true;
+                errEl.textContent = '';
+                errEl.style.color = '';
+                try{
+                    const r = await fetch('/api/auth/send-code', {method:'POST',
+                        headers:{'Content-Type':'application/json'}, body: JSON.stringify({email})});
+                    const d = await r.json();
+                    if (r.ok){
+                        errEl.style.color = 'var(--green, #16a34a)';
+                        errEl.textContent = d.message || '验证码已发送';
+                    } else {
+                        errEl.textContent = d.error || '发送失败';
+                    }
+                }catch(err){
+                    errEl.textContent = '网络错误，请重试';
+                }
+                let left = 60;
+                sendBtn.textContent = left + 's 后重发';
+                if (sendTimer) clearInterval(sendTimer);
+                sendTimer = setInterval(function(){
+                    left--;
+                    if (left <= 0){
+                        clearInterval(sendTimer);
+                        sendBtn.disabled = false;
+                        sendBtn.textContent = '发送验证码';
+                    } else {
+                        sendBtn.textContent = left + 's 后重发';
+                    }
+                }, 1000);
             });
 
             function showUserBadge(user){
@@ -7276,13 +7395,17 @@
                     const resp = await fetch('/api/auth/me');
                     const data = await resp.json();
                     if (data.user){
+                        window.VIEWER_MODE = false;
+                        window.hideGuestBar && window.hideGuestBar();
                         showUserBadge(data.user);
                         return true;
                     }
                 }catch(e){}
-                overlay.style.display = 'flex';
-                renderMode();
-                return false;
+                // 游客模式：可只读浏览公开 Skills；管理功能点击时再提示登录
+                window.VIEWER_MODE = true;
+                overlay.style.display = 'none';
+                showGuestBar();
+                return true;
             };
         })();
     </script>
