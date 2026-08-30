@@ -412,19 +412,13 @@ def _ai_config_file(user_id):
 
 
 def _load_env_ai_config():
-    """从 Render 环境变量读取默认 AI 配置；优先通用 AI_*，再回退 ZHIPU_*"""
+    """从 Render 环境变量读取默认 AI 配置（统一 AI_* 命名）"""
     provider = os.environ.get("AI_PROVIDER", "").strip()
     api_key = os.environ.get("AI_API_KEY", "").strip()
     base_url = os.environ.get("AI_BASE_URL", "").strip()
     model = os.environ.get("AI_MODEL", "").strip()
 
-    if not api_key:
-        # 回退到旧的 ZHIPU_* 变量，保持向后兼容
-        api_key = os.environ.get("ZHIPU_API_KEY", "")
-        base_url = os.environ.get("ZHIPU_API_URL", DEFAULT_AI_BASE_URL)
-        model = os.environ.get("ZHIPU_MODEL", DEFAULT_AI_MODEL)
-        provider = "glm"
-    else:
+    if api_key:
         # 使用通用配置时给出 OpenAI 兼容的合理默认值
         base_url = base_url or "https://api.openai.com/v1"
         model = model or "gpt-3.5-turbo"
@@ -2439,7 +2433,7 @@ def api_ai_get_config():
     if safe_config.get("api_key"):
         safe_config["api_key"] = mask_api_key(safe_config["api_key"])
     safe_config["configured"] = bool(config.get("api_key"))
-    safe_config["default_from_env"] = bool(os.environ.get("ZHIPU_API_KEY", "")) or bool(os.environ.get("AI_API_KEY", ""))
+    safe_config["default_from_env"] = bool(os.environ.get("AI_API_KEY", ""))
     return jsonify(safe_config)
 
 

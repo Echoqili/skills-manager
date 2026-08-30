@@ -32,9 +32,9 @@ services:
         sync: false
       - key: MAIL_DEBUG_PRINT
         value: "false"
-      - key: ZHIPU_API_URL
+      - key: AI_BASE_URL
         value: https://open.bigmodel.cn/api/paas/v4
-      - key: ZHIPU_API_KEY
+      - key: AI_API_KEY
         sync: false
-      - key: ZHIPU_MODEL
+      - key: AI_MODEL
         value: glm-4-flash

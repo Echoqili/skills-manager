@@ -30,8 +30,7 @@ AI_CONFIG_FILE = Path(__file__).parent.parent / "data" / "ai-config.json"
 
 
 def _load_ai_config():
-    """加载 AI 配置（环境变量 AI_* > ZHIPU_* > ai-config.json）"""
-    # 优先读取通用 AI_* 变量（与 web/app.py 保持一致）
+    """加载 AI 配置（环境变量 AI_* > ai-config.json）"""
     api_key = os.environ.get("AI_API_KEY", "").strip()
     base_url = os.environ.get("AI_BASE_URL", "").strip()
     model = os.environ.get("AI_MODEL", "").strip()
@@ -39,15 +38,6 @@ def _load_ai_config():
     if api_key:
         url = base_url or "https://api.openai.com/v1"
         model = model or "gpt-3.5-turbo"
-    else:
-        # 回退到旧的 ZHIPU_* 变量，保持向后兼容
-        api_key = os.environ.get("ZHIPU_API_KEY", "")
-        base_url = os.environ.get("ZHIPU_API_URL", "")
-        model = os.environ.get("ZHIPU_MODEL", "")
-        url = base_url or "https://open.bigmodel.cn/api/paas/v4"
-        model = model or "glm-4"
-
-    if api_key:
         if url and not url.endswith("/chat/completions"):
             url = url.rstrip("/") + "/chat/completions"
         return url, api_key, model
@@ -67,7 +57,7 @@ def _load_ai_config():
     return "", "", ""
 
 
-_ZHIPU_URL, _ZHIPU_KEY, _ZHIPU_MODEL = _load_ai_config()
+_AI_URL, _AI_KEY, _AI_MODEL = _load_ai_config()
 
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "")
 GITHUB_HEADERS = {
@@ -463,7 +453,7 @@ class SkillsDiscoverer:
 {{"owner/repo": {{"zh": "中文概括", "en": "English summary"}}}}"""
 
         try:
-            result = self.call_zhipu_ai(prompt)
+            result = self.call_ai(prompt)
             if not result:
                 return
 
@@ -486,11 +476,11 @@ class SkillsDiscoverer:
         except Exception as e:
             print(f"⚠️ 生成本地化描述失败: {e}")
 
-    def call_zhipu_ai(self, prompt: str) -> Optional[str]:
+    def call_ai(self, prompt: str) -> Optional[str]:
         # 每次调用重新读取 AI 配置（确保 Web 端修改后即时生效）
         url, key, model = _load_ai_config()
         if not key:
-            print("Warning: AI API key not configured (set ZHIPU_API_KEY env or configure in AI Settings page)")
+            print("Warning: AI API key not configured (set AI_API_KEY env or configure in AI Settings page)")
             return None
 
         headers = {
@@ -538,7 +528,7 @@ class SkillsDiscoverer:
 
 只推荐真实存在的、有较高质量的仓库。"""
 
-        ai_response = self.call_zhipu_ai(prompt)
+        ai_response = self.call_ai(prompt)
 
         new_candidates = []
         existing_urls = {c.url for c in self.candidates}
@@ -647,8 +637,8 @@ class SkillsDiscoverer:
         return [c for c in self.candidates if c.status == CandidateStatus.APPROVED.value]
 
     def recommend_skills_with_ai(self, requirement: str, top_k: int = 5) -> List[Dict]:
-        if not _ZHIPU_KEY:
-            print("Error: AI API key not configured (set ZHIPU_API_KEY env or configure in AI Settings page)")
+        if not _AI_KEY:
+            print("Error: AI API key not configured (set AI_API_KEY env or configure in AI Settings page)")
             return []
 
         index_path = PROJECT_ROOT / "data" / "skills-index.json"
@@ -690,13 +680,13 @@ Respond with ONLY the JSON array, no other text."""
 
         try:
             response = requests.post(
-                _ZHIPU_URL,
+                _AI_URL,
                 headers={
-                    "Authorization": f"Bearer {_ZHIPU_KEY}",
+                    "Authorization": f"Bearer {_AI_KEY}",
                     "Content-Type": "application/json"
                 },
                 json={
-                    "model": _ZHIPU_MODEL,
+                    "model": _AI_MODEL,
                     "messages": [
                         {"role": "system", "content": system_prompt},
                         {"role": "user", "content": user_prompt}

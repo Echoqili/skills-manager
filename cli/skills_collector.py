@@ -30,12 +30,12 @@ import json as _sc_json
 _AI_CONFIG_FILE = PROJECT_ROOT / "data" / "ai-config.json"
 
 def _sc_load_ai():
-    env_key = os.environ.get("ZHIPU_API_KEY", "")
+    env_key = os.environ.get("AI_API_KEY", "")
     if env_key:
         return (
-            os.environ.get("ZHIPU_API_URL", "https://ark.cn-beijing.volces.com/api/coding/v3/chat/completions"),
+            os.environ.get("AI_BASE_URL", "https://ark.cn-beijing.volces.com/api/coding/v3/chat/completions"),
             env_key,
-            os.environ.get("ZHIPU_MODEL", "kimi-k2.6"),
+            os.environ.get("AI_MODEL", "kimi-k2.6"),
         )
     if _AI_CONFIG_FILE.exists():
         try:
@@ -48,9 +48,9 @@ def _sc_load_ai():
             pass
     return "", "", ""
 
-ZHIPU_API_KEY = os.environ.get("ZHIPU_API_KEY", "")
-ZHIPU_API_URL = ""
-ZHIPU_MODEL = ""
+AI_API_KEY = os.environ.get("AI_API_KEY", "")
+AI_BASE_URL = ""
+AI_MODEL = ""
 
 # GitHub 代理列表（国内可用）
 GITHUB_PROXIES = [
@@ -540,7 +540,7 @@ def classify_with_ai(candidates: List[SkillCandidate], top_k: int = 20) -> List[
     # 每次调用动态读取配置，确保 Web 端修改后立即生效
     url, key, model = _sc_load_ai()
     if not key:
-        print("⚠️ AI API Key 未配置（可通过 AI 设置页面或 ZHIPU_API_KEY 环境变量配置）")
+        print("⚠️ AI API Key 未配置（可通过 AI 设置页面或 AI_API_KEY 环境变量配置）")
         return []
 
     print(f"\n🤖 AI 分类 Top {top_k} 候选...")
