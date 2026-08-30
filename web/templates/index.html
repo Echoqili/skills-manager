@@ -5804,6 +5804,9 @@
         // ========== 智能设置管理 ==========
         // 默认配置来自 Render 环境变量；当前 IP 可在此页面覆盖
 
+        // 全局缓存提供商数据，避免依赖 HTML data 属性里的 JSON 解析（部分浏览器会出错）
+        let AI_PROVIDERS = [];
+
         async function loadAiConfig() {
             try {
                 const [configResp, providersResp] = await Promise.all([
@@ -5814,47 +5817,27 @@
                     throw new Error('API 响应异常');
                 }
                 const config = await configResp.json();
-                const providers = await providersResp.json();
+                AI_PROVIDERS = await providersResp.json();
 
-                // 填充提供商下拉
+                // 填充提供商下拉（用 Option 构造，避免 data 属性 JSON 解析在部分浏览器出错）
                 const providerSelect = document.getElementById('aiProvider');
-                providerSelect.innerHTML = providers.map(p => {
-                    const modelsStr = JSON.stringify(p.models).replace(/'/g, "\\'");
-                    return `<option value="${p.id}" data-models='${modelsStr}' data-url="${p.base_url}">${p.name}</option>`;
-                }).join('');
+                providerSelect.innerHTML = '';
+                AI_PROVIDERS.forEach(p => {
+                    providerSelect.add(new Option(p.name, p.id));
+                });
 
-                // 设置当前值 - 先设选中，再更新模型列表
-                let selectedProvider = config.provider || 'glm';
-                let found = false;
-                for (let i = 0; i < providerSelect.options.length; i++) {
-                    if (providerSelect.options[i].value === selectedProvider) {
-                        providerSelect.selectedIndex = i;
-                        found = true;
-                        break;
-                    }
+                // 选中已保存/默认提供商；custom 不作为静默默认，找不到时回退到第一个真实提供商
+                let selectedProvider = config.provider;
+                const realProviders = AI_PROVIDERS.filter(p => p.id !== 'custom');
+                if (!selectedProvider || !AI_PROVIDERS.some(p => p.id === selectedProvider)) {
+                    selectedProvider = (realProviders[0] || { id: 'custom' }).id;
                 }
-                // 如果没找到已保存的提供商，选中第一个
-                if (!found && providerSelect.options.length > 0) {
-                    providerSelect.selectedIndex = 0;
-                    selectedProvider = providerSelect.options[0].value;
-                }
+                providerSelect.value = selectedProvider;
 
-                // 更新模型输入
-                const modelSelect = document.getElementById('aiModel');
-                const selectedOpt = providerSelect.options[providerSelect.selectedIndex];
-                let models = [];
-                try {
-                    if (selectedOpt.dataset.models) {
-                        models = JSON.parse(selectedOpt.dataset.models);
-                    }
-                } catch (e) { models = []; }
-                modelSelect.innerHTML = models.map(m =>
-                    `<option value="${m}" ${m === config.model ? 'selected' : ''}>${m}</option>`
-                ).join('');
-                updateModelInputVisibility();
-                setAiModelValue(config.model || '');
+                // 更新模型下拉（已保存模型若不在列表也追加一项，保证一定对得上）
+                applyProviderModels(selectedProvider, config.model);
 
-                // 设置其他字段
+                // 设置其它字段（独立于模型逻辑，确保一定写入，避免 URL/Key 不显示）
                 document.getElementById('aiEnabled').checked = config.enabled || false;
                 document.getElementById('aiBaseUrl').value = config.base_url || '';
                 document.getElementById('aiApiKey').value = config.api_key || '';
@@ -5871,6 +5854,32 @@
             }
         }
 
+        // 根据所选提供商刷新「模型」下拉与「API 地址」
+        function applyProviderModels(providerId, savedModel) {
+            const provider = AI_PROVIDERS.find(p => p.id === providerId) || { models: [] };
+            const isCustom = providerId === 'custom';
+            updateModelInputVisibility();
+
+            if (isCustom) {
+                // 自定义提供商：模型用文本框，API 地址由用户填写，保持不变
+                document.getElementById('aiModelCustom').value = savedModel || '';
+                return;
+            }
+
+            // 真实提供商：API 地址回填默认地址；模型用该提供商列表
+            document.getElementById('aiBaseUrl').value = provider.base_url || '';
+            const modelSelect = document.getElementById('aiModel');
+            const models = (provider.models || []).slice();
+            // 已保存模型若不在列表，追加一项，保证一定能选中、不会“对不上”
+            if (savedModel && !models.includes(savedModel)) {
+                models.push(savedModel);
+            }
+            modelSelect.innerHTML = models.map(m =>
+                `<option value="${m}">${m}</option>`
+            ).join('');
+            modelSelect.value = savedModel || (models[0] || '');
+        }
+
         function isCustomProvider() {
             return document.getElementById('aiProvider').value === 'custom';
         }
@@ -5882,25 +5891,6 @@
             return document.getElementById('aiModel').value;
         }
 
-        function setAiModelValue(value) {
-            if (isCustomProvider()) {
-                document.getElementById('aiModelCustom').value = value || '';
-            } else {
-                const modelSelect = document.getElementById('aiModel');
-                let found = false;
-                for (let i = 0; i < modelSelect.options.length; i++) {
-                    if (modelSelect.options[i].value === value) {
-                        modelSelect.selectedIndex = i;
-                        found = true;
-                        break;
-                    }
-                }
-                if (!found && modelSelect.options.length > 0) {
-                    modelSelect.selectedIndex = 0;
-                }
-            }
-        }
-
         function updateModelInputVisibility() {
             const isCustom = isCustomProvider();
             document.getElementById('aiModel').style.display = isCustom ? 'none' : 'block';
@@ -5908,28 +5898,10 @@
         }
 
         function onAiProviderChange() {
-            const provider = document.getElementById('aiProvider');
-            const idx = provider.selectedIndex;
-            if (idx < 0) return;
-            const selected = provider.options[idx];
-            // 更新 API 地址
-            const url = selected.dataset.url || '';
-            document.getElementById('aiBaseUrl').value = url;
-            // 更新模型输入：自定义 provider 使用文本框，其他使用下拉框
-            const modelSelect = document.getElementById('aiModel');
-            let models = [];
-            try {
-                if (selected.dataset.models) {
-                    models = JSON.parse(selected.dataset.models);
-                }
-            } catch (e) { models = []; }
-            modelSelect.innerHTML = models.map(m =>
-                `<option value="${m}">${m}</option>`
-            ).join('');
-            updateModelInputVisibility();
-            if (!isCustomProvider() && modelSelect.options.length > 0) {
-                modelSelect.selectedIndex = 0;
-            }
+            const providerId = document.getElementById('aiProvider').value;
+            if (!providerId) return;
+            // 切换提供商：使用新提供商的默认模型与 API 地址
+            applyProviderModels(providerId, '');
             onAiConfigChanged();
         }
 

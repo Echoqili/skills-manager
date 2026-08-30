@@ -37,6 +37,17 @@ app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024
 app.config['TEMPLATES_AUTO_RELOAD'] = True
 
+
+@app.after_request
+def _no_store_cache(resp):
+    """禁止浏览器缓存页面与 API，避免旧 index.html 让提供商下拉停留在旧列表"""
+    ct = resp.headers.get('Content-Type', '')
+    if 'text/html' in ct or 'application/json' in ct:
+        resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+        resp.headers['Pragma'] = 'no-cache'
+        resp.headers['Expires'] = '0'
+    return resp
+
 # 后台自动更新任务状态
 _update_tasks = {}
 
@@ -104,7 +115,9 @@ def _load_env_ai_config():
         # 使用通用配置时给出 OpenAI 兼容的合理默认值
         base_url = base_url or "https://api.openai.com/v1"
         model = model or "gpt-3.5-turbo"
-        provider = provider or "custom"
+        # 不再静默回退到 custom：明确未配置 provider 时默认用 openai，
+        # 避免下拉框默认停在「自定义」让用户误以为其它提供商不可用
+        provider = provider or "openai"
 
     return {
         "provider": provider,
@@ -1697,6 +1710,17 @@ def api_ai_providers():
             "base_url": "https://open.bigmodel.cn/api/paas/v4",
             "models": ["glm-4-flash", "glm-4-plus", "glm-4.5", "glm-5"],
             "tip": "glm-4-flash 完全免费，glm-5 为最新旗舰",
+        },
+        {
+            "id": "sensenova",
+            "name": "商汤 SenseNova",
+            "base_url": "https://token.sensenova.cn/v1",
+            "models": [
+                "deepseek-v4-flash", "deepseek-v4",
+                "sensenova-v6-turbo", "sensenova-v6-pro",
+                "SenseNova-V6-Turbo", "SenseNova-V6-Pro",
+            ],
+            "tip": "支持商汤托管的 DeepSeek 等模型，例如 deepseek-v4-flash",
         },
         {
             "id": "custom",
