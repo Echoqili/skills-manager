@@ -211,6 +211,7 @@ def scan_all_skills() -> List[Dict[str, Any]]:
 
 
 # ========== DB Schema ==========
+# 仅建表；索引在 init_db 中于列迁移之后创建，避免旧库缺列时 CREATE INDEX 失败。
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS skills (
     name TEXT NOT NULL,
@@ -237,14 +238,18 @@ CREATE TABLE IF NOT EXISTS skills (
     deleted_at TEXT DEFAULT NULL,
     PRIMARY KEY (name, owner)
 );
-
-CREATE UNIQUE INDEX IF NOT EXISTS idx_skills_path ON skills(path, owner);
-CREATE INDEX IF NOT EXISTS idx_skills_source ON skills(source);
-CREATE INDEX IF NOT EXISTS idx_skills_category ON skills(category);
-CREATE INDEX IF NOT EXISTS idx_skills_owner ON skills(owner);
-CREATE INDEX IF NOT EXISTS idx_skills_name_lower ON skills(LOWER(name));
-CREATE INDEX IF NOT EXISTS idx_skills_deleted ON skills(deleted_at);
 """
+
+
+# 列迁移完成后创建的所有索引
+_INDEX_DDL = [
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_skills_path ON skills(path, owner)",
+    "CREATE INDEX IF NOT EXISTS idx_skills_source ON skills(source)",
+    "CREATE INDEX IF NOT EXISTS idx_skills_category ON skills(category)",
+    "CREATE INDEX IF NOT EXISTS idx_skills_owner ON skills(owner)",
+    "CREATE INDEX IF NOT EXISTS idx_skills_name_lower ON skills(LOWER(name))",
+    "CREATE INDEX IF NOT EXISTS idx_skills_deleted ON skills(deleted_at)",
+]
 
 
 # ========== 连接管理 ==========
@@ -280,12 +285,15 @@ def init_db() -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     conn = get_conn()
     conn.executescript(SCHEMA)
-    # 兼容旧库：若缺少 owner / deleted_at 列则迁移
+    # 兼容旧库：若缺少 owner / deleted_at 列则迁移（必须在建索引前完成）
     cols = {r[1] for r in conn.execute("PRAGMA table_info(skills)")}
     if "owner" not in cols:
         conn.execute("ALTER TABLE skills ADD COLUMN owner TEXT DEFAULT ''")
     if "deleted_at" not in cols:
         conn.execute("ALTER TABLE skills ADD COLUMN deleted_at TEXT DEFAULT NULL")
+    # 列齐全后再建索引，避免旧库缺列导致 CREATE INDEX 失败
+    for ddl in _INDEX_DDL:
+        conn.execute(ddl)
     rebuild_all()
 
 

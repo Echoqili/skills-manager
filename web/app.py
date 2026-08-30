@@ -8,6 +8,7 @@ import os
 import sys
 import json
 import re
+import hmac
 import uuid
 import zipfile
 import base64
@@ -36,7 +37,12 @@ from werkzeug.security import generate_password_hash, check_password_hash
 
 
 def init_users_table():
-    """建 users 表；首次运行可用环境变量 ADMIN_USER/ADMIN_PASS 播种管理员"""
+    """建 users 表；首次运行可用环境变量 ADMIN_USER/ADMIN_PASS 播种管理员
+
+    新增审批字段：
+      - status: 'approved' | 'pending' | 'rejected'（默认 approved，保证存量账号与 env 管理员可正常登录）
+      - approved_at / approved_by: 审批记录
+    """
     conn = skills_db.get_conn()
     conn.execute(
         """
@@ -45,17 +51,28 @@ def init_users_table():
             username TEXT UNIQUE NOT NULL,
             password_hash TEXT NOT NULL,
             is_admin INTEGER DEFAULT 0,
+            status TEXT DEFAULT 'approved',
+            approved_at TEXT,
+            approved_by TEXT,
             created_at TEXT DEFAULT CURRENT_TIMESTAMP
         )
         """
     )
+    # 兼容旧库迁移
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(users)").fetchall()}
+    if "status" not in cols:
+        conn.execute("ALTER TABLE users ADD COLUMN status TEXT DEFAULT 'approved'")
+    if "approved_at" not in cols:
+        conn.execute("ALTER TABLE users ADD COLUMN approved_at TEXT")
+    if "approved_by" not in cols:
+        conn.execute("ALTER TABLE users ADD COLUMN approved_by TEXT")
     cur = conn.execute("SELECT COUNT(*) FROM users").fetchone()
     if cur[0] == 0:
         admin_user = os.environ.get("ADMIN_USER", "").strip()
         admin_pass = os.environ.get("ADMIN_PASS", "").strip()
         if admin_user and admin_pass:
             conn.execute(
-                "INSERT INTO users (username, password_hash, is_admin) VALUES (?,?,1)",
+                "INSERT INTO users (username, password_hash, is_admin, status) VALUES (?,?,1,'approved')",
                 (admin_user, generate_password_hash(admin_pass)),
             )
             conn.commit()
@@ -67,7 +84,7 @@ def get_current_user():
     if not uid:
         return None
     row = skills_db.get_conn().execute(
-        "SELECT id, username, is_admin FROM users WHERE id=?", (uid,)
+        "SELECT id, username, is_admin, status FROM users WHERE id=?", (uid,)
     ).fetchone()
     return dict(row) if row else None
 
@@ -77,6 +94,38 @@ def login_required(f):
     def decorated(*args, **kwargs):
         if not get_current_user():
             return jsonify({"error": "unauthorized", "code": 401}), 401
+        return f(*args, **kwargs)
+    return decorated
+
+
+def _admin_key_valid() -> bool:
+    """校验请求中的管理员密钥（ADMIN_APPROVAL_KEY）。未配置则一律拒绝（fail closed）。"""
+    expected = os.environ.get("ADMIN_APPROVAL_KEY", "").strip()
+    if not expected:
+        return False
+    provided = (
+        request.headers.get("X-Admin-Key")
+        or (request.get_json(silent=True) or {}).get("key")
+        or request.args.get("key")
+        or ""
+    )
+    return hmac.compare_digest(provided, expected)
+
+
+def require_admin() -> bool:
+    """管理员判定：已登录管理员 或 提供了正确的管理员密钥"""
+    u = get_current_user()
+    if u and u.get("is_admin"):
+        return True
+    return _admin_key_valid()
+
+
+def admin_only(f):
+    """装饰器：需管理员（登录管理员 或 密钥），否则 401"""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not require_admin():
+            return jsonify({"error": "管理员密钥错误或缺失", "code": "admin_required"}), 401
         return f(*args, **kwargs)
     return decorated
 
@@ -108,6 +157,9 @@ def _require_auth():
     p = request.path
     if p.startswith('/api/'):
         if p.startswith('/api/auth/'):
+            return None
+        if p.startswith('/api/admin/'):
+            # 管理员接口由密钥/管理员登录把关（见 admin_only），不在此处要求登录
             return None
         if not get_current_user():
             return jsonify({"error": "unauthorized", "code": 401}), 401
@@ -638,6 +690,10 @@ def favicon():
 # ========== 鉴权接口 ==========
 @app.route('/api/auth/register', methods=['POST'])
 def api_auth_register():
+    """注册：默认进入待审批状态（pending），不自动成管理员、不自动登录。
+
+    已注册过但被拒绝(rejected)的用户可重新提交，覆盖为 pending。
+    """
     data = request.get_json() or {}
     username = (data.get('username') or '').strip()
     password = data.get('password') or ''
@@ -646,19 +702,28 @@ def api_auth_register():
     if len(password) < 6:
         return jsonify({"error": "密码至少 6 位"}), 400
     conn = skills_db.get_conn()
-    exists = conn.execute("SELECT id FROM users WHERE username=?", (username,)).fetchone()
-    if exists:
-        return jsonify({"error": "用户名已存在"}), 409
-    # 首个注册用户自动成为管理员
-    cnt = conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]
-    is_admin = 1 if cnt == 0 else 0
+    existing = conn.execute(
+        "SELECT id, status FROM users WHERE username=?", (username,)
+    ).fetchone()
+    if existing and existing["status"] != "rejected":
+        return jsonify({"error": "用户名已存在，请直接登录或联系管理员", "code": "exists"}), 409
+    now = datetime.now(timezone.utc).isoformat()
+    if existing and existing["status"] == "rejected":
+        # 被拒用户重新申请：重置为待审批
+        conn.execute(
+            "UPDATE users SET password_hash=?, status='pending', approved_at=NULL, approved_by=NULL, created_at=? WHERE id=?",
+            (generate_password_hash(password), now, existing["id"]),
+        )
+        conn.commit()
+        return jsonify({"success": True, "status": "pending",
+                        "message": "注册成功，请等待管理员审批"})
     cur = conn.execute(
-        "INSERT INTO users (username, password_hash, is_admin) VALUES (?,?,?)",
-        (username, generate_password_hash(password), is_admin),
+        "INSERT INTO users (username, password_hash, is_admin, status, created_at) VALUES (?,?,0,'pending',?)",
+        (username, generate_password_hash(password), now),
     )
     conn.commit()
-    session['user_id'] = cur.lastrowid
-    return jsonify({"success": True, "user": {"id": cur.lastrowid, "username": username, "is_admin": bool(is_admin)}})
+    return jsonify({"success": True, "status": "pending",
+                    "message": "注册成功，请等待管理员审批"})
 
 
 @app.route('/api/auth/login', methods=['POST'])
@@ -667,10 +732,14 @@ def api_auth_login():
     username = (data.get('username') or '').strip()
     password = data.get('password') or ''
     row = skills_db.get_conn().execute(
-        "SELECT id, username, password_hash, is_admin FROM users WHERE username=?", (username,)
+        "SELECT id, username, password_hash, is_admin, status FROM users WHERE username=?", (username,)
     ).fetchone()
     if not row or not check_password_hash(row["password_hash"], password):
         return jsonify({"error": "用户名或密码错误"}), 401
+    if row["status"] != "approved":
+        if row["status"] == "rejected":
+            return jsonify({"error": "账号已被拒绝，请联系管理员", "code": "rejected"}), 403
+        return jsonify({"error": "账号待审批，请等待管理员批准", "code": "pending"}), 403
     session['user_id'] = row["id"]
     return jsonify({"success": True, "user": {"id": row["id"], "username": row["username"], "is_admin": bool(row["is_admin"])}})
 
@@ -687,6 +756,92 @@ def api_auth_me():
     if not u:
         return jsonify({"user": None})
     return jsonify({"user": u})
+
+
+# ========== 管理员审批（密钥门禁） ==========
+# 单独的审批页面 /admin/approvals 不对外开放、不在主界面提供入口，
+# 访问需提供环境变量 ADMIN_APPROVAL_KEY 对应的密钥。
+
+@app.route('/api/admin/pending', methods=['GET'])
+@admin_only
+def api_admin_pending():
+    """列出待审批用户"""
+    rows = skills_db.get_conn().execute(
+        "SELECT id, username, is_admin, status, created_at FROM users WHERE status='pending' ORDER BY created_at"
+    ).fetchall()
+    return jsonify({"users": [dict(r) for r in rows]})
+
+
+@app.route('/api/admin/approve', methods=['POST'])
+@admin_only
+def api_admin_approve():
+    data = request.get_json() or {}
+    username = (data.get('username') or '').strip()
+    if not username:
+        return jsonify({"error": "用户名必填"}), 400
+    conn = skills_db.get_conn()
+    row = conn.execute("SELECT id, status FROM users WHERE username=?", (username,)).fetchone()
+    if not row:
+        return jsonify({"error": "用户不存在"}), 404
+    if row["status"] == "approved":
+        return jsonify({"success": True, "message": "已是批准状态", "status": "approved"})
+    conn.execute(
+        "UPDATE users SET status='approved', approved_at=?, approved_by='admin' WHERE username=?",
+        (datetime.now(timezone.utc).isoformat(), username),
+    )
+    conn.commit()
+    return jsonify({"success": True, "message": f"已批准 {username}", "status": "approved"})
+
+
+@app.route('/api/admin/reject', methods=['POST'])
+@admin_only
+def api_admin_reject():
+    data = request.get_json() or {}
+    username = (data.get('username') or '').strip()
+    if not username:
+        return jsonify({"error": "用户名必填"}), 400
+    conn = skills_db.get_conn()
+    row = conn.execute("SELECT id, status FROM users WHERE username=?", (username,)).fetchone()
+    if not row:
+        return jsonify({"error": "用户不存在"}), 404
+    conn.execute(
+        "UPDATE users SET status='rejected', approved_at=?, approved_by='admin' WHERE username=?",
+        (datetime.now(timezone.utc).isoformat(), username),
+    )
+    conn.commit()
+    return jsonify({"success": True, "message": f"已拒绝 {username}", "status": "rejected"})
+
+
+@app.route('/api/admin/create', methods=['POST'])
+@admin_only
+def api_admin_create():
+    """在审批页内创建账号（用于引导首位管理员 / 直接开账号），自动 approved"""
+    data = request.get_json() or {}
+    username = (data.get('username') or '').strip()
+    password = data.get('password') or ''
+    make_admin = bool(data.get('is_admin'))
+    if not username or not password:
+        return jsonify({"error": "用户名和密码必填"}), 400
+    if len(password) < 6:
+        return jsonify({"error": "密码至少 6 位"}), 400
+    conn = skills_db.get_conn()
+    if conn.execute("SELECT id FROM users WHERE username=?", (username,)).fetchone():
+        return jsonify({"error": "用户名已存在"}), 409
+    conn.execute(
+        "INSERT INTO users (username, password_hash, is_admin, status, approved_at, approved_by, created_at) "
+        "VALUES (?,?,?,'approved',?,?,?)",
+        (username, generate_password_hash(password), 1 if make_admin else 0,
+         datetime.now(timezone.utc).isoformat(), "admin",
+         datetime.now(timezone.utc).isoformat()),
+    )
+    conn.commit()
+    return jsonify({"success": True, "message": f"已创建 {'管理员' if make_admin else '用户'} {username}"})
+
+
+@app.route('/admin/approvals')
+def admin_approvals_page():
+    """密钥门禁的管理员审批页（不对外开放，无主界面入口）"""
+    return render_template('admin_approvals.html')
 
 
 @app.route('/api/stats')
@@ -2096,8 +2251,9 @@ def api_index_rebuild():
 
 
 @app.route('/api/admin/rebuild', methods=['POST'])
+@admin_only
 def api_admin_rebuild():
-    """手动触发 SQLite 索引重建"""
+    """手动触发 SQLite 索引重建（需管理员或密钥）"""
     try:
         skills_db.rebuild_all()
         return jsonify({

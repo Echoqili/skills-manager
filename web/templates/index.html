@@ -7202,8 +7202,8 @@
                     switchLink.textContent = '注册';
                 } else {
                     titleEl.textContent = '注册新账号';
-                    subEl.textContent = '首个注册的账号将自动成为管理员';
-                    submitBtn.textContent = '注册并登录';
+                    subEl.textContent = '注册后需管理员审批，通过后方可登录';
+                    submitBtn.textContent = '提交注册';
                     switchText.textContent = '已有账号？';
                     switchLink.textContent = '去登录';
                 }
@@ -7228,6 +7228,16 @@
                     const data = await resp.json();
                     if (!resp.ok || !data.success){
                         errEl.textContent = data.error || '操作失败';
+                        return;
+                    }
+                    if (authMode === 'register' && data.status === 'pending'){
+                        // 注册成功但待审批：不自动登录，提示后切回登录
+                        errEl.style.color = 'var(--green, #16a34a)';
+                        errEl.textContent = data.message || '注册成功，请等待管理员审批';
+                        document.getElementById('auth-password').value = '';
+                        authMode = 'login';
+                        renderMode();
+                        errEl.style.color = '';
                         return;
                     }
                     overlay.style.display = 'none';

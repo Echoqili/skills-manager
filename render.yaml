@@ -16,6 +16,8 @@ services:
         sync: false
       - key: ADMIN_PASS
         sync: false
+      - key: ADMIN_APPROVAL_KEY
+        sync: false
       - key: ZHIPU_API_URL
         value: https://open.bigmodel.cn/api/paas/v4
       - key: ZHIPU_API_KEY
