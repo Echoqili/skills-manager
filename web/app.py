@@ -8,6 +8,7 @@ import os
 import sys
 import json
 import re
+import time
 import hmac
 import uuid
 import zipfile
@@ -98,18 +99,102 @@ def login_required(f):
     return decorated
 
 
+def _client_ip() -> str:
+    """客户端 IP（优先真实转发链；仅用于限流，不作强信任）"""
+    fwd = request.headers.get("X-Forwarded-For", "")
+    if fwd:
+        return fwd.split(",")[0].strip()
+    return request.remote_addr or "unknown"
+
+
+# ========== 进程内限流（单 worker 部署有效；gunicorn 默认单 worker） ==========
+_RATE: dict = {}
+
+def _rate_limit(bucket: str, limit: int, window: float = 900.0) -> bool:
+    """滑动窗口：window 秒内最多 limit 次；超限返回 False"""
+    now = time.time()
+    e = _RATE.get(bucket)
+    if not e or now - e[1] > window:
+        _RATE[bucket] = [1, now]
+        return True
+    if e[0] >= limit:
+        return False
+    e[0] += 1
+    return True
+
+
+def _rate_clear(bucket: str) -> None:
+    _RATE.pop(bucket, None)
+
+
+# ========== 管理员密钥：数据库加密存储 ==========
+DEFAULT_ADMIN_KEY = "q15900358736"  # 首次启动的默认管理密钥（公开于代码仓库，上线后务必修改）
+
+
+def init_app_settings() -> None:
+    """建 app_settings 表；确保管理密钥以哈希形式入库（不存明文）。
+
+    优先级：数据库已有哈希 > 环境变量 ADMIN_APPROVAL_KEY > 内置默认密钥。
+    """
+    conn = skills_db.get_conn()
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS app_settings (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL,
+            updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+    conn.commit()
+    if _get_admin_key_hash():
+        return
+    env_key = os.environ.get("ADMIN_APPROVAL_KEY", "").strip()
+    seed = env_key or DEFAULT_ADMIN_KEY
+    _set_admin_key_hash(seed)
+    if not env_key:
+        print("\n[警告] 当前使用内置默认管理密钥。该密钥公开于代码仓库，"
+              "请立即在审批页(/admin/approvals)「修改管理密钥」处更换，"
+              "或部署时通过 ADMIN_APPROVAL_KEY 环境变量覆盖。\n")
+
+
+def _get_admin_key_hash() -> str:
+    """读取库中存储的管理密钥哈希（无记录返回空串）"""
+    row = skills_db.get_conn().execute(
+        "SELECT value FROM app_settings WHERE key='admin_approval_key_hash'"
+    ).fetchone()
+    return row["value"] if row else ""
+
+
+def _set_admin_key_hash(plain: str) -> None:
+    """把明文密钥加密（PBKDF2 哈希）后存入数据库"""
+    conn = skills_db.get_conn()
+    conn.execute(
+        "INSERT INTO app_settings(key, value, updated_at) VALUES('admin_approval_key_hash', ?, ?) "
+        "ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at",
+        (generate_password_hash(plain), datetime.now(timezone.utc).isoformat()),
+    )
+    conn.commit()
+
+
 def _admin_key_valid() -> bool:
-    """校验请求中的管理员密钥（ADMIN_APPROVAL_KEY）。未配置则一律拒绝（fail closed）。"""
-    expected = os.environ.get("ADMIN_APPROVAL_KEY", "").strip()
-    if not expected:
+    """校验请求中的管理员密钥：与数据库中的哈希比对（加密校验，不存明文比较）。
+
+    密钥仅接受请求头 X-Admin-Key 或 JSON body 的 key 字段，
+    不接受 URL query 传参（避免密钥进入访问日志）；连续失败按 IP 限流。
+    """
+    stored = _get_admin_key_hash()
+    if not stored:
         return False
     provided = (
         request.headers.get("X-Admin-Key")
         or (request.get_json(silent=True) or {}).get("key")
-        or request.args.get("key")
         or ""
     )
-    return hmac.compare_digest(provided, expected)
+    if not provided or not check_password_hash(stored, provided):
+        _rate_limit(f"adminkey:{_client_ip()}", 20, 900)
+        return False
+    return True
 
 
 def require_admin() -> bool:
@@ -130,15 +215,21 @@ def admin_only(f):
     return decorated
 
 
-# 启动时建表 + 全量重建
+# 启动时建表 + 全量重建 + 设置表
 skills_db.init_db()
 init_users_table()
+init_app_settings()
 
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024
 app.config['TEMPLATES_AUTO_RELOAD'] = True
 # 会话签名密钥：生产环境务必通过环境变量 SECRET_KEY 设置固定值
 app.secret_key = os.environ.get("SECRET_KEY") or secrets.token_hex(32)
+# 会话 Cookie 安全属性（HttpOnly / SameSite 防 XSS 窃取与 CSRF；Secure 由环境变量控制，
+# Render 走 HTTPS 请在 render.yaml 设 SESSION_COOKIE_SECURE=true，本地 HTTP 调试保持 false）
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+app.config['SESSION_COOKIE_SECURE'] = os.environ.get('SESSION_COOKIE_SECURE', '0') == '1'
 
 
 @app.after_request
@@ -149,6 +240,15 @@ def _no_store_cache(resp):
         resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
         resp.headers['Pragma'] = 'no-cache'
         resp.headers['Expires'] = '0'
+    return resp
+
+
+@app.after_request
+def _security_headers(resp):
+    """基础安全响应头"""
+    resp.headers.setdefault('X-Content-Type-Options', 'nosniff')
+    resp.headers.setdefault('X-Frame-Options', 'DENY')
+    resp.headers.setdefault('Referrer-Policy', 'same-origin')
     return resp
 
 @app.before_request
@@ -701,6 +801,9 @@ def api_auth_register():
         return jsonify({"error": "用户名和密码必填"}), 400
     if len(password) < 6:
         return jsonify({"error": "密码至少 6 位"}), 400
+    # 注册限流：每 IP 每小时最多 5 次（防垃圾注册）
+    if not _rate_limit(f"register:{_client_ip()}", 5, 3600):
+        return jsonify({"error": "注册过于频繁，请 1 小时后再试", "code": "rate_limited"}), 429
     conn = skills_db.get_conn()
     existing = conn.execute(
         "SELECT id, status FROM users WHERE username=?", (username,)
@@ -731,6 +834,10 @@ def api_auth_login():
     data = request.get_json() or {}
     username = (data.get('username') or '').strip()
     password = data.get('password') or ''
+    # 登录失败限流：每 IP+用户名 15 分钟最多 10 次失败（防暴力破解）
+    bucket = f"login:{_client_ip()}:{username}"
+    if not _rate_limit(bucket, 10, 900):
+        return jsonify({"error": "失败次数过多，请 15 分钟后再试", "code": "rate_limited"}), 429
     row = skills_db.get_conn().execute(
         "SELECT id, username, password_hash, is_admin, status FROM users WHERE username=?", (username,)
     ).fetchone()
@@ -740,6 +847,7 @@ def api_auth_login():
         if row["status"] == "rejected":
             return jsonify({"error": "账号已被拒绝，请联系管理员", "code": "rejected"}), 403
         return jsonify({"error": "账号待审批，请等待管理员批准", "code": "pending"}), 403
+    _rate_clear(bucket)
     session['user_id'] = row["id"]
     return jsonify({"success": True, "user": {"id": row["id"], "username": row["username"], "is_admin": bool(row["is_admin"])}})
 
@@ -836,6 +944,20 @@ def api_admin_create():
     )
     conn.commit()
     return jsonify({"success": True, "message": f"已创建 {'管理员' if make_admin else '用户'} {username}"})
+
+
+@app.route('/api/admin/set-key', methods=['POST'])
+@admin_only
+def api_admin_set_key():
+    """轮换管理密钥：明文加密（哈希）后入库，立即生效（旧密钥随即失效）"""
+    data = request.get_json() or {}
+    new_key = (data.get('key') or '').strip()
+    if len(new_key) < 8:
+        return jsonify({"error": "新密钥至少 8 位"}), 400
+    if new_key == "q15900358736":
+        return jsonify({"error": "该密钥为内置默认密钥，已被公开，请更换其他密钥"}), 400
+    _set_admin_key_hash(new_key)
+    return jsonify({"success": True, "message": "管理密钥已更新并立即生效，请妥善保存"})
 
 
 @app.route('/admin/approvals')

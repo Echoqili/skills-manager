@@ -45,7 +45,7 @@
 <body>
 <div class="wrap">
   <h1>🔐 管理员审批台</h1>
-  <div class="sub">此页面不对外开放，需输入管理员密钥（环境变量 <code>ADMIN_APPROVAL_KEY</code>）进入。</div>
+  <div class="sub">此页面不对外开放，需输入管理员密钥进入。密钥以加密（哈希）形式存于数据库，不再明文存放。</div>
 
   <!-- 密钥门禁 -->
   <div class="card" id="gate">
@@ -87,6 +87,17 @@
     <div class="msg ok hidden" id="createOk"></div>
     <div class="msg err hidden" id="createErr"></div>
   </div>
+
+  <!-- 修改管理密钥 -->
+  <div class="card hidden" id="keyCard">
+    <h1 style="font-size:16px">修改管理密钥</h1>
+    <div class="tip" style="margin-bottom:12px">密钥以加密（哈希）形式存于数据库，改后立即生效、旧密钥失效。请勿使用已被公开的内置默认密钥。</div>
+    <label for="newKey">新密钥（至少 8 位）</label>
+    <input type="password" id="newKey" placeholder="新密钥" autocomplete="new-password">
+    <button class="btn-primary" id="setKeyBtn">保存新密钥</button>
+    <div class="msg ok hidden" id="keyOk"></div>
+    <div class="msg err hidden" id="keyErr"></div>
+  </div>
 </div>
 
 <script>
@@ -107,7 +118,7 @@ async function enter(){
     document.getElementById('gateErr').textContent='密钥错误，拒绝访问'; show('gateErr', true);
     ADMIN_KEY=''; sessionStorage.removeItem('admin_key'); return;
   }
-  show('gate', false); show('panel', true); show('createCard', true);
+  show('gate', false); show('panel', true); show('createCard', true); show('keyCard', true);
   loadPending();
 }
 
@@ -146,6 +157,24 @@ async function decide(act, username){
   else { document.getElementById('panelErr').textContent = d.error||'操作失败'; show('panelErr', true); }
 }
 
+async function setKey(){
+  show('keyOk', false); show('keyErr', false);
+  const key = document.getElementById('newKey').value.trim();
+  if(key.length < 8){ document.getElementById('keyErr').textContent='新密钥至少 8 位'; show('keyErr', true); return; }
+  const r = await fetch('/api/admin/set-key', {method:'POST', headers: authHeaders(),
+    body: JSON.stringify({key})});
+  const d = await r.json().catch(()=>({}));
+  if(r.ok){
+    document.getElementById('keyOk').textContent = d.message||'已更新';
+    show('keyOk', true);
+    document.getElementById('newKey').value='';
+    ADMIN_KEY = key; sessionStorage.setItem('admin_key', key); // 切换为使用新密钥
+  } else {
+    document.getElementById('keyErr').textContent = d.error||'保存失败';
+    show('keyErr', true);
+  }
+}
+
 async function createUser(){
   show('createOk', false); show('createErr', false);
   const username = document.getElementById('cUser').value.trim();
@@ -165,6 +194,7 @@ function esc(s){ return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;
 document.getElementById('enterBtn').addEventListener('click', enter);
 document.getElementById('key').addEventListener('keydown', e=>{ if(e.key==='Enter') enter(); });
 document.getElementById('createBtn').addEventListener('click', createUser);
+document.getElementById('setKeyBtn').addEventListener('click', setKey);
 if(ADMIN_KEY){ /* 已有缓存密钥，自动尝试进入 */ enter(); }
 </script>
 </body>

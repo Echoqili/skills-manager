@@ -16,8 +16,11 @@ services:
         sync: false
       - key: ADMIN_PASS
         sync: false
+      # 仅用于首次启动播种管理密钥哈希；之后以数据库存储为准（可在 /admin/approvals 修改）
       - key: ADMIN_APPROVAL_KEY
         sync: false
+      - key: SESSION_COOKIE_SECURE
+        value: "true"
       - key: ZHIPU_API_URL
         value: https://open.bigmodel.cn/api/paas/v4
       - key: ZHIPU_API_KEY
