@@ -1,34 +1,26 @@
 ---
-name: implementation
-description: Implementation phase — Developers implement PBIs per design documents
+name: "implementation"
+description: "Implementation phase — Developers implement PBIs per design documents Use this skill when the task involves implementation."
 disable-model-invocation: false
 ---
-
 ## Inputs
-
 - `state.json` -> `phase: design | implementation`
 - `sprint.json` (current Sprint with developer assignments)
 - `.design/specs/**/*.md` (populated design documents and user-facing docs)
 - `requirements.md` (source requirements for reference)
-
 ## Outputs
-
 - Source code files implementing the PBIs
 - Test files (unit tests for implemented code)
 - `backlog.json` -> `items[].status: in_progress`
 - `state.json` -> `phase: implementation`
-
 ## Preconditions
-
 - `state.json` exists with `phase: design` or `implementation`
 - `sprint.json` exists with developer assignments
 - Design documents in `.design/specs/**/*.md` are populated (design phase is
   complete), including user-facing documentation
 - `requirements.md` exists for reference
 - `backlog.json` exists with PBIs assigned to the current Sprint
-
 ## Steps
-
 1. Transition `state.json` to `phase: implementation` (if not already set by the Scrum Master).
 2. Each Developer reads the improvement log (if it exists from prior
    retrospectives) and applies any relevant improvements to their workflow
@@ -54,11 +46,8 @@ disable-model-invocation: false
    `backlog.json` and will not update without it.
 8. Report progress to Scrum Master: summarize what was implemented, test
    coverage, and any blockers encountered.
-
 Reference: FR-017
-
 ## Exit Criteria
-
 - All PBIs in the Sprint have `status: in_progress` in `backlog.json`
 - Implementation is complete for all assigned PBIs (source code written per
   design documents)
@@ -66,3 +55,5 @@ Reference: FR-017
 - Unit tests are written for all implemented code
 - All tests pass
 - Code passes the project's linter/formatter checks
+---
+

@@ -1,5 +1,5 @@
 ---
-name: Baidu Search
+name: "baidu-search"
 slug: baidu-search
 description: 利用百度 AI 搜索引擎进行网页搜索，适合中文内容检索，支持新闻、学术、百科多源聚合。
 category: superpowers

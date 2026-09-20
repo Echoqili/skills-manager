@@ -1,15 +1,10 @@
 ---
-name: dispatching-parallel-agents
-description: >
-  并行代理调度。智能分配任务给多个 Agent 实现并行处理，
-  包含负载均衡、结果汇总、冲突处理。
+name: "dispatching-parallel-agents"
+description: "并行代理调度。智能分配任务给多个 Agent 实现并行处理， 包含负载均衡、结果汇总、冲突处理。当用户需要dispatching、parallel、agents相关能力时触发本技能。"
 user-invocable: true
 ---
-
 # Dispatching Parallel Agents - 并行代理调度
-
 智能调度多个 Agent 并行执行任务。
-
 ## 调度策略
 
 ### 1. 基于能力的调度
@@ -69,17 +64,14 @@ class PriorityQueue {
 ```
 
 ## 并行执行器
-
 ```typescript
 class ParallelAgentDispatcher {
   private agents: Agent[];
   private taskQueue: PriorityQueue;
   private runningTasks: Map<string, AbortController> = new Map();
-
   async dispatch(tasks: Task[], maxParallel: number = 5) {
     const chunks = this.chunkArray(tasks, maxParallel);
     const results: TaskResult[] = [];
-
     for (const chunk of chunks) {
       const chunkResults = await Promise.allSettled(
         chunk.map(task => this.executeOnAgent(task))
@@ -88,18 +80,13 @@ class ParallelAgentDispatcher {
         r.status === 'fulfilled' ? r.value : { task: chunk[i], error: r.reason }
       ));
     }
-
     return results;
   }
-
   private async executeOnAgent(task: Task): Promise<TaskResult> {
     const agent = this.selectBestAgent(task);
-
     const controller = new AbortController();
     this.runningTasks.set(task.id, controller);
-
     agent.load += task.complexity;
-
     try {
       const result = await agent.execute(task, { signal: controller.signal });
       return { task, result, agent: agent.id };
@@ -110,9 +97,7 @@ class ParallelAgentDispatcher {
   }
 }
 ```
-
 ## 负载均衡
-
 ```typescript
 // 动态负载均衡
 class LoadBalancer {
@@ -122,24 +107,19 @@ class LoadBalancer {
       agent.activeConnections < min.activeConnections ? agent : min
     );
   }
-
   // 加权随机策略
   getNextAgentWeighted(agents: Agent[]): Agent {
     const totalWeight = agents.reduce((sum, a) => sum + (1 - a.load), 0);
     let random = Math.random() * totalWeight;
-
     for (const agent of agents) {
       random -= (1 - agent.load);
       if (random <= 0) return agent;
     }
-
     return agents[0];
   }
 }
 ```
-
 ## 结果汇总
-
 ### Map-Reduce 模式
 ```typescript
 async function mapReduce<T, R>(
@@ -149,11 +129,9 @@ async function mapReduce<T, R>(
 ): Promise<R> {
   // Map: 并行处理
   const mapped = await Promise.all(items.map(mapper));
-
   // Reduce: 汇总结果
   return reducer(mapped);
 }
-
 // 使用示例
 const wordCounts = await mapReduce(
   documents,
@@ -167,9 +145,7 @@ const wordCounts = await mapReduce(
   }, {})
 );
 ```
-
 ## 冲突处理
-
 ### 乐观锁
 ```typescript
 async function executeWithOptimisticLock(
@@ -177,7 +153,6 @@ async function executeWithOptimisticLock(
   agent: Agent
 ): Promise<TaskResult> {
   const version = await getResourceVersion(task.resourceId);
-
   try {
     return await agent.execute(task);
   } catch (conflict: ConflictError) {
@@ -191,9 +166,7 @@ async function executeWithOptimisticLock(
   }
 }
 ```
-
 ## 监控面板
-
 ```typescript
 interface DispatcherMetrics {
   totalTasks: number;
@@ -202,7 +175,6 @@ interface DispatcherMetrics {
   averageWaitTime: number;
   agentUtilization: Map<string, number>;
 }
-
 // 定期上报
 setInterval(async () => {
   const metrics = await dispatcher.getMetrics();
@@ -212,17 +184,15 @@ setInterval(async () => {
   });
 }, 30000);
 ```
-
 ## 最佳实践
-
 1. **合理并行度**: 避免过多并行导致资源竞争 (建议 3-5)
 2. **任务粒度**: 任务执行时间 1-10 分钟最佳
 3. **超时控制**: 设置合理的任务超时时间
 4. **优雅降级**: 单个 Agent 失败不影响整体
 5. **资源预留**: 留 20% 容量给突发任务
-
 ## 与其他 Skills 配合
-
 - [subagent-driven-development](subagent-driven-development): 子代理开发
 - [workflow-runner](workflow-runner): 工作流执行
 - [verification-before-completion](verification-before-completion): 结果验证
+---
+

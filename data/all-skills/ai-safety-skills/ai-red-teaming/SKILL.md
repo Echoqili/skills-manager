@@ -1,3 +1,8 @@
+---
+name: "ai-red-teaming"
+description: "Systematically test AI systems for security vulnerabilities through adversarial red teaming. Use this skill when evaluating AI applications before production deployment, validating security measures, or conducting penetration testing on LLM-powered systems. It runs test scripts and executes adversarial payloads against the target system."
+---
+
 # AI Red Teaming
 
 ## Purpose

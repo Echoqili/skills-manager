@@ -1,7 +1,7 @@
 ---
 # Agent Skills Specification 兼容格式
 name: "qa-test-generator"
-description: "AI-powered test case generator for QA teams. Automatically generate unit tests, integration tests, and E2E test cases from code analysis."
+description: "AI-powered test case generator for QA teams. Automatically generate unit tests, integration tests, and E2E test cases from code analysis. Use this skill when the task involves testing, automation, qa."
 description_zh: "AI 驱动的 QA 测试用例生成器，自动从代码分析生成单元测试、集成测试和 E2E 测试用例。"
 version: "1.0.0"
 author: "Skills Manager"

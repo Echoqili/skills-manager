@@ -1,20 +1,16 @@
 ---
-name: design
-description: Design phase — Developers author design documents and user-facing documentation
+name: "design"
+description: "Design phase — Developers author design documents and user-facing documentation Use this skill when the task involves design."
 disable-model-invocation: false
 ---
-
 ## Inputs
-
 - `state.json` -> `phase: sprint_planning | design`
 - `sprint.json` -> `developers[]` (developer assignments)
 - `.design/catalog.md` (reference list of design document types — read-only)
 - `.design/catalog-config.json` (list of enabled spec IDs)
 - Existing `.design/specs/**/*.md` stubs (created by scaffold-design-spec skill)
 - `requirements.md` (source requirements for reference)
-
 ## Outputs
-
 - Populated design documents (architecture, internals) with detailed content
 - Populated user-facing documentation (README feature specs, API reference,
   usage guides) as `.design/specs/docs/*.md` entries
@@ -22,17 +18,13 @@ disable-model-invocation: false
 - `backlog.json` -> `items[].design_doc_paths` updated with paths to all
   design and documentation files
 - `state.json` -> `phase: design`
-
 ## Preconditions
-
 - `state.json` exists with `phase: sprint_planning` or `design`
 - `sprint.json` exists with developer assignments
 - `.design/specs/**/*.md` stub files exist (created by scaffold-design-spec)
 - `backlog.json` exists with PBIs assigned to the current Sprint
 - `requirements.md` exists for reference
-
 ## Steps
-
 1. Transition `state.json` to `phase: design` (if not already set by the Scrum Master).
 2. Each Developer MUST read ALL existing design documents and user-facing
    documentation from previous Sprints before writing their own. This ensures
@@ -67,11 +59,8 @@ disable-model-invocation: false
    complete. Every documentation file must correspond to an enabled entry
    in `.design/catalog-config.json` — do not create documentation for spec IDs
   not listed in the enabled array.
-
 Reference: FR-004
-
 ## Exit Criteria
-
 - All design stubs assigned to this Sprint are populated with substantive
   content (no remaining placeholder text)
 - User-facing documentation is authored for all PBIs that introduce or change
@@ -81,3 +70,5 @@ Reference: FR-004
 - `backlog.json` -> `items[].design_doc_paths` is set for every PBI in the
   Sprint (includes both design and documentation paths)
 - `state.json` phase is `design`
+---
+

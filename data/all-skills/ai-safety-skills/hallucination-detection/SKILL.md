@@ -1,3 +1,8 @@
+---
+name: "hallucination-detection"
+description: "Detect and mitigate hallucinations in LLM outputs. Use this skill when building AI applications where factual accuracy is critical, integrating model outputs with external systems, or requiring high-reliability AI responses."
+---
+
 # Hallucination Detection
 
 ## Purpose

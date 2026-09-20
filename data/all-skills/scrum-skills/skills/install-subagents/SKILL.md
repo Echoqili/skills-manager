@@ -1,31 +1,20 @@
 ---
-name: install-subagents
-description: >
-  Reproducible sub-agent selection from the awesome-claude-code-subagents
-  catalog. Developers invoke after receiving PBI assignments to install
-  relevant specialist sub-agents for their work.
+name: "install-subagents"
+description: "Reproducible sub-agent selection from the awesome-claude-code-subagents catalog. Developers invoke after receiving PBI assignments to install relevant specialist sub-agents for their work. Use this skill when the task involves install, subagents."
 disable-model-invocation: false
 ---
-
 ## Inputs
-
 - PBI assignment (task context from `backlog.json` → assigned PBI details)
 - Catalog path: `.claude/subagents-catalog/categories/`
-
 ## Outputs
-
 - `.claude/agents/*.md` — installed sub-agent definition files with YAML
   frontmatter (`tools`, `model`)
 - `sprint.json` → `developers[].sub_agents` — runtime-populated with names
   of actually-invoked sub-agents (not candidates)
-
 ## Preconditions
-
 - Developer has received PBI assignment via Agent Teams
 - `.claude/agents/` directory exists
-
 ## Steps
-
 1. **Analyze PBI**: Read the assigned PBI details (title, description,
    acceptance criteria, design document paths) to understand what
    specialist skills are needed.
@@ -47,20 +36,17 @@ disable-model-invocation: false
 6. **Use via Task Tool**: During implementation, invoke installed sub-agents
    via `Task(subagent_type="<agent-name>")`. Only record actually-used
    agents in `sprint.json` → `developers[].sub_agents`.
-
 ## Graceful Degradation
-
 - If the catalog directory is missing (setup skipped or clone failed),
   proceed without sub-agents. Do NOT show an error to the user.
 - If no matching agents are found for the PBI type, proceed without
   sub-agents. Log a brief note for the Scrum Master.
 - Sub-agents are optional enhancements, not requirements.
-
 Reference: FR-019
-
 ## Exit Criteria
-
 - Relevant sub-agents installed to `.claude/agents/` (if available)
 - Developer can proceed with implementation regardless of sub-agent
   availability
 - Only actually-invoked agents recorded in `sprint.json` (at runtime)
+---
+

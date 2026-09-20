@@ -1,5 +1,5 @@
 ---
-name: Web Search Pro
+name: "web-search-pro"
 slug: web-search-pro
 description: 多引擎聚合网页搜索技能，支持 DuckDuckGo/Bing/Google，无需 API key 即可使用，适合快速信息检索。
 category: superpowers

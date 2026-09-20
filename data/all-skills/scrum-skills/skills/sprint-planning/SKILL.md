@@ -1,31 +1,23 @@
 ---
-name: sprint-planning
-description: Sprint Planning ceremony — select PBIs, assign developers, create Sprint
+name: "sprint-planning"
+description: "Sprint Planning ceremony — select PBIs, assign developers, create Sprint Use this skill when the task involves sprint, planning."
 disable-model-invocation: false
 ---
-
 ## Inputs
-
 - `state.json` -> `phase: backlog_created | retrospective`
 - `backlog.json` -> PBIs with `status: refined`
-
 ## Outputs
-
 - `sprint.json` created with `id`, `goal`, `type: development`, `status: planning`, `pbi_ids`, `developer_count`
 - `backlog.json` -> `items[].sprint_id` assigned
 - `backlog.json` -> `items[].implementer_id` assigned (one developer per PBI)
 - `backlog.json` -> `items[].reviewer_id` assigned (round-robin, no self-review; single-PBI Sprint: `reviewer_id = "scrum-master"`)
 - `backlog.json` -> oversized PBIs split into child PBIs with `parent_pbi_id` set
 - `state.json` -> `phase: sprint_planning`
-
 ## Preconditions
-
 - `state.json` exists with `phase` set to `backlog_created` or `retrospective`
 - `backlog.json` exists with at least one PBI having `status: refined`
 - No active Sprint is already in progress
-
 ## Steps
-
 1. **Transition state immediately**: Update `state.json` → `phase: "sprint_planning"`.
    This MUST be the very first action so the TUI dashboard reflects the current phase.
 2. Propose a Sprint Goal summarizing the work to be done. Present it to the user for approval before proceeding.
@@ -69,9 +61,7 @@ disable-model-invocation: false
     - **4. Re-assign developers** — Change PBI assignments
     - **5. View backlog** — Show the full Product Backlog with priorities
     - **6. Other** — Free-form input
-
     Wait for the user to select an option before proceeding.
-
 11. **Enable design catalog entries and scaffold stubs** (when user selects "Start Sprint"):
     Before spawning teammates, the Scrum Master MUST:
     a. Review the PBIs selected for this Sprint and determine which design
@@ -84,16 +74,14 @@ disable-model-invocation: false
     c. Invoke the `scaffold-design-spec` skill to create stub files for any
        newly enabled entries that do not yet have files.
     d. Only after stubs are created, proceed to `spawn-teammates`.
-
     This step ensures Developers have design document stubs ready to
     populate when they enter the Design Phase.
-
 Reference: FR-004, FR-005, FR-006, FR-007, FR-008
-
 ## Exit Criteria
-
 - `sprint.json` exists with `status: planning` and all required fields populated
 - All selected PBIs in `backlog.json` have `implementer_id` and `reviewer_id` assigned
 - Each developer is assigned **exactly one PBI** to implement (1:1 mapping)
 - No PBI has the same `implementer_id` and `reviewer_id` (no self-review)
 - `state.json` phase is `sprint_planning`
+---
+

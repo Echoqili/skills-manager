@@ -1,3 +1,8 @@
+---
+name: "prompt-injection-defense"
+description: "Detect, prevent, and mitigate prompt injection attacks in LLM applications. Use this skill when building AI systems that process untrusted user input, integrating external data sources, or enabling agentic AI behaviors."
+---
+
 # Prompt Injection Defense
 
 ## Purpose

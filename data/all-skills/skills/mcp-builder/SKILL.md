@@ -1,24 +1,17 @@
 ---
-name: mcp-builder
-description: >
-  MCP (Model Context Protocol) 服务器构建指南。
-  创建标准化工具供 AI 编程助手调用，支持本地/远程模式。
+name: "mcp-builder"
+description: "MCP (Model Context Protocol) 服务器构建指南。 创建标准化工具供 AI 编程助手调用，支持本地/远程模式。当用户需要mcp、builder相关能力时触发本技能。需联网安装依赖并调试远程 MCP 端点。"
 user-invocable: true
 ---
-
 # MCP Builder - MCP 服务器构建
-
 构建 Model Context Protocol 服务器，为 AI 编程助手提供工具能力。
-
 ## MCP 架构
-
 ```
 ┌─────────────┐         ┌─────────────┐         ┌─────────────┐
 │   AI 模型    │ ←──────→  │  MCP Host   │ ←──────→  │ MCP Server  │
 │  (Claude)   │  JSON-RPC │  (Cursor)   │  JSON-RPC  │  (自定义)   │
 └─────────────┘         └─────────────┘         └─────────────┘
 ```
-
 ## 快速开始
 
 ### 1. 安装 MCP SDK
@@ -191,7 +184,6 @@ server.run(transport);
 ```
 
 ## Python 实现
-
 ```python
 # server.py
 from mcp.server import Server
@@ -199,9 +191,7 @@ from mcp.types import Tool, TextContent
 from mcp.server.stdio import stdio_server
 import asyncio
 import glob as glob_module
-
 server = Server("file-search")
-
 @server.list_tools()
 async def list_tools() -> list[Tool]:
     return [
@@ -217,24 +207,19 @@ async def list_tools() -> list[Tool]:
             }
         )
     ]
-
 @server.call_tool()
 async def call_tool(name: str, arguments: dict) -> list[TextContent]:
     if name == "search_files":
         files = glob_module.glob(arguments["pattern"], root_dir=arguments.get("cwd"))
         return [TextContent(type="text", text=str(files))]
     raise ValueError(f"Unknown tool: {name}")
-
 async def main():
     async with stdio_server() as (read_stream, write_stream):
         await server.run(read_stream, write_stream, server.create_initialization_options())
-
 if __name__ == "__main__":
     asyncio.run(main())
 ```
-
 ## MCP Host 配置
-
 ### Cursor
 ```json
 // ~/.cursor/mcp.json
@@ -247,7 +232,6 @@ if __name__ == "__main__":
   }
 }
 ```
-
 ### Claude Desktop
 ```json
 // ~/Library/Application Support/Claude/claude_desktop_config.json
@@ -260,43 +244,34 @@ if __name__ == "__main__":
   }
 }
 ```
-
 ## 调试技巧
-
 ```bash
 # 测试服务器
 echo '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | node server.js
-
 # 查看日志
 DEBUG=mcp:* node server.js
-
 # 验证工具响应
 curl -X POST http://localhost:3000/tools/search_files \
   -H "Content-Type: application/json" \
   -d '{"pattern":"**/*.ts"}'
 ```
-
 ## 安全考虑
-
 - [ ] 限制文件访问范围 (chroot/jail)
 - [ ] 验证用户输入 (路径遍历防护)
 - [ ] 超时保护 (防止无限循环)
 - [ ] 资源限制 (内存/CPU)
 - [ ] 审计日志 (记录所有调用)
-
 ## 发布分享
-
 ```bash
 # 打包发布
 npm publish
-
 # 版本管理
 npm version patch  # 1.0.0 -> 1.0.1
 npm version minor # 1.0.0 -> 1.1.0
 npm version major # 1.0.0 -> 2.0.0
 ```
-
 ## 相关资源
-
 - [MCP SDK 文档](https://modelcontextprotocol.org)
 - [官方示例服务器](https://github.com/modelcontextprotocol/servers)
+---
+

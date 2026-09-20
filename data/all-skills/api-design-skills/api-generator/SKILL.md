@@ -1,8 +1,6 @@
 ---
-name: api-generator
-description: >
-  Generate REST and GraphQL APIs from specifications, code analysis, or OpenAPI definitions.
-  This skill creates production-ready API code with best practices.
+name: "api-generator"
+description: "Generate REST and GraphQL APIs from specifications, code analysis, or OpenAPI definitions. This skill creates production-ready API code with best practices. Use this skill when the task involves api, rest, graphql."
 version: "1.0.0"
 tags: [api, rest, graphql, openapi, code-generation, express, fastify, openclaw]
 metadata:
@@ -21,7 +19,6 @@ triggers:
   - create api
   - generate endpoints
 ---
-
 # API Generator
 
 You are an expert in API design and code generation.

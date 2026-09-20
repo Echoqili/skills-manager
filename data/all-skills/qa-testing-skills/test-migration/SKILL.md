@@ -7,6 +7,7 @@ description: >-
   Use when: "migrate tests," "switch framework," "Selenium to Playwright," "Jest to
   Vitest," "framework migration," "test modernization."
   Related: playwright-automation, cypress-automation, unit-testing, ci-cd-integration.
+  It downloads target framework dependencies over the network during migration.
 license: MIT
 metadata:
   author: kindlmann

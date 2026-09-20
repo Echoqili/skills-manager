@@ -1,18 +1,12 @@
 ---
-name: payment-sdk-guide
-description: >
-  支付宝/微信支付 SDK 集成向导。包含企业账户配置、签名验证、
-  异步回调处理、对账文件生成等企业级支付集成要点。
+name: "payment-sdk-guide"
+description: "支付宝/微信支付 SDK 集成向导。包含企业账户配置、签名验证、 异步回调处理、对账文件生成等企业级支付集成要点。当用户需要payment、sdk、guide相关能力时触发本技能。涉及商户密钥、证书与 API 凭证配置。"
 applicable-regions: [CN]
 user-invocable: true
 ---
-
 # Payment SDK Guide - 支付 SDK 集成
-
 支付宝/微信支付的完整集成指南。
-
 ## 支持的支付方式
-
 | 支付方式 | 支付宝 | 微信支付 |
 |----------|--------|----------|
 | 扫码支付 | ✅ | ✅ |
@@ -21,11 +15,8 @@ user-invocable: true
 | H5 支付 | ✅ | ✅ |
 | 小程序支付 | ❌ | ✅ |
 | 刷脸支付 | ✅ | ✅ |
-
 ## 环境配置
-
 ### 支付宝
-
 ```typescript
 // 支付宝配置
 interface AlipayConfig {
@@ -35,7 +26,6 @@ interface AlipayConfig {
   gateway: string;         // 网关地址
   signType: 'RSA2';        // 签名类型
 }
-
 // 生产环境
 const alipayConfig: AlipayConfig = {
   appId: process.env.ALIPAY_APP_ID,
@@ -44,16 +34,13 @@ const alipayConfig: AlipayConfig = {
   gateway: 'https://openapi.alipay.com/gateway.do',
   signType: 'RSA2',
 };
-
 // 沙箱环境
 const alipaySandbox: AlipayConfig = {
   ...alipayConfig,
   gateway: 'https://openapi-sandbox.dl.alipaydev.com/gateway.do',
 };
 ```
-
 ### 微信支付
-
 ```typescript
 // 微信支付配置
 interface WechatPayConfig {
@@ -65,7 +52,6 @@ interface WechatPayConfig {
   passphrase: string;        // 私钥密码
   gateway: string;          // 网关地址
 }
-
 const wechatConfig: WechatPayConfig = {
   appId: process.env.WECHAT_APP_ID,
   mchId: process.env.WECHAT_MCH_ID,
@@ -76,7 +62,6 @@ const wechatConfig: WechatPayConfig = {
   gateway: 'https://api.mch.weixin.qq.com',
 };
 ```
-
 ## 统一收单支付
 
 ### 支付宝 - 手机网站支付
@@ -180,13 +165,10 @@ async function createWechatJsApiPay(params: WechatJsApiPayRequest) {
 ```
 
 ## 异步回调处理
-
 ### 支付宝回调
-
 ```typescript
 async function handleAlipayCallback(ctx) {
   const params = ctx.request.body;
-
   // 验证签名
   const signVerified = alipaySdk.verify({
     sign: params.sign,
@@ -194,15 +176,12 @@ async function handleAlipayCallback(ctx) {
     content: JSON.stringify(params),
     publicKey: alipayConfig.alipayPublicKey,
   });
-
   if (!signVerified) {
     ctx.body = { code: 'FAIL', message: '签名验证失败' };
     return;
   }
-
   // 处理通知
   const tradeStatus = params.trade_status;
-
   switch (tradeStatus) {
     case 'TRADE_SUCCESS':
     case 'TRADE_FINISHED':
@@ -210,54 +189,41 @@ async function handleAlipayCallback(ctx) {
       await updateOrderStatus(params.out_trade_no, 'PAID');
       await sendInvoice(params.out_trade_no);
       break;
-
     case 'WAIT_BUYER_PAY':
       // 交易创建，等待支付
       break;
-
     case 'TRADE_CLOSED':
       // 交易关闭
       await updateOrderStatus(params.out_trade_no, 'CLOSED');
       break;
   }
-
   ctx.body = 'success';
 }
 ```
-
 ### 微信回调
-
 ```typescript
 async function handleWechatCallback(ctx) {
   const body = ctx.request.rawBody;
-
   // 解析通知
   const notification = JSON.parse(body);
   const { transaction_id, out_trade_no, trade_state, amount } = notification;
-
   // 验证签名
   const wechatpayCert = await loadWechatpayCert();
   const verified = verifyWechatSign(body, notification.sign, wechatpayCert);
-
   if (!verified) {
     ctx.body = { code: 'FAIL', message: '签名验证失败' };
     return;
   }
-
   // 处理通知
   if (trade_state === 'SUCCESS') {
     await updateOrderStatus(out_trade_no, 'PAID');
     await reconciliationCallback(out_trade_no, transaction_id);
   }
-
   ctx.body = { code: 'SUCCESS', message: '成功' };
 }
 ```
-
 ## 对账文件处理
-
 ### 支付宝对账
-
 ```typescript
 interface AlipayReconciliationRecord {
   tradeNo: string;          // 支付宝交易号
@@ -268,21 +234,17 @@ interface AlipayReconciliationRecord {
   totalAmount: number;       // 订单金额
   tradeStatus: string;       // 交易状态
 }
-
 async function reconcileAlipay(filePath: string) {
   const records: AlipayReconciliationRecord[] = [];
-
   // 下载并解析对账文件 (CSV/GZIP)
   const decompressed = await decompressGzip(filePath);
   const lines = decompressed.split('\n');
-
   for (const line of lines.slice(1, -1)) { // 跳过表头和末尾
     const [
       , , , merchantOrderNo, , tradeNo, , ,
       tradeStatus, , , , payAmount, ,
       merchantFee, , receiveAmount, ,
     ] = line.split(',');
-
     records.push({
       tradeNo: tradeNo.trim(),
       merchantOrderNo: merchantOrderNo.trim(),
@@ -292,18 +254,15 @@ async function reconcileAlipay(filePath: string) {
       tradeStatus: tradeStatus.trim(),
     });
   }
-
   // 对账逻辑
   for (const record of records) {
     const order = await getOrderByMerchantNo(record.merchantOrderNo);
-
     if (record.tradeStatus === 'TRADE_SUCCESS') {
       if (order.status !== 'PAID') {
         // 差异: 支付成功但订单未更新
         await fixOrderStatus(order.id, 'PAID');
         await logReconcileDiff(order.id, 'MISSING_PAYMENT', record);
       }
-
       if (order.amount !== record.payAmount) {
         // 差异: 金额不匹配
         await logReconcileDiff(order.id, 'AMOUNT_MISMATCH', record);
@@ -312,9 +271,7 @@ async function reconcileAlipay(filePath: string) {
   }
 }
 ```
-
 ## 安全检查清单
-
 - [ ] 私钥不硬编码在代码中
 - [ ] 回调地址使用 HTTPS
 - [ ] 签名验证必须执行
@@ -322,9 +279,7 @@ async function reconcileAlipay(filePath: string) {
 - [ ] 同一订单不可重复支付
 - [ ] 对账文件定期下载和校验
 - [ ] 敏感信息加密存储
-
 ## 错误码参考
-
 | 支付宝 | 微信支付 | 说明 |
 |--------|----------|------|
 | ACQ.SUCCESS | SUCCESS | 成功 |
@@ -332,10 +287,10 @@ async function reconcileAlipay(filePath: string) {
 | ACQ.TRADE_HAS_FINISHED | ORDERPAID | 订单已支付 |
 | ACQ.BUYER_BALANCE_NOT_ENOUGH | NOTENOUGH | 余额不足 |
 | ACQ.SYSTEM_ERROR | SYSTEMERROR | 系统错误 |
-
 ## 禁忌
-
 - ❌ 不在客户端计算金额
 - ❌ 不跳过签名验证
 - ❌ 不明文存储私钥
 - ❌ 不依赖同步回调更新订单
+---
+

@@ -1,19 +1,12 @@
 ---
-name: spawn-teammates
-description: >
-  Reproducible teammate creation during Sprint Planning.
-  Reads Sprint and Backlog state, spawns Developer teammates
-  via Agent Teams with consistent naming and assignment.
+name: "spawn-teammates"
+description: "Reproducible teammate creation during Sprint Planning. Reads Sprint and Backlog state, spawns Developer teammates via Agent Teams with consistent naming and assignment. Use this skill when the task involves spawn, teammates."
 disable-model-invocation: false
 ---
-
 ## Inputs
-
 - `sprint.json` → `pbi_ids`, `developer_count`
 - `backlog.json` → `items[]` (PBIs assigned to this Sprint)
-
 ## Outputs
-
 - `sprint.json` → `developers[]` populated with:
   - `id` (consistent naming with Sprint suffix: `dev-001-s3`, `dev-002-s3`, ...)
   - `assigned_work.implement[]` (PBI IDs)
@@ -22,16 +15,12 @@ disable-model-invocation: false
   - `sub_agents: []` (empty, populated at runtime)
 - `sprint.json` → `status: "active"`
 - Agent Teams teammates spawned
-
 ## Preconditions
-
 - `state.json` exists with `phase: "sprint_planning"` or `"integration_sprint"`
 - `sprint.json` exists with `status: "planning"` and `pbi_ids` populated
 - `backlog.json` contains PBIs with `status: "refined"` matching `pbi_ids`
 - Sprint Planning has been completed (implementer/reviewer assignments made)
-
 ## Steps
-
 1. Read `sprint.json` to get `developer_count` and `pbi_ids`.
 2. Read `backlog.json` to get PBI details for the Sprint.
 3. Calculate developer count: `min(number of refined PBIs in Sprint, 6)`.
@@ -88,11 +77,8 @@ disable-model-invocation: false
 9. Verify all teammates are active and have received their assignments
    including the skill invocation sequence.
 10. Update `sprint.json` → `status: "active"` to mark the Sprint as in progress.
-
 Reference: FR-007
-
 ## Exit Criteria
-
 - `sprint.json` → `developers[]` is populated with `developer_count` entries
 - All Developers have non-empty `assigned_work.implement[]`
 - All Developers have non-empty `assigned_work.review[]` (or reviewer is
@@ -100,3 +86,5 @@ Reference: FR-007
 - No Developer reviews their own implementation
 - All Agent Teams teammates are spawned and active
 - `sprint.json` → `status: "active"`
+---
+

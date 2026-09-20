@@ -1,17 +1,13 @@
 ---
-name: cross-review
-description: Cross-review process — Developers review each other's work
+name: "cross-review"
+description: "Cross-review process — Developers review each other's work Use this skill when the task involves cross, review."
 disable-model-invocation: false
 ---
-
 ## Inputs
-
 - `state.json` → `phase: implementation | review`
 - `backlog.json` → all PBIs in the current Sprint with `status: in_progress` and implementation complete
 - `.scrum/requirements.md` and relevant design docs for each PBI
-
 ## Outputs
-
 - `.scrum/reviews/<pbi-id>-review.md` (created per PBI)
 - `backlog.json` → `items[].status: in_progress → review` (set at start of review)
 - `backlog.json` → `items[].status: review → done` (set after passing review)
@@ -19,16 +15,12 @@ disable-model-invocation: false
 - In single-PBI Sprint: `reviewer_id = "scrum-master"`, Scrum Master performs review
 - `state.json` → `phase: review`
 - `sprint.json` → `status: "cross_review"`
-
 ## Preconditions
-
 - `state.json` exists with `phase: "implementation"` or `"review"`
 - `backlog.json` exists and contains PBIs in the current Sprint with implementation complete
 - `.scrum/requirements.md` exists and is readable
 - Relevant design docs referenced by PBIs exist
-
 ## Steps
-
 1. **Transition state**: Update `state.json` → `phase: "review"` (if not already set by the Scrum Master).
    Update `sprint.json` → `status: "cross_review"`.
 2. **Mark PBIs as under review**: Update `backlog.json` → `items[].status`
@@ -62,14 +54,13 @@ disable-model-invocation: false
    ```
 9. **Set review path**: Set `items[].review_doc_path` in `backlog.json`
    to the path of the created review document.
-
 Reference: FR-009
-
 ## Exit Criteria
-
 - All PBIs in the current Sprint have been reviewed
 - `.scrum/reviews/<pbi-id>-review.md` exists for each reviewed PBI
 - All passing PBIs have `status: "done"` in `backlog.json`
 - Each reviewed PBI has `review_doc_path` set in `backlog.json`
 - Any unresolvable issues have been logged as new PBIs
 - `state.json` → `phase: "review"`
+---
+

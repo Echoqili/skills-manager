@@ -1,3 +1,8 @@
+---
+name: "find-community"
+description: "通过识别和分析目标用户社群，反向推导创业方向。用于发现未被满足的需求、验证市场规模、找到第一批种子用户。"
+---
+
 # Find Community
 
 ## Purpose

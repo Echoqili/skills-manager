@@ -1,0 +1,204 @@
+{
+  "version": 1,
+  "note": "中文精选专题。picks 为人工置顶（按数组顺序），其余由 query 语义检索自动补全；自动补全项会经过信任门槛过滤（排除 high/critical 风险与 suspicious 一致性）。改完请跑 python cli/curated.py check 校验。",
+  "defaults": {
+    "max": 10,
+    "blocked_risk": ["high", "critical"],
+    "blocked_consistency": ["suspicious"]
+  },
+  "collections": [
+    {
+      "id": "code-quality",
+      "title": "代码质量与同行评审",
+      "emoji": "🔍",
+      "summary": "写代码容易，让代码可被接手很难。这组技能覆盖规范、重构、评审话术与调试。",
+      "scenarios": ["提交 PR 前自查", "接手陌生代码库", "建立团队评审标准"],
+      "query": "代码评审 代码质量 重构 调试 编码规范",
+      "picks": [
+        "clean-code",
+        "requesting-code-review",
+        "receiving-code-review",
+        "multi-scheme-review",
+        "ai-code-review",
+        "chinese-code-review",
+        "systematic-debugging",
+        "coding-standards",
+        "composition-patterns",
+        "caveman"
+      ]
+    },
+    {
+      "id": "qa-automation",
+      "title": "测试与质量保障",
+      "emoji": "🧪",
+      "summary": "从单元测试到端到端与性能压测，把「凭感觉觉得没问题」换成可复现的证据。",
+      "scenarios": ["给新功能补测试", "搭 E2E 回归", "把手工测试脚本化"],
+      "query": "自动化测试 测试用例 端到端 E2E 性能测试 浏览器自动化",
+      "picks": [
+        "test-driven-development",
+        "qa-test-generator",
+        "webapp-testing",
+        "playwright-automation",
+        "e2e-testing",
+        "test-migration",
+        "performance-testing",
+        "unit-testing",
+        "api-testing",
+        "test-planning",
+        "verification-before-completion",
+        "agent-browser"
+      ]
+    },
+    {
+      "id": "frontend-delivery",
+      "title": "前端与设计交付",
+      "emoji": "🎨",
+      "summary": "从设计稿到可运行界面：设计系统、组件规范、主题与成品页面的落地路径。",
+      "scenarios": ["设计稿转代码", "统一视觉规范", "快速产出可分享页面"],
+      "query": "设计稿 转 代码 设计系统 组件库 前端界面 主题风格",
+      "picks": [
+        "figma-to-code",
+        "design-system",
+        "ui-ux-pro-max",
+        "frontend-design",
+        "theme-factory",
+        "web-artifacts-builder",
+        "frontend-slides",
+        "react-best-practices",
+        "canvas-design"
+      ]
+    },
+    {
+      "id": "chinese-conventions",
+      "title": "中文工程规范",
+      "emoji": "🇨🇳",
+      "summary": "团队协作里最容易被忽略的一致性：提交信息、命名、文档与 Git 流程。",
+      "scenarios": ["统一提交信息风格", "中文命名与文档规范", "规范化 Git 工作流"],
+      "query": "中文 提交信息 命名规范 文档规范 Git 工作流",
+      "picks": [
+        "chinese-commit-conventions",
+        "chinese-naming-conventions",
+        "chinese-documentation",
+        "chinese-git-workflow",
+        "git-commit",
+        "git-workflow",
+        "git-commit-automation",
+        "using-git-worktrees",
+        "chinese-code-review"
+      ]
+    },
+    {
+      "id": "agent-engineering",
+      "title": "Agent 与技能工程",
+      "emoji": "🤖",
+      "summary": "把 Agent 从「会聊天」调到「能交付」：技能编写、上下文工程、子代理编排与 MCP。",
+      "scenarios": ["编写自己的 Skill", "设计多代理协作", "控制上下文预算"],
+      "query": "编写技能 提示词优化 MCP 子代理 上下文工程 agent",
+      "picks": [
+        "skill-creator",
+        "writing-skills",
+        "skill-authoring-workflow",
+        "mcp-builder",
+        "prompt-optimizer",
+        "subagent-driven-development",
+        "dispatching-parallel-agents",
+        "context-engineering-advisor",
+        "using-superpowers",
+        "riper-5",
+        "claude-api",
+        "agent-skills"
+      ]
+    },
+    {
+      "id": "office-deliverables",
+      "title": "文档与办公产出",
+      "emoji": "📄",
+      "summary": "把结论变成别人能打开的文件：Word / PDF / PPT / Excel 与图表。",
+      "scenarios": ["写交付文档", "做汇报材料", "整理表格数据"],
+      "query": "生成 Word Excel PPT PDF 文档 图表 数据表",
+      "picks": [
+        "docx",
+        "pdf",
+        "pptx",
+        "xlsx",
+        "excel-analyzer",
+        "chart-visualization",
+        "drawio",
+        "doc-coauthoring",
+        "data-analysis",
+        "storyboard"
+      ]
+    },
+    {
+      "id": "research-search",
+      "title": "检索与深度研究",
+      "emoji": "🔎",
+      "summary": "需要事实而不是印象时：联网检索、深度调研、网页抓取与数据分析。",
+      "scenarios": ["做竞品调研", "核实一个事实", "批量抓取公开数据"],
+      "query": "联网搜索 深度研究 抓取 信息检索 公司调研",
+      "picks": [
+        "web-search-pro",
+        "tavily-search",
+        "rag-search",
+        "deep-research",
+        "company-research",
+        "last30days-skill",
+        "baidu-search",
+        "apify-scraper",
+        "google-search-console"
+      ]
+    },
+    {
+      "id": "product-discovery",
+      "title": "产品与需求",
+      "emoji": "🧭",
+      "summary": "在写代码之前想清楚：需求访谈、用户故事、产品定位与优先级排序。",
+      "scenarios": ["写 PRD", "拆解用户故事", "做优先级排序"],
+      "query": "需求分析 用户故事 产品策略 路线图 优先级",
+      "picks": [
+        "prd-development",
+        "requirement-interview",
+        "user-story-mapping",
+        "jobs-to-be-done",
+        "positioning-statement",
+        "roadmap-planning",
+        "prioritization-advisor",
+        "problem-framing-canvas",
+        "proto-persona",
+        "opportunity-solution-tree"
+      ]
+    },
+    {
+      "id": "security-compliance",
+      "title": "安全与合规",
+      "emoji": "🛡️",
+      "summary": "上线前最后一道闸：安全审计、攻防演练、提示注入防御与风险预检。",
+      "scenarios": ["上线前安全自查", "评估引入的第三方技能", "LLM 应用防护"],
+      "query": "安全审计 漏洞 提示注入 红队 风险 合规",
+      "picks": [
+        "security-audit-toolkit",
+        "security-testing",
+        "prompt-injection-defense",
+        "pentest-skill",
+        "risk-precheck",
+        "hallucination-detection",
+        "jailbreak-detection",
+        "ai-red-teaming",
+        "staged-confirmation"
+      ]
+    },
+    {
+      "id": "wechat-ecosystem",
+      "title": "微信生态与小程序",
+      "emoji": "💬",
+      "summary": "围绕公众号与小程序的上线链路：内容发布、支付接入与企业环境准备。",
+      "scenarios": ["公众号排版发布", "接入微信支付", "企业环境初始化"],
+      "query": "微信公众号 小程序 发布 微信支付 企业环境",
+      "picks": [
+        "wechat-publisher",
+        "payment-sdk-guide",
+        "china-enterprise-env-setup"
+      ]
+    }
+  ]
+}

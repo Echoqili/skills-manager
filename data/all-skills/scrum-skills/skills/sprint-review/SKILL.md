@@ -1,30 +1,22 @@
 ---
-name: sprint-review
-description: Sprint Review ceremony — present Increment to user
+name: "sprint-review"
+description: "Sprint Review ceremony — present Increment to user Use this skill when the task involves sprint, review."
 disable-model-invocation: false
 ---
-
 ## Inputs
-
 - `state.json` → `phase: review`
 - `sprint.json` (current Sprint data: id, goal, type, started_at)
 - `backlog.json` (PBI statuses and completion data)
-
 ## Outputs
-
 - `sprint-history.json` → `sprints[]` (SprintSummary appended with: id,
   goal, type, pbis_completed, pbis_total, started_at, completed_at)
 - `state.json` → `phase: sprint_review`
 - `sprint.json` → `status: "sprint_review"`
-
 ## Preconditions
-
 - `state.json` exists with `phase: "review"`
 - `sprint.json` exists and contains current Sprint data
 - `backlog.json` exists and contains PBIs for the current Sprint
-
 ## Steps
-
 1. **Transition state**: Update `state.json` → `phase: "sprint_review"`.
    Update `sprint.json` → `status: "sprint_review"`.
 2. **Present change summary**: Present to the user what was accomplished
@@ -111,20 +103,15 @@ disable-model-invocation: false
    - Create a commit with a message following this format:
      ```
      feat(sprint-N): <Sprint Goal summary>
-
      Completed PBIs:
      - PBI-XXX: <title>
      - PBI-YYY: <title>
-
      Co-Authored-By: <developer teammates who contributed>
      ```
    - Report the commit hash to the user.
    - Do NOT push to a remote — leave that to the user.
-
 Reference: FR-010, FR-011
-
 ## Exit Criteria
-
 - SprintSummary has been appended to `sprint-history.json` → `sprints[]`
 - User has reviewed the Increment and provided feedback
 - Documentation–implementation consistency has been checked for all completed PBIs
@@ -132,3 +119,5 @@ Reference: FR-010, FR-011
 - Any reported defects/changes have been created as new PBIs in `backlog.json` (NOT fixed directly)
 - Sprint deliverables have been committed to Git
 - `state.json` → `phase: "sprint_review"`
+---
+

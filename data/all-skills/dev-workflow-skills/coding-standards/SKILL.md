@@ -1,48 +1,38 @@
 ---
-name: coding-standards
-description: Universal coding standards, best practices, and patterns for TypeScript, JavaScript, React, and Node.js development.
+name: "coding-standards"
+description: "Universal coding standards, best practices, and patterns for TypeScript, JavaScript, React, and Node.js development. Use this skill when the task involves coding, standards."
 origin: ECC
 ---
-
 # Coding Standards & Best Practices
-
 Universal coding standards applicable across all projects.
-
 ## When to Activate
-
 - Starting a new project or module
 - Reviewing code for quality and maintainability
 - Refactoring existing code to follow conventions
 - Enforcing naming, formatting, or structural consistency
 - Setting up linting, formatting, or type-checking rules
 - Onboarding new contributors to coding conventions
-
 ## Code Quality Principles
-
 ### 1. Readability First
 - Code is read more than written
 - Clear variable and function names
 - Self-documenting code preferred over comments
 - Consistent formatting
-
 ### 2. KISS (Keep It Simple, Stupid)
 - Simplest solution that works
 - Avoid over-engineering
 - No premature optimization
 - Easy to understand > clever code
-
 ### 3. DRY (Don't Repeat Yourself)
 - Extract common logic into functions
 - Create reusable components
 - Share utilities across modules
 - Avoid copy-paste programming
-
 ### 4. YAGNI (You Aren't Gonna Need It)
 - Don't build features before they're needed
 - Avoid speculative generality
 - Add complexity only when required
 - Start simple, refactor when needed
-
 ## TypeScript/JavaScript Standards
 
 ### Variable Naming
@@ -153,9 +143,7 @@ function getMarket(id: any): Promise<any> {
 ```
 
 ## React Best Practices
-
 ### Component Structure
-
 ```typescript
 // PASS: GOOD: Functional component with types
 interface ButtonProps {
@@ -164,7 +152,6 @@ interface ButtonProps {
   disabled?: boolean
   variant?: 'primary' | 'secondary'
 }
-
 export function Button({
   children,
   onClick,
@@ -181,60 +168,45 @@ export function Button({
     </button>
   )
 }
-
 // FAIL: BAD: No types, unclear structure
 export function Button(props) {
   return <button onClick={props.onClick}>{props.children}</button>
 }
 ```
-
 ### Custom Hooks
-
 ```typescript
 // PASS: GOOD: Reusable custom hook
 export function useDebounce<T>(value: T, delay: number): T {
   const [debouncedValue, setDebouncedValue] = useState<T>(value)
-
   useEffect(() => {
     const handler = setTimeout(() => {
       setDebouncedValue(value)
     }, delay)
-
     return () => clearTimeout(handler)
   }, [value, delay])
-
   return debouncedValue
 }
-
 // Usage
 const debouncedQuery = useDebounce(searchQuery, 500)
 ```
-
 ### State Management
-
 ```typescript
 // PASS: GOOD: Proper state updates
 const [count, setCount] = useState(0)
-
 // Functional update for state based on previous state
 setCount(prev => prev + 1)
-
 // FAIL: BAD: Direct state reference
 setCount(count + 1)  // Can be stale in async scenarios
 ```
-
 ### Conditional Rendering
-
 ```typescript
 // PASS: GOOD: Clear conditional rendering
 {isLoading && <Spinner />}
 {error && <ErrorMessage error={error} />}
 {data && <DataDisplay data={data} />}
-
 // FAIL: BAD: Ternary hell
 {isLoading ? <Spinner /> : error ? <ErrorMessage error={error} /> : data ? <DataDisplay data={data} /> : null}
 ```
-
 ## API Design Standards
 
 ### REST API Conventions
@@ -312,9 +284,7 @@ export async function POST(request: Request) {
 ```
 
 ## File Organization
-
 ### Project Structure
-
 ```
 src/
 ├── app/                    # Next.js App Router
@@ -333,38 +303,28 @@ src/
 ├── types/                # TypeScript types
 └── styles/              # Global styles
 ```
-
 ### File Naming
-
 ```
 components/Button.tsx          # PascalCase for components
 hooks/useAuth.ts              # camelCase with 'use' prefix
 lib/formatDate.ts             # camelCase for utilities
 types/market.types.ts         # camelCase with .types suffix
 ```
-
 ## Comments & Documentation
-
 ### When to Comment
-
 ```typescript
 // PASS: GOOD: Explain WHY, not WHAT
 // Use exponential backoff to avoid overwhelming the API during outages
 const delay = Math.min(1000 * Math.pow(2, retryCount), 30000)
-
 // Deliberately using mutation here for performance with large arrays
 items.push(newItem)
-
 // FAIL: BAD: Stating the obvious
 // Increment counter by 1
 count++
-
 // Set name to user's name
 name = user.name
 ```
-
 ### JSDoc for Public APIs
-
 ```typescript
 /**
  * Searches markets using semantic similarity.
@@ -387,33 +347,24 @@ export async function searchMarkets(
   // Implementation
 }
 ```
-
 ## Performance Best Practices
-
 ### Memoization
-
 ```typescript
 import { useMemo, useCallback } from 'react'
-
 // PASS: GOOD: Memoize expensive computations
 const sortedMarkets = useMemo(() => {
   return markets.sort((a, b) => b.volume - a.volume)
 }, [markets])
-
 // PASS: GOOD: Memoize callbacks
 const handleSearch = useCallback((query: string) => {
   setSearchQuery(query)
 }, [])
 ```
-
 ### Lazy Loading
-
 ```typescript
 import { lazy, Suspense } from 'react'
-
 // PASS: GOOD: Lazy load heavy components
 const HeavyChart = lazy(() => import('./HeavyChart'))
-
 export function Dashboard() {
   return (
     <Suspense fallback={<Spinner />}>
@@ -422,64 +373,49 @@ export function Dashboard() {
   )
 }
 ```
-
 ### Database Queries
-
 ```typescript
 // PASS: GOOD: Select only needed columns
 const { data } = await supabase
   .from('markets')
   .select('id, name, status')
   .limit(10)
-
 // FAIL: BAD: Select everything
 const { data } = await supabase
   .from('markets')
   .select('*')
 ```
-
 ## Testing Standards
-
 ### Test Structure (AAA Pattern)
-
 ```typescript
 test('calculates similarity correctly', () => {
   // Arrange
   const vector1 = [1, 0, 0]
   const vector2 = [0, 1, 0]
-
   // Act
   const similarity = calculateCosineSimilarity(vector1, vector2)
-
   // Assert
   expect(similarity).toBe(0)
 })
 ```
-
 ### Test Naming
-
 ```typescript
 // PASS: GOOD: Descriptive test names
 test('returns empty array when no markets match query', () => { })
 test('throws error when OpenAI API key is missing', () => { })
 test('falls back to substring search when Redis unavailable', () => { })
-
 // FAIL: BAD: Vague test names
 test('works', () => { })
 test('test search', () => { })
 ```
-
 ## Code Smell Detection
-
 Watch for these anti-patterns:
-
 ### 1. Long Functions
 ```typescript
 // FAIL: BAD: Function > 50 lines
 function processMarketData() {
   // 100 lines of code
 }
-
 // PASS: GOOD: Split into smaller functions
 function processMarketData() {
   const validated = validateData()
@@ -487,7 +423,6 @@ function processMarketData() {
   return saveData(transformed)
 }
 ```
-
 ### 2. Deep Nesting
 ```typescript
 // FAIL: BAD: 5+ levels of nesting
@@ -502,29 +437,25 @@ if (user) {
     }
   }
 }
-
 // PASS: GOOD: Early returns
 if (!user) return
 if (!user.isAdmin) return
 if (!market) return
 if (!market.isActive) return
 if (!hasPermission) return
-
 // Do something
 ```
-
 ### 3. Magic Numbers
 ```typescript
 // FAIL: BAD: Unexplained numbers
 if (retryCount > 3) { }
 setTimeout(callback, 500)
-
 // PASS: GOOD: Named constants
 const MAX_RETRIES = 3
 const DEBOUNCE_DELAY_MS = 500
-
 if (retryCount > MAX_RETRIES) { }
 setTimeout(callback, DEBOUNCE_DELAY_MS)
 ```
-
 **Remember**: Code quality is not negotiable. Clear, maintainable code enables rapid development and confident refactoring.
+---
+

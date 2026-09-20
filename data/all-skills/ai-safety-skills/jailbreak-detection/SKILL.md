@@ -1,3 +1,8 @@
+---
+name: "jailbreak-detection"
+description: "Detect and block jailbreak attempts against LLM systems. Use this skill when protecting AI applications from users attempting to bypass safety guardrails, extract system prompts, or enable restricted capabilities."
+---
+
 # Jailbreak Detection
 
 ## Purpose
