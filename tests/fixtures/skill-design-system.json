@@ -13,7 +13,7 @@
   "files": [
     {
       "path": "SKILL.md",
-      "size": 13614
+      "size": 7076
     },
     {
       "path": "data\\slide-backgrounds.csv",
@@ -132,5 +132,5 @@
   "source": "learning-open-source",
   "tags": "",
   "trust_score": 45.0,
-  "version": "1.0.fdc493"
+  "version": "1.0.78b302"
 }
