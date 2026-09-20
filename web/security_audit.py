@@ -34,6 +34,10 @@ IGNORED_EVIDENCE_PATTERNS: List[Tuple[str, str]] = [
     ("env_access", r'process\.env\.PUBLIC_'),
     ("env_access", r'os\.environ\.get\("PATH"\)'),
     ("env_access", r'getenv\("PATH"\)'),
+    # 占位符/模板插值不是真实凭据
+    ("env_access", r'(?i)["\'](?:your|my|test|dummy|sample|example|placeholder|replace|change)[-_a-z0-9]*["\']'),
+    ("env_access", r'\$\{[^}]*\}'),
+    ("env_access", r'<[^>]+>'),
     ("scripts", r'eval\s*\(\s*JSON\.stringify'),
 ]
 
@@ -42,13 +46,15 @@ IGNORED_EVIDENCE_PATTERNS: List[Tuple[str, str]] = [
 RISK_PATTERNS: Dict[str, List[Tuple[str, str, str]]] = {
     "scripts": [
         (r'<script\b', "HTML script tag", "high"),
-        (r'eval\s*\(', "eval() execution", "critical"),
-        (r'Function\s*\(', "Function constructor", "high"),
+        # 否定后视：排除 page.$$eval( / page.$eval( / regex.exec( / waitForFunction(
+        # 这类框架 API 与正则调用——它们在浏览器自动化、Node 代码里极其常见。
+        (r'(?<![$\w.])eval\s*\(', "eval() execution", "critical"),
+        (r'(?<![$\w.])Function\s*\(', "Function constructor", "high"),
         (r'setTimeout\s*\(\s*["\']', "setTimeout with string", "medium"),
         (r'setInterval\s*\(\s*["\']', "setInterval with string", "medium"),
         (r'document\.write\s*\(', "document.write()", "medium"),
         (r'innerHTML\s*=', "innerHTML assignment", "medium"),
-        (r'\.exec\s*\(', "exec() call", "high"),
+        (r'\.exec\s*\(', "exec() call", "low"),
         (r'subprocess\.(call|run|Popen)\s*\(', "subprocess execution", "high"),
         (r'os\.system\s*\(', "os.system() call", "high"),
         (r'child_process', "child_process module", "high"),
@@ -60,8 +66,10 @@ RISK_PATTERNS: Dict[str, List[Tuple[str, str, str]]] = {
         (r'urllib\.request', "urllib request", "medium"),
         (r'axios\.(get|post|put|delete)\s*\(', "axios HTTP request", "medium"),
         (r'WebSocket\s*\(', "WebSocket connection", "medium"),
-        (r'curl\s+', "curl command", "medium"),
-        (r'wget\s+', "wget command", "medium"),
+        # 管道到 shell 才是真风险；单纯 curl/wget 取数据在技能里很常见
+        (r'(?:curl|wget)\s+[^\n|]*\|\s*(?:ba|z|k)?sh\b', "pipe download to shell", "critical"),
+        (r'curl\s+', "curl command", "low"),
+        (r'wget\s+', "wget command", "low"),
         (r'socket\.connect', "raw socket connection", "high"),
     ],
     "filesystem": [
@@ -70,30 +78,45 @@ RISK_PATTERNS: Dict[str, List[Tuple[str, str, str]]] = {
         (r'shutil\.(rmtree|move|copy)', "shutil file operation", "medium"),
         (r'os\.(remove|unlink|rmdir|rename)\s*\(', "os file deletion", "medium"),
         (r'Path\s*\([^)]*\)\.(unlink|rmdir|write_text|write_bytes)', "Path file operation", "low"),
-        (r'\.\./', "path traversal pattern", "high"),
+        # 单层 `../` 在文档里就是普通相对路径（如 `git worktree add ../feature`），
+        # 只有连续多级回退才具备穿越语义。
+        (r'(?:\.\.[\\/]){2,}', "deep path traversal pattern", "medium"),
         (r'/etc/passwd|/etc/shadow', "sensitive system file access", "critical"),
-        (r'\.env\b', "environment file access", "medium"),
+        (r'\.env\b', "environment file access", "low"),
     ],
     "env_access": [
         (r'process\.env', "process.env access", "low"),
         (r'os\.environ', "os.environ access", "low"),
-        (r'os\.getenv\s*\(', "os.getenv() call", "low"),
         (r'getenv\s*\(', "getenv() call", "low"),
-        (r'AWS_SECRET|API_KEY|SECRET_KEY|PRIVATE_KEY', "hardcoded secret reference", "high"),
-        (r'Bearer\s+[A-Za-z0-9]', "hardcoded bearer token", "critical"),
+        # 只有「变量名 = 真实字面量」才算硬编码凭据。单纯提及 API_KEY 之类的
+        # 名称（文档里说明需要哪些环境变量）是绝大多数正常技能的做法，若按提及
+        # 计分，则任何使用 API 的技能都会被打成高风险——实测误报率极高。
+        (r'''(?i)\b(?:AWS_SECRET\w*|API_KEY|SECRET_KEY|PRIVATE_KEY|ACCESS_TOKEN|CLIENT_SECRET|AUTH_TOKEN)\s*[:=]\s*["'][A-Za-z0-9_\-/+.]{16,}["']''',
+         "hardcoded secret literal", "critical"),
+        (r'Bearer\s+[A-Za-z0-9_\-\.]{20,}', "hardcoded bearer token", "critical"),
     ],
     "external_commands": [
         (r'os\.popen\s*\(', "os.popen() command", "high"),
         (r'subprocess\.(call|run|Popen|check_output)\s*\(.*shell\s*=\s*True', "subprocess with shell=True", "critical"),
-        (r'exec\s*\(', "exec() call", "high"),
-        (r'popen\s*\(', "popen() call", "high"),
-        (r'`[^`]*\$\{', "template literal with variable injection", "medium"),
-        (r'system\s*\(\s*["\']', "system() with string", "high"),
+        # 下列三条加否定前视，避免与 scripts 分类中的同名模式重复计分
+        # （如 `.exec(` 会同时命中 scripts 的 `\.exec\s*\(`）
+        (r'(?<![.\w])exec\s*\(', "exec() call", "high"),
+        (r'(?<![.\w])popen\s*\(', "popen() call", "high"),
+        (r'(?<![.\w])system\s*\(\s*["\']', "system() with string", "high"),
+        # 模板字符串插值在 JS 里是日常写法，只在低权重登记，避免刷高总分
+        (r'`[^`]*\$\{', "template literal interpolation", "low"),
     ],
 }
 
 # 风险等级权重（按发现严重度累加）
 RISK_WEIGHTS = {"safe": 0, "low": 1, "medium": 3, "high": 7, "critical": 15}
+
+# 单一类型的贡献上限与重复衰减。理由：技能文档（尤其教程类）会大量出现同一种
+# 操作，例如 git 技能里几十处 `../`、env 配置技能里几十个变量名。按出现次数累加
+# 会让「文档篇幅」直接等价于「风险」，把正规技能打成高风险。这里改为：
+# 同类型首个发现全额计分，后续每次衰减 50%，且单类型总分封顶。
+FACTOR_CAP = 10.0
+FACTOR_DECAY = 0.5
 
 # 阈值：总分 -> 风险等级
 RISK_THRESHOLDS = [
@@ -103,6 +126,20 @@ RISK_THRESHOLDS = [
     (15, "high"),
     (999, "critical"),
 ]
+
+
+def score_findings(findings: List[Dict[str, Any]]) -> float:
+    """按类型聚合、同类衰减、单类封顶的风险计分。"""
+    by_factor: Dict[str, List[float]] = {}
+    for f in findings or []:
+        w = float(RISK_WEIGHTS.get(f.get("severity", "low"), 1))
+        by_factor.setdefault(f.get("factor", "other"), []).append(w)
+    total = 0.0
+    for weights in by_factor.values():
+        weights.sort(reverse=True)
+        s = sum(w * (FACTOR_DECAY ** i) for i, w in enumerate(weights))
+        total += min(s, FACTOR_CAP)
+    return total
 
 
 def _is_whitelisted(factor: str, evidence: str) -> bool:
@@ -278,8 +315,8 @@ def audit_skill(skill_dir: Path) -> Dict[str, Any]:
         findings = scan_file_content(content, rel_path)
         all_findings.extend(findings)
 
-    # 计算总分
-    total_score = sum(RISK_WEIGHTS.get(f["severity"], 0) for f in all_findings)
+    # 计算总分（同类衰减 + 单类封顶，避免文档篇幅被当成风险）
+    total_score = score_findings(all_findings)
 
     # 确定风险等级
     risk_level = "safe"

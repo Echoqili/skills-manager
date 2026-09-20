@@ -1,0 +1,64 @@
+{
+  "author": "",
+  "category": "superpowers",
+  "category_emoji": "📦",
+  "category_name": "superpowers",
+  "consistency_issues": [],
+  "consistency_status": "consistent",
+  "description": "You MUST use this before any creative work - creating features, building components, adding functionality, or modifying behavior. Explores user intent, requirements and design before implementation.",
+  "description_en": "",
+  "description_zh": "",
+  "downloads": null,
+  "emoji": "📦",
+  "files": [
+    {
+      "path": "SKILL.md",
+      "size": 10634
+    },
+    {
+      "path": "spec-document-reviewer-prompt.md",
+      "size": 1748
+    },
+    {
+      "path": "visual-companion.md",
+      "size": 12047
+    },
+    {
+      "path": "scripts\\frame-template.html",
+      "size": 7917
+    },
+    {
+      "path": "scripts\\helper.js",
+      "size": 2707
+    },
+    {
+      "path": "scripts\\server.cjs",
+      "size": 11572
+    },
+    {
+      "path": "scripts\\start-server.sh",
+      "size": 4606
+    },
+    {
+      "path": "scripts\\stop-server.sh",
+      "size": 1314
+    }
+  ],
+  "name": "brainstorming",
+  "name_en": "brainstorming",
+  "name_zh": "",
+  "namespace": "skills",
+  "path": "data/all-skills/superpowers-skills/brainstorming/SKILL.md",
+  "quality_grade": "A",
+  "quality_score": 81.2,
+  "rating": null,
+  "rating_count": null,
+  "ref_bytes": 0,
+  "ref_files": 0,
+  "risk_level": "safe",
+  "risk_score": 0,
+  "source": "learning-open-source",
+  "tags": "",
+  "trust_score": 65.0,
+  "version": "1.0.f69029"
+}

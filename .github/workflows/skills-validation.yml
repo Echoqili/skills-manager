@@ -1,0 +1,132 @@
+name: Skills Validation
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - 'data/**'
+      - 'cli/**'
+      - 'tests/**'
+      - 'web/db.py'
+      - 'web/trust.py'
+      - 'web/quality_score.py'
+      - 'web/security_audit.py'
+      - 'web/spec_check.py'
+      - 'web/curated.py'
+      - 'web/registry.py'
+      - 'web/search_index.py'
+      - 'web/app.py'
+      - 'web/templates/**'
+      - '.github/workflows/skills-validation.yml'
+  pull_request:
+    paths:
+      - 'data/**'
+      - 'cli/**'
+      - 'tests/**'
+      - 'web/db.py'
+      - 'web/trust.py'
+      - 'web/quality_score.py'
+      - 'web/security_audit.py'
+      - 'web/spec_check.py'
+      - 'web/curated.py'
+      - 'web/registry.py'
+      - 'web/search_index.py'
+      - 'web/app.py'
+      - 'web/templates/**'
+      - '.github/workflows/skills-validation.yml'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Validate SKILL.md specification compliance
+        run: python cli/validate-skills.py --strict --json validation-report.json
+
+      - name: Trust layer regression tests
+        run: python tests/test_trust.py
+
+      - name: Registry publish gate regression tests
+        run: python tests/test_registry.py
+
+      # 游离 frontmatter 判据：单字段 / 非白名单字段名也算命中，
+      # 但不能把正文里的 `Note: ...`、代码块内的 `# 注释` 误判成元数据。
+      - name: Specification check regression tests
+        run: python tests/test_spec_check.py
+
+      # 去重判据：段间空行不同仍算重复；代码块内的 `# 注释` 不算小节标题
+      # （这条错了会把 shell 命令删残）。
+      - name: Dedupe regression tests
+        run: python tests/test_dedupe.py
+
+      # 体积护栏：正文偏长只 WARN（提示下沉 references/），单文件异常体量才
+      # ERROR；中文按 2 计权。护栏定级错了会把发布门禁变成摆设。
+      - name: Size guardrail regression tests
+        run: python tests/test_size_guard.py
+
+      # 导入通道对软链的处理：zip 会把软链拍平成「内容是目标路径」的普通文件并
+      # 原样落盘（悬空残骸的来源），tar 用 isfile() 把它静默吞掉。两者都必须
+      # 改为「不落盘 + 记进 skipped_links」，静默丢弃会让正文引用无声悬空。
+      - name: Import symlink handling regression tests
+        run: python tests/test_import_symlink.py
+
+      # 前端渲染契约：拿真实详情接口响应跑 showSkillDetail()，断言「附带参考
+      # 资料」面板与信任芯片。fixture 在 CI 里现生成——顺带覆盖 Linux 下
+      # files[].path 用正斜杠、Windows 下用反斜杠两种分隔符。
+      - name: Install web deps (for fixture generation)
+        run: pip install -r requirements.txt
+
+      - name: Frontend render contract tests
+        run: |
+          python cli/gen-render-fixtures.py
+          node tests/render_contract.js
+
+      # 资料只读接口 /api/skill/<name>/file 的边界：目录穿越的多种变体
+      # （`..`、`....//`、绝对路径）与**符号链接逃逸**。后者靠字符串过滤挡不住，
+      # 必须有 resolve() 之后的边界判断，这条测试专门钉住它。
+      - name: Reference file API boundary tests
+        run: python tests/test_ref_file_api.py
+
+      - name: Curated collections integrity
+        run: python cli/curated.py check
+
+      # 重复导入会把同一篇内容叠加多次，污染 TF-IDF 权重并浪费上下文窗口。
+      # 两级判据都当门禁：
+      #   h1 = 一级标题层面的整篇重复；
+      #   h2 = 一二级标题序列的「尾部周期重复」——重复单元的边界是一串小节而非
+      #        `#`，h1 完全够不着（实测全库 138 个文件是这种，占 58%）。
+      # 判据自带「行级集合超集」校验：各轮副本互有独有时不硬删，而是列进 manual
+      # 让人判断。出现拦截时先看输出的 manual 列表，再决定调判据还是修文件。
+      - name: Detect duplicated SKILL.md content
+        run: |
+          python cli/dedupe-skills.py --min-block 100 --fail-on-hit
+          python cli/dedupe-skills.py --blocks h2 --fail-on-hit
+
+      - name: Regenerate stats and check for drift
+        run: |
+          python cli/gen-stats.py --update-readme
+          git diff --exit-code -- data/skills-index.json data/SKILLS_INDEX.md README.md \
+            || { echo "::error::派生文件与 DB 不一致，请在本地运行 python cli/gen-stats.py --update-readme 后重新提交"; exit 1; }
+
+      - name: sm CLI smoke test
+        run: |
+          export SM_TARGET="$RUNNER_TEMP/sm-skills"
+          python cli/sm.py doctor
+          python cli/sm.py search "自动化测试" -n 3
+          python cli/sm.py install agent-browser
+          python cli/sm.py list
+          python cli/sm.py update --all
+          python cli/sm.py uninstall agent-browser -y
+
+      - name: Upload validation report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: validation-report
+          path: validation-report.json

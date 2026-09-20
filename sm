@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# sm — Skills Manager 命令行入口（Git Bash / Linux / macOS）
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Git Bash 下需把 /d/xxx 转成 D:/xxx，否则 Windows 版 Python 无法识别
+if command -v cygpath >/dev/null 2>&1; then
+    DIR="$(cygpath -w "$DIR")"
+fi
+exec "${PYTHON:-python}" "$DIR/cli/sm.py" "$@"

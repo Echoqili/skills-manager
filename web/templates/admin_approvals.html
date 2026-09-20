@@ -147,6 +147,14 @@
     <div class="msg ok hidden" id="keyOk"></div>
     <div class="msg err hidden" id="keyErr"></div>
   </div>
+
+  <!-- 邮件发送自检 -->
+  <div class="card hidden" id="mailCard">
+    <h1 style="font-size:16px">📧 邮件发送自检</h1>
+    <div class="tip" style="margin-bottom:12px">注册验证码发不出去时，一键诊断 SMTP 各阶段（DNS → TCP → TLS → 认证），不发真实邮件。适用于本地与云平台（Render）排查。</div>
+    <button class="btn-primary" id="mailTestBtn">运行诊断</button>
+    <div id="mailResult" style="margin-top:12px"></div>
+  </div>
 </div>
 
 <!-- 权限分配弹窗 -->
@@ -189,7 +197,7 @@ async function enter(){
     document.getElementById('gateErr').textContent='密钥错误，拒绝访问'; show('gateErr', true);
     ADMIN_KEY=''; sessionStorage.removeItem('admin_key'); return;
   }
-  show('gate', false); show('panel', true); show('createCard', true); show('keyCard', true);
+  show('gate', false); show('panel', true); show('createCard', true); show('keyCard', true); show('mailCard', true);
   loadPending(); loadHistory(); loadUsers(); loadPermDefs();
 }
 
@@ -348,6 +356,26 @@ async function savePerms(){
   }
 }
 
+async function runMailTest(){
+  const box = document.getElementById('mailResult');
+  box.innerHTML = '<div class="msg">诊断中（每阶段最多 15s，请稍候）…</div>';
+  try{
+    const r = await fetch('/api/admin/mail-test', {method:'POST', headers: authHeaders()});
+    const d = await r.json().catch(()=>({}));
+    if(!d || !d.host){ box.innerHTML = '<div class="msg err">诊断失败：'+(d.error||'无响应')+'</div>'; return; }
+    const rows = [
+      ['SMTP 服务器', d.host + ':' + d.port + (d.user ? '（' + d.user + '）' : '（未配置账号）')],
+      ['DNS 解析', d.dns || '—'],
+      ['TCP 连接', d.tcp || '—'],
+      ['TLS 握手', d.ehlo || d.handshake || '—'],
+      ['账号认证', d.login || '未配置账号，跳过'],
+    ];
+    box.innerHTML = '<table><thead><tr><th style="width:90px">阶段</th><th>结果</th></tr></thead><tbody>' +
+      rows.map(r=>`<tr><td>${r[0]}</td><td>${esc(r[1])}</td></tr>`).join('') + '</tbody></table>' +
+      '<div class="msg ' + (d.ok ? 'ok' : 'err') + '">' + esc(d.result || '') + '</div>';
+  }catch(e){ box.innerHTML = '<div class="msg err">网络错误：'+e.message+'</div>'; }
+}
+
 async function setKey(){
   show('keyOk', false); show('keyErr', false);
   const key = document.getElementById('newKey').value.trim();
@@ -387,6 +415,7 @@ document.getElementById('enterBtn').addEventListener('click', enter);
 document.getElementById('key').addEventListener('keydown', e=>{ if(e.key==='Enter') enter(); });
 document.getElementById('createBtn').addEventListener('click', createUser);
 document.getElementById('setKeyBtn').addEventListener('click', setKey);
+document.getElementById('mailTestBtn').addEventListener('click', runMailTest);
 document.getElementById('permSave').addEventListener('click', savePerms);
 document.getElementById('permCancel').addEventListener('click', ()=>{ show('permMask', false); });
 document.getElementById('permAll').addEventListener('click', ()=>{

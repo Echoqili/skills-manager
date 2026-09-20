@@ -1,0 +1,7 @@
+# 仓库以 LF 存储（core.autocrlf=true 会在 Windows 签出为 CRLF）。
+# 但可执行脚本必须保持 LF，否则 Git Bash 的 shebang 会变成
+# `#!/usr/bin/env bash\r` 并报 bad interpreter；Windows 批处理则相反。
+sm text eol=lf
+*.sh text eol=lf
+sm.cmd text eol=crlf
+*.cmd text eol=crlf

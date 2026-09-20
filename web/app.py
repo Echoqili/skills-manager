@@ -36,6 +36,8 @@ except ImportError:
 
 sys.path.insert(0, str(Path(__file__).parent))
 import db as skills_db  # SQLite 索引层
+import curated as curated_layer  # 中文精选专题（P2）
+import registry as registry  # 私有 registry（P2）
 
 # ========== 用户与鉴权（多用户隔离） ==========
 import secrets
@@ -355,6 +357,8 @@ def _security_headers(resp):
 _PUBLIC_EXACT = {
     "/api/stats", "/api/categories", "/api/skills/all", "/api/search",
     "/api/releases", "/api/package", "/api/package-all", "/api/config",
+    "/api/trust/report",  # 信任档案为只读公开数据，与 /api/stats 同级
+    "/api/curated",       # 中文精选专题（只读公开）
 }
 
 
@@ -366,6 +370,9 @@ def _is_public_route(p: str) -> bool:
         or p.startswith("/api/scenario/")
         or p.startswith("/api/skill/")
         or p.startswith("/api/releases/")
+        or p.startswith("/api/curated/")
+        # registry 的读取接口公开；发布接口必须登录（POST 不放行）
+        or (p.startswith("/api/registry/") and request.method == "GET")
     )
 
 
@@ -1587,6 +1594,245 @@ def api_admin_set_permissions():
     return jsonify({"success": True, "message": f"已更新 {username} 的权限", "permissions": perms})
 
 
+def _visible_owner() -> str:
+    """当前登录用户可见范围标识：登录取其 id，游客为 ''（仅共享内容）"""
+    user = get_current_user()
+    return str(user["id"]) if user else ""
+
+
+@app.route('/api/curated')
+def api_curated():
+    """中文精选专题：回答「我不知道该搜什么」的问题
+
+    每个专题 = 一段中文场景描述 + 人工置顶技能 + 按相关性自动补全，
+    并在解析时施加信任门槛（剔除高风险 / 声明与行为不符）。
+    """
+    owner = _visible_owner()
+    cols = curated_layer.build_all(owner=owner)
+    return jsonify({
+        "total": len(cols),
+        "total_items": sum(c["count"] for c in cols),
+        "collections": cols,
+    })
+
+
+@app.route('/api/curated/<cid>')
+def api_curated_one(cid):
+    col = curated_layer.get_collection(cid, owner=_visible_owner())
+    if not col:
+        return jsonify({"error": f"未找到专题：{cid}"}), 404
+    return jsonify(col)
+
+
+@app.route('/api/registry/index.json')
+def api_registry_index():
+    """私有 registry 全量索引（只读公开，仅含调用方可见范围）
+
+    让本地技能库变成可被消费的源：团队共享、CI 拉取、Agent 按 URL 安装。
+    """
+    payload = registry.index_payload(owner=_visible_owner())
+    resp = jsonify(payload)
+    resp.headers['Cache-Control'] = 'no-cache'
+    return resp
+
+
+@app.route('/api/registry/<ns>/<name>.json')
+def api_registry_record(ns, name):
+    """单技能元数据 + 正文"""
+    skill = registry.find(ns, name)
+    if not skill:
+        return jsonify({"error": f"未找到技能：{ns}/{name}"}), 404
+    return jsonify(registry.record_payload(skill))
+
+
+@app.route('/api/registry/<ns>/<name>/download')
+def api_registry_download(ns, name):
+    """打包下载技能目录（zip）"""
+    skill = registry.find(ns, name)
+    if not skill:
+        return jsonify({"error": f"未找到技能：{ns}/{name}"}), 404
+    blob = registry.zip_skill(skill)
+    if blob is None:
+        return jsonify({"error": "技能文件缺失，可能是软删除或路径失效"}), 410
+    return Response(
+        blob, mimetype="application/zip",
+        headers={
+            "Content-Disposition": f'attachment; filename="{skill["name"]}.zip"',
+            "Content-Length": str(len(blob)),
+        },
+    )
+
+
+@app.route('/api/registry/publish', methods=['POST'])
+@permission_required('skill_import')
+def api_registry_publish():
+    """发布技能到私有 registry
+
+    门禁与 ClawHub 导入闸门同源：规范校验（ERROR 阻断）+ 信任档案
+    （高风险 / 声明与行为不符一律拒收）。**不接受强制覆盖健康检查**——
+    否则「发布」就成了绕过质检的入口。
+    """
+    user = get_current_user()
+    uid = str(user["id"])
+    data = request.get_json(silent=True) or {}
+
+    name = str(data.get("name", "")).strip().lower().replace(" ", "-")
+    description = str(data.get("description", "")).strip()
+    content = str(data.get("content", "")).strip()
+    category = str(data.get("category", "user-imports")).strip() or "user-imports"
+
+    if not name or not content:
+        return jsonify({"error": "name 与 content 为必填"}), 400
+    if ".." in name or "/" in name or "\\" in name:
+        return jsonify({"error": "name 非法"}), 400
+    if not description:
+        return jsonify({"error": "description 为必填（语义检索与触发依赖它）"}), 400
+
+    extra = {}
+    for k in ("version", "author", "tags", "platforms"):
+        if data.get(k):
+            extra[k] = data[k]
+
+    markdown = registry.build_markdown(
+        name=name, description=description, content=content,
+        category=category, extra=extra,
+    )
+
+    report = registry.gate(markdown, name)
+    if not report["ok"]:
+        return jsonify({
+            "success": False,
+            "error": "未通过发布门禁",
+            "blocked_by": report["blocked_by"],
+            "spec_issues": report["spec_issues"],
+            "trust": report["trust"],
+        }), 422
+
+    skill_dir = skills_db.USER_IMPORT_ROOT / uid / name
+    skill_file = skill_dir / "SKILL.md"
+    if skill_file.exists() and not data.get("overwrite"):
+        return jsonify({
+            "error": f"技能 {name} 已存在（传 overwrite=true 覆盖）",
+            "id": f"user:{uid}/{name}",
+        }), 409
+
+    try:
+        skill_dir.mkdir(parents=True, exist_ok=True)
+        skill_file.write_text(markdown, encoding="utf-8")
+        rec = skills_db.upsert_skill(skill_file, source="user-imports", owner=uid)
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+    return jsonify({
+        "success": True,
+        "id": f"user:{uid}/{name}",
+        "name": name,
+        "version": (rec or {}).get("version", ""),
+        "trust": report["trust"],
+        "spec_issues": report["spec_issues"],
+        "manifest_url": f"/api/registry/user:{uid}/{name}.json",
+        "download_url": f"/api/registry/user:{uid}/{name}/download",
+    })
+
+
+def _consistency_issues(row) -> list:
+    """把落库的 consistency_detail（JSON 字符串）解析成问题列表。
+
+    /api/trust/report 与 /api/skill/<name> 共用，避免两处各写一套解析逻辑
+    导致同一技能在两处显示不同的问题明细。
+    """
+    raw = (row or {}).get("consistency_detail") or ""
+    if not raw:
+        return []
+    if isinstance(raw, list):
+        return raw
+    try:
+        return json.loads(raw)
+    except Exception:
+        return []
+
+
+def trust_fields_for(name: str, owner: str = "") -> dict:
+    """按技能名取信任档案，供详情接口附加。
+
+    详情页是「敢不敢装」的决策点，没有信任信号的详情页等于把决策成本
+    全推给用户。取不到时返回安全的默认值，而不是抛错。
+    """
+    row = {}
+    try:
+        conn = skills_db.get_conn()
+        r = conn.execute(
+            "SELECT * FROM skills WHERE name = ? AND (owner = ? OR owner = '') "
+            "AND deleted_at IS NULL ORDER BY (owner = ''), namespace LIMIT 1",
+            (name, owner),
+        ).fetchone()
+        row = dict(r) if r else {}
+    except Exception:
+        row = {}
+    return {
+        "trust_score": row.get("trust_score") or 0,
+        "quality_score": row.get("quality_score") or 0,
+        "quality_grade": row.get("quality_grade") or "",
+        "risk_level": row.get("risk_level") or "safe",
+        "risk_score": row.get("risk_score") or 0,
+        "consistency_status": row.get("consistency_status") or "unknown",
+        "consistency_issues": _consistency_issues(row),
+        "namespace": row.get("namespace") or "",
+        "version": row.get("version") or "",
+        "source": row.get("source") or "",
+        "author": row.get("author") or "",
+        "tags": row.get("tags") or "",
+        # 附带资料（references/）：详情页据此提示「技能还附了 N 份资料」
+        "ref_files": row.get("ref_files") or 0,
+        "ref_bytes": row.get("ref_bytes") or 0,
+    }
+
+
+@app.route('/api/trust/report')
+def api_trust_report():
+    """信任档案报告：质量分 / 风险等级 / 声明与行为一致性
+
+    供前端展示信任信号并据此排序，回应「这个技能敢不敢装」。
+    """
+    conn = skills_db.get_conn()
+    rows = [dict(r) for r in conn.execute(
+        "SELECT name, namespace, category, category_name, description, "
+        "trust_score, quality_grade, risk_level, risk_score, consistency_status, "
+        "consistency_detail "
+        "FROM skills WHERE deleted_at IS NULL ORDER BY trust_score ASC"
+    ).fetchall()]
+
+    by_risk: dict = {}
+    by_status: dict = {}
+    by_grade: dict = {}
+    total_trust = 0.0
+    for r in rows:
+        by_risk[r["risk_level"]] = by_risk.get(r["risk_level"], 0) + 1
+        by_status[r["consistency_status"]] = by_status.get(r["consistency_status"], 0) + 1
+        by_grade[r["quality_grade"]] = by_grade.get(r["quality_grade"], 0) + 1
+        total_trust += r["trust_score"] or 0
+
+    # 需人工复核：声明与行为不符（review_needed / suspicious），或风险偏高，
+    # 或信任分明显偏低。注：仅 review_needed 也应进队列——这正是需要人看的清单。
+    review = [
+        {**r, "consistency_issues": _consistency_issues(r)}
+        for r in rows
+        if r["consistency_status"] in ("review_needed", "suspicious")
+        or r["risk_level"] in ("high", "critical")
+        or (r["trust_score"] or 0) < 40
+    ]
+
+    return jsonify({
+        "total": len(rows),
+        "avg_trust_score": round(total_trust / len(rows), 1) if rows else 0,
+        "by_risk_level": by_risk,
+        "by_quality_grade": by_grade,
+        "by_consistency": by_status,
+        "review_queue_count": len(review),
+        "review_queue": review[:100],
+    })
+
+
 @app.route('/api/stats')
 def api_stats():
     _, by_category, _ = build_skills_cache()
@@ -1785,7 +2031,67 @@ def api_skill(name):
         "files": files,
         "downloads": skill.get("downloads"),
         "rating": skill.get("rating"),
-        "rating_count": skill.get("rating_count")
+        "rating_count": skill.get("rating_count"),
+        # 信任档案：让详情页能直接回答「这个技能敢不敢装」
+        **trust_fields_for(skill.get("name", ""), _visible_owner()),
+    })
+
+
+# 资料文件只读接口：详情页的「附带参考资料」面板点开即可阅读，不必先下载整包。
+# 安全边界——三条缺一不可，缺任何一条都是任意文件读取：
+#   1. 路径必须先过 `references/` 前缀白名单（技能本体文件不出这个接口）；
+#   2. `resolve()` 之后必须仍在 references/ 内 —— 这一步同时挡住 `..` 回溯、绝对路径、
+#      以及符号链接逃逸（resolve 会解链接，指向目录外的链接自然落在边界之外）；
+#   3. 只放行文本扩展名 + 单文件体积上限，避免把二进制塞进 JSON 响应。
+# 注意接口挂在 /api/skill/ 前缀下，因此继承现有的「公开只读」语义（见 _is_public_route）。
+_REF_TEXT_EXTS = {".md", ".markdown", ".txt", ".json", ".yaml", ".yml", ".csv", ".tsv", ".toml"}
+REF_FILE_MAX_BYTES = 1024 * 1024
+
+
+@app.route('/api/skill/<name>/file')
+def api_skill_file(name):
+    _, _, by_name = build_skills_cache()
+    skill = by_name.get(name.lower())
+    if not skill:
+        return jsonify({"error": "Skill not found"}), 404
+
+    rel = (request.args.get("path") or "").strip().replace("\\", "/")
+    if not rel:
+        return jsonify({"error": "Missing path"}), 400
+    if not rel.startswith("references/"):
+        return jsonify({"error": "Only files under references/ are readable"}), 403
+
+    skill_dir = get_skill_dir(skill)
+    if not skill_dir or not skill_dir.is_dir():
+        return jsonify({"error": "Skill directory not found"}), 404
+
+    refs_root = (skill_dir / "references").resolve()
+    target = (skill_dir / rel).resolve()
+    if not target.is_relative_to(refs_root):
+        return jsonify({"error": "Path escapes references/"}), 403
+    if not target.is_file():
+        return jsonify({"error": "File not found"}), 404
+
+    suffix = target.suffix.lower()
+    if suffix not in _REF_TEXT_EXTS:
+        return jsonify({"error": f"Unsupported file type: {suffix or '(none)'}"}), 415
+
+    size = target.stat().st_size
+    if size > REF_FILE_MAX_BYTES:
+        return jsonify({"error": "File too large", "size": size,
+                        "limit": REF_FILE_MAX_BYTES}), 413
+
+    try:
+        content = target.read_text(encoding="utf-8", errors="replace")
+    except OSError as e:
+        return jsonify({"error": f"Read failed: {e}"}), 500
+
+    return jsonify({
+        "skill": skill.get("name", ""),
+        "path": rel,
+        "size": size,
+        "ext": suffix,
+        "content": content,
     })
 
 
@@ -2531,7 +2837,8 @@ def api_delete_user_skill():
         return jsonify({"error": "Invalid skill name"}), 400
 
     # 校验归属：DB 中该 skill 的 owner 必须是当前用户
-    existing = skills_db.get_by_name(skill_name, uid)
+    # 限定 user-imports 命名空间，避免与内置同名技能混淆
+    existing = skills_db.get_by_name(skill_name, uid, namespace="user-imports")
     if not existing or existing.get("owner") != uid:
         return jsonify({"error": "Skill not found or not yours"}), 404
 

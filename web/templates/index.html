@@ -2168,7 +2168,96 @@
             align-items: center; 
             gap: 8px; 
         }
+        /* 附带资料（references/）：技能可以是「轻正文 + 重资料」的形态，
+           这里要把「正文之外还有资料」讲清楚，否则用户只看到一个文件列表。 */
+        .ref-count {
+            font-size: 0.75rem;
+            font-weight: 500;
+            color: var(--text-muted);
+            margin-left: 4px;
+        }
+        .ref-hint {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            margin: -6px 0 12px;
+            line-height: 1.5;
+        }
+        .detail-references { border-left: 3px solid var(--accent); }
         .file-list { list-style: none; }
+        /* 资料文件可点开阅读：只列文件名时，用户看不出资料里到底有什么 */
+        .file-item-link {
+            width: 100%;
+            border: 0;
+            cursor: pointer;
+            text-align: left;
+            font-family: inherit;
+            color: inherit;
+        }
+        .file-item-link .file-name { color: var(--accent); }
+        /* 参考资料阅读器 */
+        .ref-viewer {
+            position: fixed;
+            inset: 0;
+            z-index: 1200;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 4vh 4vw;
+            background: rgba(15, 23, 42, 0.45);
+        }
+        .ref-viewer[hidden] { display: none; }
+        .ref-viewer-panel {
+            width: min(920px, 100%);
+            max-height: 92vh;
+            display: flex;
+            flex-direction: column;
+            background: var(--bg-card);
+            border-radius: var(--radius-md);
+            box-shadow: 0 24px 60px rgba(15, 23, 42, 0.28);
+            overflow: hidden;
+        }
+        .ref-viewer-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 14px 18px;
+            border-bottom: 1px solid var(--border);
+        }
+        .ref-viewer-path {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .ref-viewer-actions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-shrink: 0;
+        }
+        .ref-viewer-meta { font-size: 0.78rem; color: var(--text-muted); }
+        .ref-viewer-body {
+            flex: 1;
+            margin: 0;
+            padding: 18px 20px;
+            overflow: auto;
+            font-family: var(--font-mono);
+            font-size: 0.82rem;
+            line-height: 1.65;
+            white-space: pre-wrap;
+            word-break: break-word;
+            color: var(--text-secondary);
+        }
+        .ref-viewer-body.is-msg {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-muted);
+            text-align: center;
+        }
         .file-item {
             display: flex; 
             align-items: center; 
@@ -2931,6 +3020,14 @@
                             <span class="nav-icon">🎯</span>
                             <span data-i18n="tab_scenarios">场景推荐</span>
                         </button>
+                        <button class="nav-tab" data-tab="curated">
+                            <span class="nav-icon">✨</span>
+                            <span data-i18n="tab_curated">中文精选</span>
+                        </button>
+                        <button class="nav-tab" data-tab="registry">
+                            <span class="nav-icon">📡</span>
+                            <span data-i18n="tab_registry">私有 Registry</span>
+                        </button>
                     </div>
                     <div class="sidebar-nav-section">
                         <div class="sidebar-nav-label">管理</div>
@@ -3107,6 +3204,10 @@
                                     <span class="tag" id="searchTag">显示最新 Skills</span>
                                 </div>
                                 <div style="display:flex;gap:8px;align-items:center;">
+                                    <button class="category-filter accent-lime" id="refFilterToggle"
+                                        onclick="toggleRefFilter()" aria-pressed="false">
+                                        <span class="category-dot"></span><span data-i18n="filter_refs">📚 含参考资料</span>
+                                    </button>
                                     <span style="color:var(--text-muted);font-size:0.85rem;" data-i18n="sort_label">排序：</span>
                                     <select id="sortOrder" class="select-input" style="font-size:0.82rem;padding:6px 10px;" onchange="onSortChange()">
                                         <option value="default" data-i18n="sort_default">默认</option>
@@ -3149,6 +3250,91 @@
                                 </button>
                             </div>
                             <div id="scenariosList"></div>
+                        </section>
+
+                        <!-- 中文精选专题（P2） -->
+                        <section id="curatedSection" class="content-section">
+                            <div class="section-header">
+                                <div class="section-title">
+                                    <h2 data-i18n="sec_curated">✨ 中文精选</h2>
+                                    <span class="tag" id="curatedTag" data-i18n="curated_tag_loading">按中文真实场景组织的策展专题</span>
+                                </div>
+                                <button class="btn btn-ghost" id="curatedBackBtn" onclick="loadCurated()" style="display:none;" data-i18n="btn_back_curated">
+                                    ← 返回专题列表
+                                </button>
+                            </div>
+                            <div style="margin-bottom:16px;color:var(--text-muted);font-size:0.86rem;" data-i18n="curated_hint">
+                                不知道搜什么的时候从这里开始：每个专题对应一类真实工作场景，成员按信任分筛选过，高风险与声明不符的不会被收录。
+                            </div>
+                            <div id="curatedList"></div>
+                        </section>
+
+                        <!-- 私有 Registry（P2） -->
+                        <section id="registrySection" class="content-section">
+                            <div class="section-header">
+                                <div class="section-title">
+                                    <h2 data-i18n="sec_registry">📡 私有 Registry</h2>
+                                    <span class="tag" id="registryTag" data-i18n="registry_tag_loading">正在读取索引…</span>
+                                </div>
+                            </div>
+                            <div style="margin-bottom:16px;color:var(--text-muted);font-size:0.86rem;" data-i18n="registry_hint">
+                                库内技能的统一分发入口。发布需登录，并会先过规范校验与信任质检——被拦下的技能不会入库。
+                            </div>
+
+                            <div class="registry-toolbar">
+                                <input type="text" class="registry-search" id="registrySearch"
+                                    placeholder="按名称、命名空间或描述筛选索引…"
+                                    data-i18n-placeholder="registry_search_placeholder"
+                                    oninput="renderRegistryList()">
+                                <button class="btn btn-primary" id="registryPublishBtn" onclick="togglePublishForm()"
+                                    data-i18n="registry_publish_open">＋ 发布技能</button>
+                            </div>
+
+                            <div class="publish-form" id="publishForm">
+                                <div class="publish-grid">
+                                    <div class="publish-field">
+                                        <label data-i18n="pf_name">名称（小写字母/数字/连字符）</label>
+                                        <input type="text" id="pfName" placeholder="my-awesome-skill">
+                                    </div>
+                                    <div class="publish-field">
+                                        <label data-i18n="pf_category">分类</label>
+                                        <input type="text" id="pfCategory" placeholder="dev-workflow" value="dev-workflow">
+                                    </div>
+                                    <div class="publish-field">
+                                        <label data-i18n="pf_version">版本</label>
+                                        <input type="text" id="pfVersion" placeholder="1.0.0" value="1.0.0">
+                                    </div>
+                                    <div class="publish-field">
+                                        <label data-i18n="pf_author">作者</label>
+                                        <input type="text" id="pfAuthor" placeholder="your-name">
+                                    </div>
+                                    <div class="publish-field full">
+                                        <label data-i18n="pf_desc">描述（说明用途与触发时机）</label>
+                                        <input type="text" id="pfDesc"
+                                            placeholder="Use this skill when the user needs to …">
+                                    </div>
+                                    <div class="publish-field full">
+                                        <label data-i18n="pf_content">正文（Markdown，不含 frontmatter）</label>
+                                        <textarea id="pfContent" placeholder="# 技能名&#10;&#10;## 用途&#10;&#10;…"></textarea>
+                                    </div>
+                                    <div class="publish-field">
+                                        <label data-i18n="pf_overwrite">覆盖同名技能</label>
+                                        <select id="pfOverwrite">
+                                            <option value="false" data-i18n="pf_overwrite_no">否（重名则拒绝）</option>
+                                            <option value="true" data-i18n="pf_overwrite_yes">是（覆盖现有版本）</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div style="margin-top:14px;display:flex;gap:10px;">
+                                    <button class="btn btn-primary" id="publishSubmitBtn" onclick="submitPublish()"
+                                        data-i18n="pf_submit">提交发布</button>
+                                    <button class="btn btn-ghost" onclick="togglePublishForm()" data-i18n="pf_cancel">取消</button>
+                                </div>
+                                <div class="publish-result" id="publishResult"></div>
+                            </div>
+
+                            <div class="registry-list" id="registryList"></div>
+                            <div id="registryPagination"></div>
                         </section>
 
                         <!-- 分类浏览 -->
@@ -3611,6 +3797,20 @@
         </div>
     </div>
 
+    <!-- 参考资料阅读器：内容按需拉取，避免详情页为一份 20KB 的清单付出代价 -->
+    <div class="ref-viewer" id="refViewer" hidden onclick="if(event.target===this) closeRefViewer()">
+        <div class="ref-viewer-panel">
+            <div class="ref-viewer-head">
+                <span class="ref-viewer-path" id="refViewerPath"></span>
+                <div class="ref-viewer-actions">
+                    <span class="ref-viewer-meta" id="refViewerMeta"></span>
+                    <button class="btn btn-secondary" onclick="closeRefViewer()" data-i18n="ref_viewer_close">关闭</button>
+                </div>
+            </div>
+            <pre class="ref-viewer-body is-msg" id="refViewerBody"></pre>
+        </div>
+    </div>
+
     <script>
         // ========== i18n 多语言支持 ==========
         console.log('[script] inline script start');
@@ -3859,6 +4059,7 @@
                 stat_rejected: '已拒绝',
                 // Sort
                 sort_label: '排序：',
+                filter_refs: '📚 含参考资料',
                 sort_default: '默认',
                 sort_name: '名称 A-Z',
                 sort_category: '按分类',
@@ -3879,6 +4080,12 @@
                 detail_install_cmd: '▶️ 安装命令',
                 detail_install_hint: '复制命令并在终端中运行，技能将安装到 ~/.claude/skills/ 目录',
                 detail_files_count: '{} 个文件',
+                detail_references: '📚 附带参考资料',
+                detail_references_hint: '技能正文只含「什么时候用、怎么用」，以下资料按需加载，不占用日常上下文',
+                detail_references_count: '{} 份 · {}',
+                ref_viewer_loading: '正在读取资料…',
+                ref_viewer_failed: '读取失败：{}',
+                ref_viewer_close: '关闭',
                 detail_no_path: '无路径',
                 detail_no_desc: '暂无描述',
                 detail_downloads: '次下载',
@@ -4034,6 +4241,63 @@
                 trash_restore_failed: '恢复失败',
                 trash_purge_failed: '删除失败',
                 moved_to_trash: '已移入回收站',
+                // P2：中文精选 / 私有 Registry / 信任信号
+                tab_curated: '中文精选',
+                tab_registry: '私有 Registry',
+                sec_curated: '✨ 中文精选',
+                sec_registry: '📡 私有 Registry',
+                curated_tag_loading: '按中文真实场景组织的策展专题',
+                curated_tag: '共 {} 条推荐，来自 {} 个专题',
+                curated_hint: '不知道搜什么的时候从这里开始：每个专题对应一类真实工作场景，成员按信任分筛选过，高风险与声明不符的不会被收录。',
+                curated_items: '{} 个技能',
+                curated_loading: '正在加载…',
+                curated_empty: '暂无精选专题',
+                btn_back_curated: '← 返回专题列表',
+                registry_tag_loading: '正在读取索引…',
+                registry_tag: '索引共 {} 个技能（v{}）',
+                registry_hint: '库内技能的统一分发入口。发布需登录，并会先过规范校验与信任质检——被拦下的技能不会入库。',
+                registry_search_placeholder: '按名称、命名空间或描述筛选索引…',
+                registry_publish_open: '＋ 发布技能',
+                registry_download: '下载',
+                trust_grade: '质量',
+                trust_score: '信任分',
+                trust_quality_score: '内容分',
+                trust_risk_score: '风险分',
+                trust_namespace: '命名空间',
+                trust_panel_title: '🛡️ 信任档案',
+                trust_consistency_title: '声明与行为一致性',
+                trust_refs: '附带资料 ×{}',
+                trust_cons_clean: '未发现声明与行为不符之处',
+                trust_risk_safe: '风险：无',
+                trust_risk_low: '风险：低',
+                trust_risk_medium: '风险：中',
+                trust_risk_high: '风险：高',
+                trust_risk_critical: '风险：严重',
+                trust_cons_consistent: '声明一致',
+                trust_cons_review_needed: '待复核',
+                trust_cons_suspicious: '存疑',
+                trust_cons_unknown: '未审计',
+                pf_name: '名称（小写字母/数字/连字符）',
+                pf_category: '分类',
+                pf_version: '版本',
+                pf_author: '作者',
+                pf_desc: '描述（说明用途与触发时机）',
+                pf_content: '正文（Markdown，不含 frontmatter）',
+                pf_overwrite: '覆盖同名技能',
+                pf_overwrite_no: '否（重名则拒绝）',
+                pf_overwrite_yes: '是（覆盖现有版本）',
+                pf_submit: '提交发布',
+                pf_cancel: '取消',
+                pf_required: '名称、描述与正文均为必填',
+                pf_submitting: '提交中…',
+                pf_ok: '✅ 已发布 {}（v{}）',
+                pf_blocked: '被门禁拒绝',
+                pf_need_login: '请先登录后再发布',
+                // 既有缺失：这几个 key 被 t() 调用但字典里没有，触发时会把 key
+                // 字面量直接显示给用户（报错弹窗出现 "msg_packing_fail"）。
+                msg_packing_fail: '操作失败：{}',
+                timeout_error: '请求超时',
+                updating: '更新中…',
             },
             en: {
                 // Hero
@@ -4255,6 +4519,7 @@
                 stat_rejected: 'Rejected',
                 // Sort
                 sort_label: 'Sort: ',
+                filter_refs: '📚 With references',
                 sort_default: 'Default',
                 sort_name: 'Name A-Z',
                 sort_category: 'By Category',
@@ -4275,6 +4540,12 @@
                 detail_install_cmd: '▶️ Install Command',
                 detail_install_hint: 'Copy and run in terminal. Skill will be installed to ~/.claude/skills/',
                 detail_files_count: '{} files',
+                detail_references: '📚 Bundled References',
+                detail_references_hint: 'The skill body only covers when and how to use it; these references load on demand and stay out of the everyday context window',
+                detail_references_count: '{} files · {}',
+                ref_viewer_loading: 'Loading reference…',
+                ref_viewer_failed: 'Failed to load: {}',
+                ref_viewer_close: 'Close',
                 detail_no_path: 'No path',
                 detail_no_desc: 'No description',
                 detail_downloads: 'downloads',
@@ -4430,6 +4701,61 @@
                 trash_restore_failed: 'Restore failed',
                 trash_purge_failed: 'Delete failed',
                 moved_to_trash: 'Moved to Trash',
+                // P2: curated / private registry / trust signals
+                tab_curated: 'Curated',
+                tab_registry: 'Registry',
+                sec_curated: '✨ Curated Picks',
+                sec_registry: '📡 Private Registry',
+                curated_tag_loading: 'Collections organized by real Chinese workflows',
+                curated_tag: '{} picks across {} collections',
+                curated_hint: 'Start here when you do not know what to search for. Each collection maps to a real workflow; members are filtered by trust score, so high-risk or misdeclared skills never make the cut.',
+                curated_items: '{} skills',
+                curated_loading: 'Loading…',
+                curated_empty: 'No collections yet',
+                btn_back_curated: '← Back to collections',
+                registry_tag_loading: 'Reading index…',
+                registry_tag: '{} skills in index (v{})',
+                registry_hint: 'Single distribution entry for this library. Publishing requires login and passes spec validation plus trust gating — anything blocked never lands in the library.',
+                registry_search_placeholder: 'Filter by name, namespace or description…',
+                registry_publish_open: '＋ Publish skill',
+                registry_download: 'Download',
+                trust_grade: 'Quality',
+                trust_score: 'Trust',
+                trust_quality_score: 'Content',
+                trust_risk_score: 'Risk',
+                trust_namespace: 'Namespace',
+                trust_panel_title: '🛡️ Trust Profile',
+                trust_consistency_title: 'Declaration vs. behavior',
+                trust_refs: 'Refs ×{}',
+                trust_cons_clean: 'No mismatch between declaration and behavior',
+                trust_risk_safe: 'Risk: none',
+                trust_risk_low: 'Risk: low',
+                trust_risk_medium: 'Risk: medium',
+                trust_risk_high: 'Risk: high',
+                trust_risk_critical: 'Risk: critical',
+                trust_cons_consistent: 'Consistent',
+                trust_cons_review_needed: 'Needs review',
+                trust_cons_suspicious: 'Suspicious',
+                trust_cons_unknown: 'Unaudited',
+                pf_name: 'Name (lowercase letters, digits, hyphens)',
+                pf_category: 'Category',
+                pf_version: 'Version',
+                pf_author: 'Author',
+                pf_desc: 'Description (what it does and when to use it)',
+                pf_content: 'Body (Markdown, without frontmatter)',
+                pf_overwrite: 'Overwrite existing',
+                pf_overwrite_no: 'No (reject duplicates)',
+                pf_overwrite_yes: 'Yes (replace current version)',
+                pf_submit: 'Publish',
+                pf_cancel: 'Cancel',
+                pf_required: 'Name, description and content are required',
+                pf_submitting: 'Submitting…',
+                pf_ok: '✅ Published {} (v{})',
+                pf_blocked: 'Blocked by gate',
+                pf_need_login: 'Please log in before publishing',
+                msg_packing_fail: 'Operation failed: {}',
+                timeout_error: 'Request timed out',
+                updating: 'Updating…',
             }
         };
 
@@ -4506,6 +4832,8 @@
             if (view === 'update') loadUpdateStatus();
             if (view === 'ai') loadAiConfig();
             if (view === 'import') loadImportList();
+            if (view === 'curated') loadCurated();
+            if (view === 'registry') renderRegistryList();
             if (view === 'detail' && currentDetailSkillName) showSkillDetail(currentDetailSkillName);
             // Update nav tab texts（保留图标，只更新文字 span）
             document.querySelectorAll('.nav-tab').forEach(tab => {
@@ -4517,7 +4845,9 @@
                     'import': 'tab_import',
                     'update': 'tab_update',
                     'releases': 'tab_releases',
-                    'ai': 'tab_ai'
+                    'ai': 'tab_ai',
+                    'curated': 'tab_curated',
+                    'registry': 'tab_registry'
                 };
                 if (map[key]) {
                     const textSpan = tab.querySelector('span[data-i18n]');
@@ -4563,6 +4893,10 @@
             if (secAi) secAi.innerHTML = t('sec_ai');
             const secImport = document.querySelector('#importSection .section-title h2');
             if (secImport) secImport.innerHTML = t('sec_import');
+            const secCurated = document.querySelector('#curatedSection .section-title h2');
+            if (secCurated) secCurated.innerHTML = t('sec_curated');
+            const secRegistry = document.querySelector('#registrySection .section-title h2');
+            if (secRegistry) secRegistry.innerHTML = t('sec_registry');
         }
 
         // Close lang menu on outside click
@@ -5004,6 +5338,10 @@
             if (section === 'cart') renderCart();
             // 渲染回收站
             if (section === 'trash') loadTrash();
+            // 中文精选与私有 Registry：进入时按需加载，避免出现空白页。
+            // registry 索引较大，仅在首次进入时拉取（发布成功后由 submitPublish 刷新）。
+            if (section === 'curated') loadCurated();
+            if (section === 'registry' && !registryAll.length) loadRegistry();
             // Update section tags
             const tagMap = {
                 'github': 'tag_github',
@@ -5146,9 +5484,29 @@
         }
 
         // ========== 渲染技能卡片（带分页）==========
+        // ========== 「含参考资料」筛选 ==========
+        // ref_files 已随列表接口返回，所以这是纯前端过滤，不额外发请求。
+        let showRefsOnly = false;
+
+        function toggleRefFilter() {
+            showRefsOnly = !showRefsOnly;
+            const btn = document.getElementById('refFilterToggle');
+            if (btn) {
+                btn.classList.toggle('active', showRefsOnly);
+                btn.setAttribute('aria-pressed', showRefsOnly ? 'true' : 'false');
+            }
+            if (currentView === 'search') renderSkillsPage(1);
+        }
+
         function renderSkillsPage(page) {
             currentPage = page;
-            const sorted = getSortedSkills(currentSearchResults);
+            // 资料筛选放在渲染层：分类视图、全部视图、搜索结果最后都汇到
+            // currentSearchResults，在这里过滤一处即全覆盖；放到取数处会漏掉
+            // setCategoryFilter 那条独立路径。
+            const source = showRefsOnly
+                ? (currentSearchResults || []).filter(s => Number(s.ref_files) > 0)
+                : currentSearchResults;
+            const sorted = getSortedSkills(source);
             const total = sorted.length;
             const totalPages = Math.ceil(total / PAGE_SIZE);
             const start = (page - 1) * PAGE_SIZE;
@@ -5168,6 +5526,49 @@
             if (c.includes('arch') || c.includes('api') || c.includes('skill')) return 'accent-lime';
             return 'accent-cyan';
         }
+
+        // ========== 参考资料阅读器 ==========
+        // 资料按需读取：点开才请求内容，详情页不必为一份 20KB 的清单付出代价。
+        // 数据来自 /api/skill/<name>/file（后端有目录穿越与符号链接防护）。
+        let _refViewerReq = 0;
+
+        async function showRefFile(skillName, path) {
+            const box = document.getElementById('refViewer');
+            const body = document.getElementById('refViewerBody');
+            if (!box || !body) return;
+
+            // 连点不同资料时用序号丢弃过期响应，避免先发的慢请求后到、覆盖掉后发的
+            const reqId = ++_refViewerReq;
+            box.hidden = false;
+            document.getElementById('refViewerPath').textContent = path;
+            document.getElementById('refViewerMeta').textContent = '';
+            body.className = 'ref-viewer-body is-msg';
+            body.textContent = t('ref_viewer_loading');
+
+            try {
+                const res = await fetch(`/api/skill/${encodeURIComponent(skillName)}/file?path=${encodeURIComponent(path)}`);
+                const data = await res.json().catch(() => ({}));
+                if (reqId !== _refViewerReq) return;
+                if (!res.ok) throw new Error(data.error || res.status);
+                document.getElementById('refViewerMeta').textContent = formatSize(data.size);
+                body.className = 'ref-viewer-body';
+                // 用 textContent 而不是 innerHTML：资料里出现 HTML 片段时不会被当标签解析
+                body.textContent = data.content || '';
+            } catch (e) {
+                if (reqId !== _refViewerReq) return;
+                body.className = 'ref-viewer-body is-msg';
+                body.textContent = t('ref_viewer_failed', e.message || '');
+            }
+        }
+
+        function closeRefViewer() {
+            const box = document.getElementById('refViewer');
+            if (box) box.hidden = true;
+        }
+
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape') closeRefViewer();
+        });
 
         function renderSkills(containerId, skills) {
             const container = document.getElementById(containerId);
@@ -5197,6 +5598,7 @@
                         </div>
                     </div>
                     ${desc ? `<p class="skill-desc">${desc}</p>` : ''}
+                    ${trustBadges(skill)}
                     ${hasStats ? `<div class="skill-stats">
                         <span class="skill-stat">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -5224,6 +5626,300 @@
                     </div>
                 </div>`;
             }).join('');
+        }
+
+        // ========== 信任信号（P2） ==========
+        // 质量等级 / 风险 / 一致性三类信号的渲染集中在这里，避免每个视图各写一套
+        // 导致同一个技能在不同页面显示成不同颜色。
+        function trustToneFor(field, value) {
+            const v = String(value || '').toLowerCase();
+            if (field === 'grade') {
+                if (v === 's' || v === 'a') return 'ok';
+                if (v === 'b') return 'info';
+                if (v === 'c') return 'warn';
+                return 'bad';
+            }
+            if (field === 'risk') {
+                if (v === 'safe') return 'ok';
+                if (v === 'low') return 'info';
+                if (v === 'medium') return 'warn';
+                return 'bad';
+            }
+            if (field === 'consistency') {
+                if (v === 'consistent') return 'ok';
+                if (v === 'review_needed') return 'warn';
+                if (v === 'suspicious') return 'bad';
+                return 'info';
+            }
+            return 'info';
+        }
+
+        // t() 缺 key 时返回 key 本身，直接展示会露出 "trust_risk_medium" 这种字样，
+        // 所以这里统一做一次回退。
+        function i18nOr(key, fallback) {
+            const v = t(key);
+            return v === key ? fallback : v;
+        }
+
+        function riskLabel(level) {
+            const v = String(level || 'safe').toLowerCase();
+            return i18nOr('trust_risk_' + v, v);
+        }
+
+        function consLabel(status) {
+            const v = String(status || 'unknown').toLowerCase();
+            return i18nOr('trust_cons_' + v, v);
+        }
+
+        function trustScoreTone(score) {
+            const s = Number(score) || 0;
+            if (s >= 60) return 'ok';
+            if (s >= 40) return 'warn';
+            return 'bad';
+        }
+
+        function trustBadges(skill) {
+            if (!skill || skill.trust_score === undefined || skill.trust_score === null) return '';
+            return `<div class="trust-badges">
+                <span class="trust-chip tone-${trustToneFor('grade', skill.quality_grade)}">${t('trust_grade')} ${escHtml(skill.quality_grade || '—')}</span>
+                <span class="trust-chip tone-${trustToneFor('risk', skill.risk_level)}">${escHtml(riskLabel(skill.risk_level))}</span>
+                <span class="trust-chip tone-${trustToneFor('consistency', skill.consistency_status)}">${escHtml(consLabel(skill.consistency_status))}</span>
+                <span class="trust-chip">${t('trust_score')} ${Math.round(Number(skill.trust_score) || 0)}</span>
+                ${Number(skill.ref_files) > 0 ? `<span class="trust-chip">${t('trust_refs', Number(skill.ref_files))}</span>` : ''}
+            </div>`;
+        }
+
+        // 详情页的信任面板：列表卡片只够放结论，这里要给出「为什么」。
+        function trustPanel(skill) {
+            if (!skill || skill.trust_score === undefined || skill.trust_score === null) return '';
+            const score = Math.round(Number(skill.trust_score) || 0);
+            const issues = Array.isArray(skill.consistency_issues) ? skill.consistency_issues : [];
+            const issueHtml = issues.length
+                ? issues.map(i => `<div class="consistency-item">
+                        <span class="sev ${escHtml(i.severity || 'info')}">${escHtml(String(i.severity || 'info').toUpperCase())}</span>
+                        <span>${escHtml(i.message || i.code || '')}</span>
+                    </div>`).join('')
+                : `<div class="consistency-clean">${t('trust_cons_clean')}</div>`;
+            return `
+                <div class="trust-panel">
+                    <div class="trust-panel-head">
+                        <span class="trust-panel-title">${t('trust_panel_title')}</span>
+                        <div class="trust-badges" style="margin:0;">
+                            <span class="trust-chip tone-${trustToneFor('grade', skill.quality_grade)}">${t('trust_grade')} ${escHtml(skill.quality_grade || '—')}</span>
+                            <span class="trust-chip tone-${trustToneFor('risk', skill.risk_level)}">${escHtml(riskLabel(skill.risk_level))}</span>
+                            <span class="trust-chip tone-${trustToneFor('consistency', skill.consistency_status)}">${escHtml(consLabel(skill.consistency_status))}</span>
+                        </div>
+                    </div>
+                    <div class="trust-panel-grid">
+                        <div class="trust-panel-item"><div class="k">${t('trust_score')}</div><div class="v">${score}</div></div>
+                        <div class="trust-panel-item"><div class="k">${t('trust_quality_score')}</div><div class="v">${Math.round(Number(skill.quality_score) || 0)}</div></div>
+                        <div class="trust-panel-item"><div class="k">${t('trust_risk_score')}</div><div class="v">${Math.round(Number(skill.risk_score) || 0)}</div></div>
+                        <div class="trust-panel-item"><div class="k">${t('trust_namespace')}</div><div class="v" style="font-size:0.8rem;font-family:var(--font-mono);">${escHtml(skill.namespace || '—')}</div></div>
+                    </div>
+                    <div class="trust-meter">
+                        <span class="trust-meter-label">${t('trust_score')}</span>
+                        <span class="trust-meter-track"><span class="trust-meter-fill tone-${trustScoreTone(score)}" style="width:${Math.max(2, Math.min(100, score))}%"></span></span>
+                    </div>
+                    <div class="consistency-box">
+                        <h5>${t('trust_consistency_title')}</h5>
+                        ${issueHtml}
+                    </div>
+                </div>`;
+        }
+
+        // ========== 中文精选专题（P2） ==========
+        let curatedCache = [];
+
+        async function loadCurated() {
+            const box = document.getElementById('curatedList');
+            const back = document.getElementById('curatedBackBtn');
+            if (back) back.style.display = 'none';
+            box.innerHTML = `<div class="empty-state"><div class="empty-icon">✨</div><p class="empty-desc">${t('curated_loading')}</p></div>`;
+            try {
+                const res = await fetch('/api/curated');
+                const data = await res.json();
+                curatedCache = data.collections || [];
+                document.getElementById('curatedTag').textContent =
+                    t('curated_tag', data.total_items || 0, data.total || 0);
+                renderCuratedGrid();
+            } catch (e) {
+                renderEmpty('curatedList', t('load_failed'), e.message);
+            }
+        }
+
+        function renderCuratedGrid() {
+            const box = document.getElementById('curatedList');
+            if (!curatedCache.length) {
+                renderEmpty('curatedList', t('curated_empty'), '');
+                return;
+            }
+            box.innerHTML = `<div class="curated-grid">${curatedCache.map(c => `
+                <div class="curated-card" onclick="showCuratedCollection('${escHtml(c.id)}')">
+                    <div class="curated-card-top">
+                        <span class="curated-emoji">${c.emoji || '✨'}</span>
+                        <div>
+                            <h3 class="curated-title">${escHtml(c.title || '')}</h3>
+                            <span class="curated-count">${t('curated_items', c.count || 0)}</span>
+                        </div>
+                    </div>
+                    <p class="curated-summary">${escHtml(c.summary || '')}</p>
+                    <div class="curated-scenarios">${(c.scenarios || []).map(s =>
+                        `<span class="curated-scenario">${escHtml(s)}</span>`).join('')}</div>
+                </div>`).join('')}</div>`;
+        }
+
+        async function showCuratedCollection(id) {
+            const box = document.getElementById('curatedList');
+            const back = document.getElementById('curatedBackBtn');
+            if (back) back.style.display = '';
+            box.innerHTML = `<div class="empty-state"><div class="empty-icon">✨</div><p class="empty-desc">${t('curated_loading')}</p></div>`;
+            try {
+                const res = await fetch('/api/curated/' + encodeURIComponent(id));
+                if (!res.ok) throw new Error(t('load_failed'));
+                const col = await res.json();
+                document.getElementById('curatedTag').textContent = t('curated_items', col.count || 0);
+                box.innerHTML = `
+                    <div style="margin-bottom:16px;">
+                        <h3 style="font-size:1.05rem;color:var(--text);margin-bottom:6px;">${col.emoji || '✨'} ${escHtml(col.title || '')}</h3>
+                        <p style="font-size:0.84rem;color:var(--text-secondary);line-height:1.6;margin:0;">${escHtml(col.summary || '')}</p>
+                    </div>
+                    <div class="curated-members" id="curatedMembers"></div>`;
+                renderSkills('curatedMembers', col.items || []);
+            } catch (e) {
+                renderEmpty('curatedList', t('load_failed'), e.message);
+            }
+        }
+
+        // ========== 私有 Registry（P2） ==========
+        let registryAll = [];
+        let registryPage = 1;
+        const REGISTRY_PAGE_SIZE = 30;
+
+        async function loadRegistry() {
+            const box = document.getElementById('registryList');
+            box.innerHTML = `<div class="empty-state"><div class="empty-icon">📡</div><p class="empty-desc">${t('curated_loading')}</p></div>`;
+            try {
+                const res = await fetch('/api/registry/index.json');
+                const data = await res.json();
+                registryAll = data.skills || [];
+                document.getElementById('registryTag').textContent =
+                    t('registry_tag', data.count || registryAll.length, data.registry_version || '');
+                registryPage = 1;
+                renderRegistryList();
+            } catch (e) {
+                renderEmpty('registryList', t('load_failed'), e.message);
+            }
+        }
+
+        function filteredRegistry() {
+            const q = (document.getElementById('registrySearch')?.value || '').trim().toLowerCase();
+            if (!q) return registryAll;
+            return registryAll.filter(s =>
+                (s.name || '').toLowerCase().includes(q) ||
+                (s.namespace || '').toLowerCase().includes(q) ||
+                (s.id || '').toLowerCase().includes(q) ||
+                (s.description || '').toLowerCase().includes(q) ||
+                (s.category_name || '').toLowerCase().includes(q));
+        }
+
+        // 命名函数：renderPagination 依赖 callback.name 生成 onclick，
+        // 传匿名函数会渲染成 (undefined)(p)。
+        function gotoRegistryPage(p) {
+            registryPage = p;
+            renderRegistryList();
+        }
+
+        function renderRegistryList() {
+            const box = document.getElementById('registryList');
+            const rows = filteredRegistry();
+            const totalPages = Math.max(1, Math.ceil(rows.length / REGISTRY_PAGE_SIZE));
+            if (registryPage > totalPages) registryPage = totalPages;
+            const start = (registryPage - 1) * REGISTRY_PAGE_SIZE;
+            const pageRows = rows.slice(start, start + REGISTRY_PAGE_SIZE);
+            if (!pageRows.length) {
+                renderEmpty('registryList', t('empty_no_results'), t('empty_try_other'));
+                document.getElementById('registryPagination').innerHTML = '';
+                return;
+            }
+            box.innerHTML = pageRows.map(s => `
+                <div class="registry-row">
+                    <div class="registry-id">
+                        <div class="registry-name" title="${escHtml(s.id || s.name)}">${escHtml(s.name || '')}</div>
+                        <div class="registry-ns">${escHtml(s.id || '')} · v${escHtml(s.version || '')}</div>
+                    </div>
+                    <div class="trust-badges" style="margin:0;">
+                        <span class="trust-chip tone-${trustToneFor('grade', s.quality_grade)}">${escHtml(s.quality_grade || '—')}</span>
+                        <span class="trust-chip tone-${trustToneFor('risk', s.risk_level)}">${escHtml(riskLabel(s.risk_level))}</span>
+                    </div>
+                    <div class="registry-actions">
+                        <button class="btn btn-ghost" onclick="showSkillDetail('${escHtml(s.name)}')">${t('view_detail')}</button>
+                        <a class="btn btn-secondary" href="${escHtml(s.download_url || '#')}" download>${t('registry_download')}</a>
+                    </div>
+                </div>`).join('');
+            renderPagination('registryPagination', registryPage, totalPages, rows.length, gotoRegistryPage);
+        }
+
+        function togglePublishForm() {
+            const f = document.getElementById('publishForm');
+            if (f) f.classList.toggle('show');
+        }
+
+        async function submitPublish() {
+            const out = document.getElementById('publishResult');
+            const val = id => (document.getElementById(id)?.value || '').trim();
+            const body = {
+                name: val('pfName'),
+                category: val('pfCategory') || 'other',
+                version: val('pfVersion') || '1.0.0',
+                author: val('pfAuthor'),
+                description: val('pfDesc'),
+                content: document.getElementById('pfContent')?.value || '',
+                overwrite: (document.getElementById('pfOverwrite')?.value === 'true'),
+            };
+            out.style.whiteSpace = 'pre-line';
+            if (!body.name || !body.description || !body.content) {
+                out.className = 'publish-result err';
+                out.textContent = t('pf_required');
+                return;
+            }
+            const btn = document.getElementById('publishSubmitBtn');
+            btn.disabled = true;
+            out.className = 'publish-result';
+            out.textContent = t('pf_submitting');
+            try {
+                const res = await fetch('/api/registry/publish', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body),
+                });
+                const data = await res.json().catch(() => ({}));
+                if (res.ok) {
+                    out.className = 'publish-result ok';
+                    out.textContent = t('pf_ok', data.id || body.name, data.version || '');
+                    loadRegistry();
+                } else {
+                    out.className = 'publish-result err';
+                    // 门禁拒绝必须把原因原样展示，否则用户不知道该改什么。
+                    const parts = [];
+                    if (res.status === 401 || res.status === 403) {
+                        parts.push(t('pf_need_login'));
+                    } else if (data.error) {
+                        parts.push(data.error);
+                    }
+                    if (Array.isArray(data.blocked_by) && data.blocked_by.length) {
+                        parts.push(t('pf_blocked') + ': ' + data.blocked_by.join(', '));
+                    }
+                    (data.spec_issues || []).forEach(i => {
+                        parts.push('· [' + (i.level || '') + '] ' + (i.message || i.code || ''));
+                    });
+                    out.textContent = parts.join('\n') || t('load_failed');
+                }
+            } catch (e) {
+                out.className = 'publish-result err';
+                out.textContent = e.message;
+            } finally {
+                btn.disabled = false;
+            }
         }
 
         // ========== 分页控件 ==========
@@ -5299,13 +5995,43 @@
                 if (!res.ok) throw new Error('Skill not found');
                 const skill = await res.json();
 
-                const files = skill.files?.length > 0
-                    ? skill.files.map(f => `
+                // references/ 下的文件是「按需加载的资料」，与技能本体文件分开展示。
+                // 混在同一个列表里，用户看不出这个技能的正文其实是轻的。
+                const allFiles = skill.files || [];
+                const isRefFile = f => String(f.path).replace(/\\/g, '/').startsWith('references/');
+                const refFiles = allFiles.filter(isRefFile);
+                const ownFiles = allFiles.filter(f => !isRefFile(f));
+                const fileItem = (icon, f) => `
                         <li class="file-item">
-                            <span class="file-name">📄 ${f.path}</span>
+                            <span class="file-name">${icon} ${escHtml(f.path)}</span>
                             <span class="file-size">${formatSize(f.size)}</span>
-                        </li>`).join('')
+                        </li>`;
+                const files = ownFiles.length > 0
+                    ? ownFiles.map(f => fileItem('📄', f)).join('')
                     : `<li class="file-item" style="color:var(--text-muted);">${t('detail_no_files')}</li>`;
+                const refBytes = Number(skill.ref_bytes) > 0
+                    ? Number(skill.ref_bytes)
+                    : refFiles.reduce((sum, f) => sum + (Number(f.size) || 0), 0);
+                // 资料项做成按钮，路径走 data 属性、由 dataset 读出——
+                // 不把路径拼进 onclick 的 JS 字符串字面量，路径含引号时那样会被截断
+                const refItem = f => `
+                        <li>
+                            <button class="file-item file-item-link"
+                                data-skill="${escHtml(skill.name)}"
+                                data-path="${escHtml(String(f.path).replace(/\\/g, '/'))}"
+                                onclick="showRefFile(this.dataset.skill, this.dataset.path)">
+                                <span class="file-name">📎 ${escHtml(f.path)}</span>
+                                <span class="file-size">${formatSize(f.size)}</span>
+                            </button>
+                        </li>`;
+                const references = refFiles.length > 0 ? `
+                        <div class="detail-files detail-references">
+                            <h4>${t('detail_references')}
+                                <span class="ref-count">${t('detail_references_count', refFiles.length, formatSize(refBytes))}</span>
+                            </h4>
+                            <p class="ref-hint">${t('detail_references_hint')}</p>
+                            <ul class="file-list">${refFiles.map(refItem).join('')}</ul>
+                        </div>` : '';
 
                 const inCart = cart.includes(skill.name);
                 const displayName = (currentLang === 'zh' ? skill.name_zh : skill.name_en) || skill.name;
@@ -5331,6 +6057,7 @@
                                 </div>
                             </div>
                         </div>
+                        ${trustPanel(skill)}
                         ${hasStats ? `<div class="detail-stats-row">
                             ${downloads ? `<div class="detail-stat">
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -5363,6 +6090,7 @@
                             <h4>${t('detail_files')}</h4>
                             <ul class="file-list">${files}</ul>
                         </div>
+                        ${references}
                         <div class="detail-actions">
                             <button class="btn ${inCart ? 'btn-secondary' : 'btn-primary'}"
                                 id="detail-cart-btn"
@@ -5516,6 +6244,7 @@
                         </div>
                     </div>
                     ${desc ? `<p class="skill-desc">${desc}</p>` : ''}
+                    ${trustBadges(skill)}
                     ${hasStats ? `<div class="skill-stats">
                         <span class="skill-stat">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -7257,6 +7986,98 @@
         .auth-logout{padding:5px 12px;border-radius:8px;border:1px solid rgba(120,140,200,.3);
             background:transparent;color:#cdd6f4;cursor:pointer;font-size:12px;}
         .auth-logout:hover{background:rgba(120,140,200,.15);}
+
+        /* ===== 信任信号（P2）：回答「这个技能敢不敢装」 ===== */
+        .trust-badges{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:10px;}
+        .trust-chip{display:inline-flex;align-items:center;gap:4px;padding:2px 9px;
+            border-radius:var(--radius-full);font-size:0.72rem;font-weight:600;
+            border:1px solid var(--border-strong);background:var(--bg-secondary);
+            color:var(--text-secondary);white-space:nowrap;}
+        .trust-chip.tone-ok{color:var(--success);border-color:var(--success);background:transparent;}
+        .trust-chip.tone-info{color:var(--primary-light);border-color:var(--primary);background:transparent;}
+        .trust-chip.tone-warn{color:var(--warning);border-color:var(--warning);background:transparent;}
+        .trust-chip.tone-bad{color:var(--error);border-color:var(--error);background:transparent;}
+        .trust-meter{display:flex;align-items:center;gap:8px;margin-top:10px;}
+        .trust-meter-label{font-size:0.72rem;color:var(--text-muted);white-space:nowrap;}
+        .trust-meter-track{flex:1;height:4px;border-radius:var(--radius-full);
+            background:var(--bg-tertiary);overflow:hidden;min-width:60px;}
+        .trust-meter-fill{height:100%;border-radius:var(--radius-full);
+            background:linear-gradient(90deg,var(--primary),var(--accent));}
+        .trust-meter-fill.tone-warn{background:linear-gradient(90deg,var(--warning),var(--orange));}
+        .trust-meter-fill.tone-bad{background:linear-gradient(90deg,var(--error),var(--pink));}
+
+        /* 详情页信任面板 */
+        .trust-panel{border:1px solid var(--border-strong);border-radius:var(--radius-lg);
+            background:var(--bg-secondary);padding:16px 18px;margin:18px 0;}
+        .trust-panel-head{display:flex;align-items:center;justify-content:space-between;
+            gap:12px;flex-wrap:wrap;margin-bottom:12px;}
+        .trust-panel-title{font-size:0.95rem;font-weight:600;color:var(--text);}
+        .trust-panel-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;}
+        .trust-panel-item{text-align:center;}
+        .trust-panel-item .k{font-size:0.72rem;color:var(--text-muted);margin-bottom:4px;}
+        .trust-panel-item .v{font-size:1.05rem;font-weight:700;color:var(--text);}
+        .consistency-box{margin-top:14px;border-top:1px solid var(--border);padding-top:12px;}
+        .consistency-box h5{font-size:0.8rem;color:var(--text-secondary);margin-bottom:8px;}
+        .consistency-item{display:flex;gap:8px;align-items:flex-start;font-size:0.78rem;
+            color:var(--text-secondary);padding:5px 0;line-height:1.5;}
+        .consistency-item .sev{flex:0 0 auto;padding:1px 6px;border-radius:var(--radius-sm);
+            font-size:0.68rem;font-weight:700;border:1px solid var(--border-strong);}
+        .consistency-item .sev.high{color:var(--error);border-color:var(--error);}
+        .consistency-item .sev.medium{color:var(--warning);border-color:var(--warning);}
+        .consistency-item .sev.low,.consistency-item .sev.info{color:var(--text-muted);}
+        .consistency-clean{font-size:0.78rem;color:var(--success);}
+
+        /* ===== 中文精选专题（P2） ===== */
+        .curated-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:18px;}
+        .curated-card{border:1px solid var(--border);border-radius:var(--radius-lg);
+            background:var(--bg-card);box-shadow:var(--shadow-card);padding:18px;
+            cursor:pointer;transition:transform .25s var(--ease-out-expo),box-shadow .25s var(--ease-out-expo);}
+        .curated-card:hover{transform:translateY(-3px);box-shadow:var(--shadow-hover);
+            border-color:var(--border-glow);}
+        .curated-card-top{display:flex;align-items:flex-start;gap:12px;margin-bottom:10px;}
+        .curated-emoji{font-size:1.7rem;line-height:1;flex:0 0 auto;}
+        .curated-title{font-size:1rem;font-weight:700;color:var(--text);margin:0 0 4px;}
+        .curated-count{font-size:0.74rem;color:var(--text-muted);}
+        .curated-summary{font-size:0.82rem;color:var(--text-secondary);line-height:1.6;margin:0 0 12px;}
+        .curated-scenarios{display:flex;flex-wrap:wrap;gap:6px;}
+        .curated-scenario{font-size:0.72rem;padding:2px 8px;border-radius:var(--radius-full);
+            background:var(--bg-glass);color:var(--text-secondary);border:1px solid var(--border);}
+        .curated-members{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;margin-top:6px;}
+
+        /* ===== 私有 Registry（P2） ===== */
+        .registry-toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:18px;}
+        .registry-search{flex:1;min-width:200px;padding:9px 14px;border-radius:var(--radius-full);
+            border:1px solid var(--border-strong);background:var(--surface-search);
+            color:var(--text);font-size:0.86rem;font-family:var(--font-body);}
+        .registry-search:focus{outline:none;border-color:var(--primary);}
+        .registry-list{display:flex;flex-direction:column;gap:8px;}
+        .registry-row{display:flex;align-items:center;gap:12px;padding:11px 14px;
+            border:1px solid var(--border);border-radius:var(--radius-md);
+            background:var(--bg-card);transition:border-color .2s var(--ease-out-expo);}
+        .registry-row:hover{border-color:var(--border-glow);}
+        .registry-id{flex:1;min-width:0;}
+        .registry-name{font-size:0.88rem;font-weight:600;color:var(--text);
+            overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+        .registry-ns{font-size:0.72rem;color:var(--text-muted);font-family:var(--font-mono);}
+        .registry-actions{display:flex;gap:6px;flex:0 0 auto;}
+        .publish-form{display:none;border:1px solid var(--border-strong);border-radius:var(--radius-lg);
+            background:var(--bg-secondary);padding:18px;margin-bottom:18px;}
+        .publish-form.show{display:block;}
+        .publish-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;}
+        .publish-field{display:flex;flex-direction:column;gap:5px;}
+        .publish-field.full{grid-column:1/-1;}
+        .publish-field label{font-size:0.76rem;color:var(--text-secondary);font-weight:600;}
+        .publish-field input,.publish-field textarea,.publish-field select{
+            padding:9px 12px;border-radius:var(--radius-md);border:1px solid var(--border-strong);
+            background:var(--surface-search);color:var(--text);font-size:0.84rem;
+            font-family:var(--font-body);}
+        .publish-field textarea{min-height:150px;resize:vertical;font-family:var(--font-mono);
+            font-size:0.8rem;line-height:1.5;}
+        .publish-field input:focus,.publish-field textarea:focus,.publish-field select:focus{
+            outline:none;border-color:var(--primary);}
+        .publish-result{margin-top:14px;font-size:0.82rem;line-height:1.6;}
+        .publish-result.ok{color:var(--success);}
+        .publish-result.err{color:var(--error);}
     </style>
     <script>
         (function(){

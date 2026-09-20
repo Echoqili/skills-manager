@@ -1,0 +1,136 @@
+{
+  "author": "",
+  "category": "design",
+  "category_emoji": "🎨",
+  "category_name": "设计",
+  "consistency_issues": [],
+  "consistency_status": "consistent",
+  "description": "Token architecture, component specifications, and slide generation. Three-layer tokens (primitive→semantic→component), CSS variables, spacing/typography scales, component specs, strategic slide creation. Use for design tokens, systematic design, brand-compliant presentations. Use this skill when the task involves design, system.",
+  "description_en": "",
+  "description_zh": "",
+  "downloads": null,
+  "emoji": "🎨",
+  "files": [
+    {
+      "path": "SKILL.md",
+      "size": 13614
+    },
+    {
+      "path": "data\\slide-backgrounds.csv",
+      "size": 1049
+    },
+    {
+      "path": "data\\slide-charts.csv",
+      "size": 8657
+    },
+    {
+      "path": "data\\slide-color-logic.csv",
+      "size": 891
+    },
+    {
+      "path": "data\\slide-copy.csv",
+      "size": 6453
+    },
+    {
+      "path": "data\\slide-layout-logic.csv",
+      "size": 997
+    },
+    {
+      "path": "data\\slide-layouts.csv",
+      "size": 8786
+    },
+    {
+      "path": "data\\slide-strategies.csv",
+      "size": 8248
+    },
+    {
+      "path": "data\\slide-typography.csv",
+      "size": 750
+    },
+    {
+      "path": "references\\component-specs.md",
+      "size": 7150
+    },
+    {
+      "path": "references\\component-tokens.md",
+      "size": 5200
+    },
+    {
+      "path": "references\\primitive-tokens.md",
+      "size": 4765
+    },
+    {
+      "path": "references\\semantic-tokens.md",
+      "size": 4460
+    },
+    {
+      "path": "references\\states-and-variants.md",
+      "size": 5012
+    },
+    {
+      "path": "references\\tailwind-integration.md",
+      "size": 5884
+    },
+    {
+      "path": "references\\token-architecture.md",
+      "size": 5589
+    },
+    {
+      "path": "scripts\\embed-tokens.cjs",
+      "size": 2657
+    },
+    {
+      "path": "scripts\\fetch-background.py",
+      "size": 12604
+    },
+    {
+      "path": "scripts\\generate-slide.py",
+      "size": 28538
+    },
+    {
+      "path": "scripts\\generate-tokens.cjs",
+      "size": 5173
+    },
+    {
+      "path": "scripts\\html-token-validator.py",
+      "size": 12221
+    },
+    {
+      "path": "scripts\\search-slides.py",
+      "size": 9428
+    },
+    {
+      "path": "scripts\\slide-token-validator.py",
+      "size": 1008
+    },
+    {
+      "path": "scripts\\slide_search_core.py",
+      "size": 15209
+    },
+    {
+      "path": "scripts\\validate-tokens.cjs",
+      "size": 6298
+    },
+    {
+      "path": "templates\\design-tokens-starter.json",
+      "size": 7327
+    }
+  ],
+  "name": "design-system",
+  "name_en": "design-system",
+  "name_zh": "",
+  "namespace": "design",
+  "path": "data/all-skills/design-skills/design-system/SKILL.md",
+  "quality_grade": "A",
+  "quality_score": 81.2,
+  "rating": null,
+  "rating_count": null,
+  "ref_bytes": 38060,
+  "ref_files": 7,
+  "risk_level": "medium",
+  "risk_score": 10.0,
+  "source": "learning-open-source",
+  "tags": "",
+  "trust_score": 45.0,
+  "version": "1.0.fdc493"
+}

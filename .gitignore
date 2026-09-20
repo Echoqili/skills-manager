@@ -59,8 +59,22 @@ data/skills.db
 data/skills.db-wal
 data/skills.db-shm
 
+# 语义检索索引（由 skills.db 重建，缓存缺失或条数对不上时自动重算）
+data/search-index.json
+
 # 用户导入（运行时生成）
 data/user-imports/
 
+# 外部注册表导入（ClawHub 等，第三方内容，可随时由 cli/import-clawhub.py 重建）
+data/external/
+# 导入质检的暂存目录（用完即清，异常退出时兜底忽略）
+.import-staging/
+
 # 打包输出
 packages/
+
+# 内容修复的自动备份（去重 / 补声明 / 游离 frontmatter / 超大技能重构 /
+# 技能资产补齐 / 整体重导 / 专项修复……），仅本地留存，一律不入库。
+# 统一用 `.backup-<用途>/<时间戳>/` 命名，这里用通配兜住——每加一个修复脚本
+# 就补一条规则的模式已经漏过两次（.backup-refactor、.backup-<技能名>-assets）。
+.backup-*/

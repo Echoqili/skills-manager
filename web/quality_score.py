@@ -9,6 +9,7 @@ Skills Manager - 质量评分引擎
 """
 
 import time
+from datetime import datetime
 from typing import Any, Dict, Optional
 from pathlib import Path
 
@@ -209,6 +210,19 @@ def is_in_grace_period(skill: Dict[str, Any]) -> bool:
     return age_seconds < GRACE_PERIOD_SECONDS
 
 
+def has_community_signal(skill: Dict[str, Any]) -> bool:
+    """是否存在社区信号（下载量 / 评分 / 评分数）。
+
+    本地技能库没有任何社区来源，此值恒为 False。若仍把恒为 0 的社区分按 0.35
+    权重计入总分，content/maintainability 的绝对分会被稀释到同一档——实测 239
+    条技能全部落在 C 档，grade 完全失去区分度。"""
+    return bool(
+        (skill.get("downloads") or 0)
+        or (skill.get("rating") or 0)
+        or (skill.get("rating_count") or 0)
+    )
+
+
 def calculate_quality_score(skill: Dict[str, Any]) -> Dict[str, Any]:
     """
     计算综合质量评分
@@ -226,17 +240,27 @@ def calculate_quality_score(skill: Dict[str, Any]) -> Dict[str, Any]:
     content = calculate_content_score(skill)
     maintainability = calculate_maintainability_score(skill)
     community = calculate_community_score(skill)
-    in_grace = is_in_grace_period(skill)
+    has_community = has_community_signal(skill)
+
+    # 宽限期是「新技能缺乏社区数据」的保护机制，只在确实有社区信号时才有意义；
+    # 否则它会把整个本地库统一打成一个中性分。
+    in_grace = has_community and is_in_grace_period(skill)
 
     if in_grace:
         # 宽限期内使用中性分，但保留各维度分供展示
         total = NEUTRAL_SCORE
-    else:
+    elif has_community:
         total = (
             content * WEIGHTS["content"]
             + maintainability * WEIGHTS["maintainability"]
             + community * WEIGHTS["community"]
         )
+    else:
+        # 无社区信号：剔除 community 维度，按剩余权重归一化，
+        # 让 content/maintainability 的差异真正体现到总分与等级上。
+        w_content = WEIGHTS["content"]
+        w_maint = WEIGHTS["maintainability"]
+        total = (content * w_content + maintainability * w_maint) / (w_content + w_maint)
 
     # 等级
     if total >= 85:

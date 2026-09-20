@@ -9,6 +9,7 @@ Skills Manager Web - SQLite 索引层
 - DB 路径: data/skills.db
 """
 
+import hashlib
 import json
 import re
 import shutil
@@ -19,6 +20,9 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+import search_index  # 零依赖语义检索（TF-IDF + 余弦）
+import trust         # 信任档案：质量分 + 安全审计 + 声明/行为一致性
+
 
 # ========== 路径常量 ==========
 PROJECT_ROOT = Path(__file__).parent.parent
@@ -28,6 +32,12 @@ DB_PATH = DATA_DIR / "skills.db"
 
 # 用户导入目录
 USER_IMPORT_ROOT = DATA_DIR / "user-imports"
+
+# 外部注册表导入目录（ClawHub 等）
+# 结构：data/external/<registry>/<owner>/<slug>/SKILL.md
+#       data/external/.quarantine/** 为质检未通过、暂不放行的隔离区
+EXTERNAL_ROOT = DATA_DIR / "external"
+QUARANTINE_DIRNAME = ".quarantine"
 
 # 回收站（软删除暂存，文件不立即销毁）
 TRASH_ROOT = USER_IMPORT_ROOT / ".trash"
@@ -70,6 +80,15 @@ CATEGORIES_NAME = {
 }
 
 
+# ========== 描述质量规则（校验器与修补脚本共用，避免口径不一致）==========
+
+# description 中"何时使用"的线索词：命中即认为具备触发说明
+TRIGGER_HINT_RE = re.compile(
+    r"when|whenever|use this|use when|触发|适用于|适合|使用场景|适用场景|用于|需求时",
+    re.I,
+)
+
+
 def extract_category(skill_path: str) -> str:
     """从 skill 路径提取分类 key（与 app.py 保持一致）"""
     parts = Path(skill_path).parts
@@ -93,32 +112,55 @@ FRONTMATTER_RE = re.compile(r"^---\s*\n(.*?)\n---\s*\n", re.DOTALL)
 
 
 def parse_frontmatter(text: str) -> Tuple[Dict[str, Any], str]:
-    """解析 YAML 风格 frontmatter"""
+    """解析 YAML 风格 frontmatter
+
+    支持三种取值形式（此前仅支持前两种，导致约 31% 技能的 description 读不出来）:
+      key: value                标量
+      key: >  / key: |          块标量（折叠 / 保留换行），后续缩进行为其内容
+      key:                      列表，后续 `  - item` 行为其元素
+    """
     m = FRONTMATTER_RE.match(text)
     if not m:
         return {}, text
     raw = m.group(1)
+    lines = raw.splitlines()
     meta: Dict[str, Any] = {}
-    current_key: Optional[str] = None
-    current_list: Optional[List[str]] = None
-    for line in raw.splitlines():
-        stripped = line.rstrip()
-        if not stripped:
+    i = 0
+    while i < len(lines):
+        line = lines[i].rstrip()
+        i += 1
+        if not line.strip() or line.startswith((" ", "\t")) or ":" not in line:
             continue
-        if stripped.startswith("  - ") and current_list is not None:
-            current_list.append(_strip_quotes(stripped[4:]))
+        key, _, val = line.partition(":")
+        key = key.strip()
+        val = val.strip()
+
+        # 块标量：key: >  /  key: |  /  key: >-  /  key: |-
+        block = re.match(r"^([>|])([-+])?$", val)
+        if block:
+            buf: List[str] = []
+            while i < len(lines):
+                nxt = lines[i]
+                if nxt.strip() and not nxt.startswith((" ", "\t")):
+                    break
+                buf.append(nxt.strip())
+                i += 1
+            joined = " ".join(x for x in buf if x) if block.group(1) == ">" \
+                else "\n".join(x for x in buf if x)
+            meta[key] = _strip_quotes(joined.strip())
             continue
-        if ":" in stripped and not stripped.startswith(" "):
-            key, _, val = stripped.partition(":")
-            key = key.strip()
-            val = val.strip()
-            current_key = key
-            if not val:
-                current_list = []
-                meta[key] = current_list
-            else:
-                current_list = None
-                meta[key] = _strip_quotes(val)
+
+        # 列表：key:  后跟 `  - item`
+        if not val:
+            items: List[str] = []
+            while i < len(lines) and lines[i].startswith("  - "):
+                items.append(_strip_quotes(lines[i][4:].strip()))
+                i += 1
+            meta[key] = items
+            continue
+
+        meta[key] = _strip_quotes(val)
+
     body = text[m.end():]
     # 空值（形如 `key:` 且无后续列表项）不应解析为列表，归为字符串，
     # 否则后续 INSERT 会因绑定 list 而报错
@@ -126,6 +168,23 @@ def parse_frontmatter(text: str) -> Tuple[Dict[str, Any], str]:
         if isinstance(_v, list) and len(_v) == 0:
             meta[_k] = ""
     return meta, body
+
+
+def _as_csv(v: Any) -> str:
+    """把 tags / platforms 统一成逗号分隔字符串。
+
+    此前直接用 ",".join(...) ，当 frontmatter 写成内联数组 `tags: [a, b, c]`
+    时会被当成字符序列逐字拆开，产生 "[,a,,,b,,,c,]" 这样的脏数据。
+    """
+    if v is None:
+        return ""
+    if isinstance(v, list):
+        return ",".join(str(x).strip() for x in v if str(x).strip())
+    s = str(v).strip()
+    if s.startswith("[") and s.endswith("]"):
+        s = s[1:-1]
+        return ",".join(p.strip().strip("\"'") for p in s.split(",") if p.strip())
+    return s
 
 
 def _strip_quotes(s: str) -> Any:
@@ -148,14 +207,51 @@ def scan_skill_file(md_path: Path, source: str, owner: str = "") -> Optional[Dic
     rel_path = str(md_path.relative_to(PROJECT_ROOT)).replace("\\", "/")
 
     # 分类
-    if source == "user-imports":
-        # 用户导入：优先用 frontmatter 里的 category，否则归入 user-imports
-        cat_key = (meta.get("category") or "user-imports")
+    if source in ("user-imports", "external"):
+        # 导入类技能：优先用 frontmatter 里的 category，否则归入来源分类
+        cat_key = (meta.get("category") or source)
     else:
         cat_key = extract_category(rel_path)
 
-    return {
+    # 命名空间：内置技能按顶层集合目录划分，用户导入统一归入 user-imports。
+    # 作用：同名但不同实现的技能（如 skills/brainstorming 与 superpowers/brainstorming）
+    # 可以共存，避免被 (name, owner) 主键静默覆盖造成数据丢失。
+    if source == "user-imports":
+        ns = "user-imports"
+    elif source == "external":
+        # 外部导入的目录结构是 data/external/<registry>/<上游作者>/<slug>/SKILL.md。
+        # 注意：`owner` 在本 schema 中表示「本地上传者」，只能为空（共享）。第三方
+        # 作者必须编进 namespace，否则 (namespace,name,owner) 主键会让同上游作者下
+        # 的多个技能互相覆盖；若把上游作者误写进 owner，技能会被归属过滤掉、谁
+        # 都搜不到。
+        parts = Path(rel_path).parts
+        if len(parts) > 3 and parts[0] == "data" and parts[1] == "external":
+            ns = f"{parts[2]}:{parts[3]}"
+        elif len(parts) > 2 and parts[0] == "data" and parts[1] == "external":
+            ns = f"{parts[2]}:_"
+        else:
+            ns = "external:_"
+    else:
+        ns = extract_category(rel_path)
+
+    # 附带资料：同目录 references/ 下的文件数与总字节。技能允许「轻正文 + 重资料」
+    # 的形态（渐进式加载），这里只做统计，不读内容——资料可能有几 MB。
+    ref_files = 0
+    ref_bytes = 0
+    ref_dir = md_path.parent / "references"
+    if ref_dir.is_dir():
+        for rf in ref_dir.rglob("*"):
+            if rf.is_file():
+                ref_files += 1
+                try:
+                    ref_bytes += rf.stat().st_size
+                except OSError:
+                    pass
+
+    # 信任档案：质量分 + 安全审计 + 声明/行为一致性
+    record = {
         "name": name,
+        "namespace": ns,
         "name_zh": meta.get("name_zh", ""),
         "name_en": meta.get("name_en", name),
         "path": rel_path,
@@ -168,14 +264,35 @@ def scan_skill_file(md_path: Path, source: str, owner: str = "") -> Optional[Dic
         "description": meta.get("description", ""),
         "description_en": meta.get("description_en", ""),
         "description_zh": meta.get("description_zh", ""),
-        "version": str(meta.get("version", "1.0.0")),
+        # version 为可选字段：缺失时按内容哈希派生，使内容变更可被追踪
+        "version": str(meta.get("version") or "").strip()
+                  or "1.0." + hashlib.sha256(text.encode("utf-8")).hexdigest()[:6],
         "author": str(meta.get("author", "")),
-        "platforms": ",".join(meta.get("platforms", []) or []),
-        "tags": ",".join(meta.get("tags", []) or []),
+        "platforms": _as_csv(meta.get("platforms")),
+        "tags": _as_csv(meta.get("tags")),
         "content": text,
         "size_bytes": len(text.encode("utf-8")),
         "mtime": md_path.stat().st_mtime,
+        "ref_files": ref_files,
+        "ref_bytes": ref_bytes,
     }
+
+    try:
+        profile = trust.build_trust_profile(record)
+        record.update({
+            "quality_score": profile["quality_total"],
+            "quality_grade": profile["quality_grade"],
+            "risk_score": profile["risk_score"],
+            "risk_level": profile["risk_level"],
+            "trust_score": profile["trust_score"],
+            "consistency_status": profile["consistency_status"],
+            "consistency_detail": json.dumps(
+                profile.get("consistency_issues", []), ensure_ascii=False
+            ),
+        })
+    except Exception:
+        pass  # 信任档案失败不应阻断入库
+    return record
 
 
 def scan_all_skills() -> List[Dict[str, Any]]:
@@ -198,6 +315,18 @@ def scan_all_skills() -> List[Dict[str, Any]]:
             data = scan_skill_file(md, source="user-imports", owner=owner)
             if data:
                 skills.append(data)
+    # 外部注册表导入（ClawHub / skills.sh 等）
+    if EXTERNAL_ROOT.exists():
+        for md in EXTERNAL_ROOT.rglob("SKILL.md"):
+            # 跳过隔离区：质检未通过的内容不应进入可见库
+            if QUARANTINE_DIRNAME in md.parts or ".trash" in md.parts:
+                continue
+            # 外部导入一律视为共享内容（owner 为空），上游作者编入 namespace。
+            # 若把上游作者写进 owner，会被 (owner = ? OR owner = '') 的归属过滤
+            # 排除，导致导入的技能搜不到、也列不出来。
+            data = scan_skill_file(md, source="external", owner="")
+            if data:
+                skills.append(data)
     # 兼容旧版：历史导入位于 data/all-skills/user-imports/<skill_name>（无 owner，视为共享）
     legacy_root = SKILLS_ROOT / "user-imports"
     if legacy_root.exists():
@@ -214,6 +343,7 @@ def scan_all_skills() -> List[Dict[str, Any]]:
 # 仅建表；索引在 init_db 中于列迁移之后创建，避免旧库缺列时 CREATE INDEX 失败。
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS skills (
+    namespace TEXT NOT NULL DEFAULT 'default',
     name TEXT NOT NULL,
     name_zh TEXT DEFAULT '',
     name_en TEXT DEFAULT '',
@@ -234,22 +364,58 @@ CREATE TABLE IF NOT EXISTS skills (
     content TEXT NOT NULL,
     size_bytes INTEGER DEFAULT 0,
     mtime REAL DEFAULT 0,
+    -- 信任档案（由 web/trust.py 计算，供排序与展示）
+    quality_score REAL DEFAULT 0,
+    quality_grade TEXT DEFAULT '',
+    risk_score REAL DEFAULT 0,
+    risk_level TEXT DEFAULT 'safe',
+    trust_score REAL DEFAULT 0,
+    consistency_status TEXT DEFAULT 'unknown',
+    -- 一致性问题明细（JSON 数组），供前端直接展示「为什么需复核」
+    consistency_detail TEXT DEFAULT '',
+    -- 随技能附带的 references/ 资料（渐进式加载：正文轻、资料按需读取）
+    ref_files INTEGER DEFAULT 0,
+    ref_bytes INTEGER DEFAULT 0,
     updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
     deleted_at TEXT DEFAULT NULL,
-    PRIMARY KEY (name, owner)
+    PRIMARY KEY (namespace, name, owner)
 );
 """
+
+# 旧库主键为 (name, owner)，需重建才能承载 namespace 维度
+_LEGACY_PK_SQL = "PRIMARY KEY (name, owner)"
 
 
 # 列迁移完成后创建的所有索引
 _INDEX_DDL = [
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_skills_path ON skills(path, owner)",
+    "CREATE INDEX IF NOT EXISTS idx_skills_namespace ON skills(namespace)",
     "CREATE INDEX IF NOT EXISTS idx_skills_source ON skills(source)",
     "CREATE INDEX IF NOT EXISTS idx_skills_category ON skills(category)",
     "CREATE INDEX IF NOT EXISTS idx_skills_owner ON skills(owner)",
     "CREATE INDEX IF NOT EXISTS idx_skills_name_lower ON skills(LOWER(name))",
     "CREATE INDEX IF NOT EXISTS idx_skills_deleted ON skills(deleted_at)",
+    "CREATE INDEX IF NOT EXISTS idx_skills_trust ON skills(trust_score)",
+    "CREATE INDEX IF NOT EXISTS idx_skills_risk ON skills(risk_level)",
 ]
+
+# 信任档案列：旧库缺列时按需补齐
+_TRUST_COLUMNS = {
+    "quality_score": "REAL DEFAULT 0",
+    "quality_grade": "TEXT DEFAULT ''",
+    "risk_score": "REAL DEFAULT 0",
+    "risk_level": "TEXT DEFAULT 'safe'",
+    "trust_score": "REAL DEFAULT 0",
+    "consistency_status": "TEXT DEFAULT 'unknown'",
+    "consistency_detail": "TEXT DEFAULT ''",
+}
+
+# references/ 资料统计列：技能可以是「轻正文 + 重资料」的形态，不落库的话
+# 前端就只能看到一个孤零零的文件列表，用户不知道这个技能还附了资料库。
+_REF_COLUMNS = {
+    "ref_files": "INTEGER DEFAULT 0",
+    "ref_bytes": "INTEGER DEFAULT 0",
+}
 
 
 # ========== 连接管理 ==========
@@ -285,8 +451,30 @@ def init_db() -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     conn = get_conn()
     conn.executescript(SCHEMA)
+    # 旧库主键为 (name, owner)，无法承载 namespace 维度，必须重建表结构。
+    # DB 是 Markdown 文件的派生缓存，重建安全；仅需保留回收站中的软删除记录。
+    create_sql = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='skills'"
+    ).fetchone()
+    if create_sql and "PRIMARY KEY (namespace" not in (create_sql[0] or ""):
+        trash = [dict(r) for r in conn.execute(
+            "SELECT * FROM skills WHERE deleted_at IS NOT NULL").fetchall()]
+        conn.execute("DROP TABLE skills")
+        conn.executescript(SCHEMA)
+        conn.commit()
+        for t in trash:
+            t.setdefault("namespace", "user-imports")
+            _insert_skill(conn, t, deleted_at=t.get("deleted_at"))
+        conn.commit()
     # 兼容旧库：若缺少 owner / deleted_at 列则迁移（必须在建索引前完成）
     cols = {r[1] for r in conn.execute("PRAGMA table_info(skills)")}
+    if "namespace" not in cols:
+        conn.execute("ALTER TABLE skills ADD COLUMN namespace TEXT DEFAULT 'default'")
+    # 信任档案列 / 资料统计列：旧库缺列时补齐（必须在建索引前完成）
+    for col, ddl in {**_TRUST_COLUMNS, **_REF_COLUMNS}.items():
+        if col not in cols:
+            conn.execute(f"ALTER TABLE skills ADD COLUMN {col} {ddl}")
+    conn.commit()
     if "owner" not in cols:
         conn.execute("ALTER TABLE skills ADD COLUMN owner TEXT DEFAULT ''")
     if "deleted_at" not in cols:
@@ -303,21 +491,32 @@ def _insert_skill(conn, s: Dict[str, Any], deleted_at: Optional[str] = None) -> 
     conn.execute(
         """
         INSERT OR REPLACE INTO skills (
-            name, name_zh, name_en, path, abs_path, source, owner,
+            namespace, name, name_zh, name_en, path, abs_path, source, owner,
             category, category_emoji, category_name,
             description, description_en, description_zh,
             version, author, platforms, tags,
-            content, size_bytes, mtime, updated_at, deleted_at
-        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            content, size_bytes, mtime,
+            quality_score, quality_grade, risk_score, risk_level,
+            trust_score, consistency_status,
+            consistency_detail,
+            ref_files, ref_bytes,
+            updated_at, deleted_at
+        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
         """,
         (
-            s["name"], s.get("name_zh", ""), s.get("name_en", s["name"]),
+            s.get("namespace", "default"), s["name"],
+            s.get("name_zh", ""), s.get("name_en", s["name"]),
             s["path"], s.get("abs_path", ""),
             s["source"], s.get("owner", ""),
             s["category"], s.get("category_emoji", "📦"), s.get("category_name", s.get("category", "")),
             s.get("description", ""), s.get("description_en", ""), s.get("description_zh", ""),
             str(s.get("version", "1.0.0")), s.get("author", ""), s.get("platforms", ""), s.get("tags", ""),
             s["content"], s.get("size_bytes", 0), s.get("mtime", 0),
+            s.get("quality_score", 0), s.get("quality_grade", ""),
+            s.get("risk_score", 0), s.get("risk_level", "safe"),
+            s.get("trust_score", 0), s.get("consistency_status", "unknown"),
+            s.get("consistency_detail", ""),
+            s.get("ref_files", 0), s.get("ref_bytes", 0),
             now, deleted_at,
         ),
     )
@@ -336,6 +535,7 @@ def rebuild_all() -> None:
             _insert_skill(conn, s, deleted_at=None)
         for tr in trash_rows:
             _insert_skill(conn, tr, deleted_at=tr.get("deleted_at"))
+    invalidate_semantic_index()
 
 
 # ========== 增 / 删 / 改 ==========
@@ -346,6 +546,7 @@ def upsert_skill(abs_path: Path, source: str, owner: str = "") -> Optional[Dict[
         return None
     with tx() as conn:
         _insert_skill(conn, data, deleted_at=None)
+    invalidate_semantic_index()
     return data
 
 
@@ -353,7 +554,10 @@ def delete_skill(name: str, owner: str = "") -> bool:
     """从 DB 删除（按 name + owner，避免误删他人数据）"""
     with tx() as conn:
         cur = conn.execute("DELETE FROM skills WHERE name = ? AND owner = ?", (name, owner))
-        return cur.rowcount > 0
+        rowcount = cur.rowcount > 0
+    if rowcount:
+        invalidate_semantic_index()
+    return rowcount
 
 
 # ========== 软删除 / 回收站 ==========
@@ -528,12 +732,16 @@ def list_by_source() -> Dict[str, List[Dict[str, Any]]]:
     return grouped
 
 
-def get_by_name(name: str, owner: str = "") -> Optional[Dict[str, Any]]:
+def get_by_name(name: str, owner: str = "", namespace: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    """按名称查询。同名技能可能存在于多个 namespace，可用 namespace 精确指定。"""
     conn = get_conn()
-    row = conn.execute(
-        "SELECT * FROM skills WHERE name = ? AND (owner = ? OR owner = '') AND deleted_at IS NULL",
-        (name, owner),
-    ).fetchone()
+    sql = "SELECT * FROM skills WHERE name = ? AND (owner = ? OR owner = '') AND deleted_at IS NULL"
+    params: List[Any] = [name, owner]
+    if namespace:
+        sql += " AND namespace = ?"
+        params.append(namespace)
+    sql += " ORDER BY (owner = ''), namespace LIMIT 1"
+    row = conn.execute(sql, params).fetchone()
     return dict(row) if row else None
 
 
@@ -568,8 +776,13 @@ def category_stats() -> List[Dict[str, Any]]:
     return [dict(r) for r in rows]
 
 
-def search(query: str, top_k: int = 20, owner: str = "") -> List[Dict[str, Any]]:
-    """关键词搜索（中英文混合），仅返回当前用户可见的 skills"""
+def search_scored(query: str, top_k: int = 20,
+                  owner: str = "") -> List[Tuple[Dict[str, Any], float]]:
+    """混合检索并**返回相关性分数**（0-1），供调用方做阈值过滤。
+
+    关键词搜索 + 语义检索按 0.35 / 0.65 加权。分数是相对量，不同查询之间不可
+    直接比较（无绝对标定），因此调用方应使用「相对阈值」而非固定数值。
+    """
     if not query:
         return []
     is_chinese = bool(re.search(r"[\u4e00-\u9fff]", query))
@@ -602,7 +815,44 @@ def search(query: str, top_k: int = 20, owner: str = "") -> List[Dict[str, Any]]
         if score > 0:
             scored.append((score, s))
     scored.sort(key=lambda x: -x[0])
-    return [s for _, s in scored[:top_k]]
+
+    # ---- 语义召回：把「帮我写测试用例」这类查询映射到 test-driven-development ----
+    sem: Dict[Tuple[str, str, str], float] = {}
+    try:
+        idx = get_semantic_index()
+        for key, sc in idx.search(query, top_k * 4):
+            if key[2] not in (owner, ""):   # 仅当前用户可见
+                continue
+            sem[key] = sc
+    except Exception:
+        sem = {}                            # 语义不可用时静默退化为关键词搜索
+
+    rows_by_key: Dict[Tuple[str, str, str], Dict[str, Any]] = {}
+    kw: Dict[Tuple[str, str, str], int] = {}
+    for score, s in scored:
+        key = (s.get("namespace", "default"), s["name"], s.get("owner", ""))
+        rows_by_key[key] = s
+        kw[key] = score
+
+    merged: List[Tuple[float, Dict[str, Any]]] = []
+    for key in set(kw) | set(sem):
+        s = rows_by_key.get(key)
+        if s is None:
+            s = _fetch_by_key(key)
+            if s is None:
+                continue
+        # 关键词分归一化到 0-1，语义分本身已是 0-1 余弦；语义占更大权重
+        kw_norm = min(kw.get(key, 0) / 60.0, 1.0)
+        final = (0.35 * kw_norm + 0.65 * sem.get(key, 0.0)) if sem else kw_norm
+        if final > 0:
+            merged.append((final, s))
+    merged.sort(key=lambda x: -x[0])
+    return [(s, sc) for sc, s in merged[:top_k]]
+
+
+def search(query: str, top_k: int = 20, owner: str = "") -> List[Dict[str, Any]]:
+    """关键词搜索（中英文混合），仅返回当前用户可见的 skills"""
+    return [s for s, _ in search_scored(query, top_k=top_k, owner=owner)]
 
 
 def _score(s: Dict[str, Any], query: str, q_lower: str, is_chinese: bool) -> int:
@@ -635,6 +885,57 @@ def _score(s: Dict[str, Any], query: str, q_lower: str, is_chinese: bool) -> int
         if word in cat_name:
             score += 10
     return score
+
+
+# ========== 语义索引 ==========
+_sem_idx: Optional["search_index.SemanticIndex"] = None
+_sem_dirty = True
+
+
+def invalidate_semantic_index() -> None:
+    """技能数据变更后调用，令语义索引在下次查询时重建"""
+    global _sem_dirty
+    _sem_dirty = True
+
+
+def build_semantic_index() -> "search_index.SemanticIndex":
+    """由当前库内技能重建语义索引并持久化"""
+    rows = list_all()
+    docs = [
+        ((s.get("namespace", "default"), s["name"], s.get("owner", "")),
+         search_index.build_index_text(s))
+        for s in rows
+    ]
+    idx = search_index.SemanticIndex()
+    idx.build(docs)
+    try:
+        idx.save()
+    except Exception:
+        pass  # 索引写不进去也不影响主流程，退化为内存索引
+    return idx
+
+
+def get_semantic_index():
+    """取语义索引；缺失或数量对不上时自动重建"""
+    global _sem_idx, _sem_dirty
+    if _sem_idx is not None and not _sem_dirty:
+        return _sem_idx
+    idx = search_index.SemanticIndex.load()
+    if idx is None or idx.n != count_all():
+        idx = build_semantic_index()
+    _sem_idx = idx
+    _sem_dirty = False
+    return idx
+
+
+def _fetch_by_key(key: Tuple[str, str, str]) -> Optional[Dict[str, Any]]:
+    ns, name, own = key
+    row = get_conn().execute(
+        "SELECT * FROM skills WHERE namespace = ? AND name = ? AND owner = ? "
+        "AND deleted_at IS NULL",
+        (ns, name, own),
+    ).fetchone()
+    return dict(row) if row else None
 
 
 # ========== 启动自检 ==========
