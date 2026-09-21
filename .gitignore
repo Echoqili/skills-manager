@@ -78,3 +78,9 @@ packages/
 # 统一用 `.backup-<用途>/<时间戳>/` 命名，这里用通配兜住——每加一个修复脚本
 # 就补一条规则的模式已经漏过两次（.backup-refactor、.backup-<技能名>-assets）。
 .backup-*/
+
+# 本地工作产物：部署 QA 截图 / 一次性分析报告。
+# 都是本机复核用的中间产物，进仓库只会变成 git status 噪声（历史上一直未跟踪）。
+# 注意 `/*.png` 只作用于根目录，`static/` 之类的素材不受影响。
+/*.png
+/skills-manager-*-report/
