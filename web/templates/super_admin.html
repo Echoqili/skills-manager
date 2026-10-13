@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="zh-CN" data-admin-proxy="true">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow"><title>超级管理员 · 管理员账户</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#f5f7fa;color:#1f2937;font:14px -apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif;padding:32px 16px}
+main{max-width:1000px;margin:auto}h1{font-size:22px;margin:0 0 8px}h2{font-size:17px;margin:0 0 14px}
+.muted{color:#64748b}.card{background:white;border:1px solid #e3e8ef;border-radius:14px;padding:22px;margin:20px 0}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.toolbar{justify-content:space-between}
+button{border:0;border-radius:8px;padding:9px 13px;font-weight:600;cursor:pointer;background:#eef2f7;color:#1f2937}
+button.primary,.btn-primary{background:#2563eb;color:white}button.danger{color:#dc2626;background:#fef2f2}button:disabled{opacity:.5;cursor:wait}
+a{color:#2563eb;text-decoration:none}input,select{padding:10px;border:1px solid #dbe3ef;border-radius:8px;font:inherit}
+label{display:block;margin:12px 0}label input{display:block;width:100%;margin-top:6px}
+.table-wrap{overflow:auto}table{border-collapse:collapse;width:100%}th,td{padding:13px 10px;text-align:left;border-bottom:1px solid #e5e7eb;vertical-align:top}
+th{color:#64748b;font-size:12px}.tag{background:#eff6ff;color:#2563eb;padding:3px 8px;border-radius:6px;white-space:nowrap}
+.error{color:#dc2626}.ok{color:#16a34a}.actions{display:flex;gap:6px;flex-wrap:wrap}.actions button{font-size:12px;padding:6px 9px}
+.mask{position:fixed;inset:0;display:grid;place-items:center;background:rgba(0,0,0,.4);z-index:1000;padding:20px}.mask[hidden]{display:none}
+.dialog{background:white;border-radius:14px;width:min(520px,100%);padding:24px;max-height:85vh;overflow:auto}.permission{display:flex;gap:8px;margin:12px 0}.permission input{width:auto}
+</style></head>
+<body><main>
+<div class="row toolbar"><div><h1>超级管理员 · 管理员账户</h1><div class="muted">管理管理员角色、状态与功能权限。普通用户可晋升为管理员。</div></div>
+<div class="row"><a href="/admin">普通用户审批台</a><button id="ownPassword">修改我的密码</button></div></div>
+<section class="card"><h2>添加管理员</h2><div class="row"><select id="promoteUser" aria-label="选择普通账号"><option value="">加载中…</option></select><button class="primary" id="promoteBtn">晋升为管理员</button></div></section>
+<section class="card"><div class="row toolbar"><h2>管理员账户</h2><button id="refreshBtn">刷新</button></div><p id="message" role="status"></p><div class="table-wrap" id="accounts">加载中…</div></section>
+</main>
+<div class="mask" id="permissionsMask" hidden><div class="dialog"><h2 id="permissionTitle">分配功能权限</h2>
+<div id="permissionOptions"></div><label class="permission"><input type="checkbox" id="hideNoPermission">隐藏该账号无权限功能</label>
+<p class="error" id="permissionError"></p><div class="row"><button class="primary" id="savePermissions">保存</button><button id="cancelPermissions">取消</button></div></div></div>
+<script src="/static/js/admin-session.js"></script>
+<script>
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let users=[],defs=[],editing=null;
+const message=(text,error=false)=>{const el=document.getElementById('message');el.className=error?'error':'ok';el.textContent=text;};
+function actions(user){
+ if(user.is_super_admin)return '<span class="muted">受保护账号</span>';
+ const buttons=[['permissions','分配权限'],['hide',user.hide_unauthorized?'显示无权限入口':'一键隐藏无权限功能'],['status',user.status==='approved'?'禁用':'启用'],['reset','重置密码'],['demote','降级为普通用户']];
+ return '<div class="actions">'+buttons.map(b=>'<button data-action="'+b[0]+'" data-user="'+esc(user.username)+'">'+b[1]+'</button>').join('')+'</div>';
+}
+async function refresh(){
+ const result=await Promise.all([AdminSession.api('/api/super-admin/users'),AdminSession.api('/api/admin/permissions')]);
+ users=result[0].users;defs=result[1].permissions;
+ document.getElementById('promoteUser').innerHTML='<option value="">选择普通账号</option>'+users.filter(u=>!u.is_admin&&!u.is_super_admin).map(u=>'<option value="'+esc(u.username)+'">'+esc(u.username)+'</option>').join('');
+ const admins=users.filter(u=>u.is_admin||u.is_super_admin);
+ document.getElementById('accounts').innerHTML='<table><thead><tr><th>账号</th><th>角色与状态</th><th>功能权限</th><th>操作</th></tr></thead><tbody>'+admins.map(u=>{
+ const permission=u.is_super_admin?'全部权限':u.permissions.includes('*')?'全部权限':u.permissions.length?esc(u.permissions.join('、')):'无功能权限';
+ return '<tr><td>'+esc(u.username)+'</td><td><span class="tag">'+(u.is_super_admin?'超级管理员':'管理员')+'</span><p>'+(u.status==='approved'?'已启用':'已禁用')+'</p></td><td>'+permission+'<p class="muted">'+(u.hide_unauthorized?'隐藏未授权入口':'显示未授权入口')+'</p></td><td>'+actions(u)+'</td></tr>';
+ }).join('')+'</tbody></table>';
+ document.querySelectorAll('[data-action]').forEach(button=>button.addEventListener('click',()=>action(button).catch(e=>message(e.message,true))));
+}
+function openPermissions(user){
+ editing=user;document.getElementById('permissionTitle').textContent='分配权限 · '+user.username;
+ document.getElementById('permissionOptions').innerHTML=defs.map(p=>'<label class="permission"><input type="checkbox" value="'+esc(p.key)+'" '+(user.permissions.includes('*')||user.permissions.includes(p.key)?'checked':'')+'><span>'+esc(p.name)+'</span></label>').join('');
+ document.getElementById('hideNoPermission').checked=!!user.hide_unauthorized;
+ document.getElementById('permissionError').textContent='';document.getElementById('permissionsMask').hidden=false;
+}
+async function action(button){
+ const user=users.find(u=>u.username===button.dataset.user),kind=button.dataset.action;
+ if(kind==='permissions'){openPermissions(user);return;}
+ let endpoint,body={username:user.username};
+ if(kind==='hide'){endpoint='/api/admin/visibility';body.hide_unauthorized=!user.hide_unauthorized;}
+ if(kind==='demote'){if(!confirm('将 '+user.username+' 降级为普通用户？'))return;endpoint='/api/super-admin/role';body.role='user';}
+ if(kind==='status'){if(!confirm((user.status==='approved'?'禁用':'启用')+' '+user.username+'？'))return;endpoint='/api/super-admin/status';body.enabled=user.status!=='approved';}
+ if(kind==='reset'){const value=prompt('请输入新的管理员密码（至少12位，包含三类字符）。下次登录需修改：');if(!value)return;endpoint='/api/super-admin/reset-password';body.password=value;}
+ button.disabled=true;
+ try{await AdminSession.api(endpoint,{method:'POST',body:JSON.stringify(body)});message('已更新 '+user.username);await refresh();}finally{button.disabled=false;}
+}
+document.getElementById('promoteBtn').onclick=async function(){
+ const username=document.getElementById('promoteUser').value;if(!username){message('请选择普通账号',true);return;}
+ this.disabled=true;try{await AdminSession.api('/api/super-admin/role',{method:'POST',body:JSON.stringify({username,role:'admin'})});message('已晋升 '+username);await refresh();}catch(e){message(e.message,true);}finally{this.disabled=false;}
+};
+document.getElementById('savePermissions').onclick=async function(){
+ const selected=[...document.querySelectorAll('#permissionOptions input:checked')].map(el=>el.value);
+ const permissions=selected.length===defs.length&&defs.length?['*']:selected;
+ this.disabled=true;try{await AdminSession.api('/api/admin/permissions',{method:'POST',body:JSON.stringify({username:editing.username,permissions,hide_unauthorized:document.getElementById('hideNoPermission').checked})});document.getElementById('permissionsMask').hidden=true;await refresh();}catch(e){document.getElementById('permissionError').textContent=e.message;}finally{this.disabled=false;}
+};
+document.getElementById('cancelPermissions').onclick=()=>document.getElementById('permissionsMask').hidden=true;
+document.getElementById('refreshBtn').onclick=()=>refresh().catch(e=>message(e.message,true));
+document.getElementById('ownPassword').onclick=()=>AdminSession.changePassword();
+AdminSession.ready.then(u=>{if(!u?.is_super_admin)throw new Error('需要超级管理员账号');return refresh();}).catch(e=>message(e.message,true));
+</script></body></html>

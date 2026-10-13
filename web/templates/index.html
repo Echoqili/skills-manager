@@ -2942,12 +2942,16 @@
             .release-item { padding: 12px; }
             .release-item h4 { font-size: 0.9rem; }
         }
+        #permissionVisibilityBtn[hidden]{display:none}
+        .permission-hidden{display:none!important}
+        .permission-denied{opacity:.5;cursor:not-allowed}
     </style>
 </head>
 <body>
     <!-- 登录 / 注册 门禁 -->
     <div id="auth-overlay" class="auth-overlay" style="display:none;">
-        <div class="auth-card">
+        <div class="auth-card" role="dialog" aria-modal="true" aria-labelledby="auth-title">
+            <button type="button" class="auth-close" id="auth-close" aria-label="关闭登录窗口">×</button>
             <div class="auth-logo">⚡</div>
             <h1 class="auth-title" id="auth-title">登录 Skills Manager</h1>
             <p class="auth-sub" id="auth-sub">多用户隔离：你的 Skills 与 AI 配置仅你自己可见</p>
@@ -2979,6 +2983,7 @@
                 <span id="auth-switch-text">还没有账号？</span>
                 <a href="#" id="auth-switch-link">注册</a>
             </div>
+            <button type="button" class="auth-guest-btn" id="auth-guest-continue">以游客身份继续浏览</button>
         </div>
     </div>
 
@@ -3063,7 +3068,7 @@
                         <span class="sidebar-guest-text">👤 游客模式（只读浏览）</span>
                         <button class="auth-logout" id="guest-login-btn">登录 / 注册</button>
                     </div>
-                    <button class="sidebar-cart-btn" id="cartToggleBtn" onclick="toggleCartSidebar()">
+                    <button class="sidebar-cart-btn" id="cartToggleBtn" data-permission="skill_export" onclick="toggleCartSidebar()">
                         <span>📦</span>
                         <span data-i18n="cart_btn">打包清单</span>
                         <span class="count" id="cartCount">0</span>
@@ -3093,6 +3098,7 @@
                     </div>
 
                     <div class="topbar-actions">
+                        <button class="topbar-btn" id="permissionVisibilityBtn" onclick="togglePermissionVisibility()" hidden>隐藏无权限功能</button>
                         <button class="theme-toggle" id="themeToggle" onclick="toggleTheme()" aria-label="切换主题" title="切换白天/夜晚主题">
                             <span class="theme-toggle-icon" id="themeToggleIcon">☀️</span>
                         </button>
@@ -3326,7 +3332,7 @@
                                     </div>
                                 </div>
                                 <div style="margin-top:14px;display:flex;gap:10px;">
-                                    <button class="btn btn-primary" id="publishSubmitBtn" onclick="submitPublish()"
+                                    <button class="btn btn-primary" id="publishSubmitBtn" data-permission="skill_import" onclick="submitPublish()"
                                         data-i18n="pf_submit">提交发布</button>
                                     <button class="btn btn-ghost" onclick="togglePublishForm()" data-i18n="pf_cancel">取消</button>
                                 </div>
@@ -3360,8 +3366,8 @@
                                 </div>
                             </div>
                             <div class="cart-actions">
-                                <button class="btn btn-primary" onclick="packageSelected()" data-i18n="btn_package">📦 打包下载选中项</button>
-                                <button class="btn btn-secondary" onclick="packageAll()" data-i18n="btn_package_all">📦 打包全部 Skills</button>
+                                <button class="btn btn-primary" data-permission="skill_export" data-package-action onclick="packageSelected()" data-i18n="btn_package">📦 打包下载选中项</button>
+                                <button class="btn btn-secondary" data-permission="skill_export" data-package-action onclick="packageAll()" data-i18n="btn_package_all">📦 打包全部 Skills</button>
                                 <button class="btn btn-ghost" onclick="clearCart()" data-i18n="btn_clear_cart">🗑️ 清空清单</button>
                             </div>
                             <div id="cartList"></div>
@@ -3468,7 +3474,7 @@
                                     </div>
                                     <div style="display:flex;gap:10px;margin-bottom:16px;">
                                         <button type="button" class="btn btn-secondary" onclick="validateImport()" data-i18n="import_validate">🔍 验证</button>
-                                        <button type="button" class="btn btn-primary" onclick="submitImport()" data-i18n="import_submit">✅ 导入</button>
+                                        <button type="button" class="btn btn-primary" data-permission="skill_import" onclick="submitImport()" data-i18n="import_submit">✅ 导入</button>
                                     </div>
                                     <div id="importValidation" style="display:none;padding:12px;border-radius:8px;font-size:0.88rem;"></div>
                                 </form>
@@ -3480,7 +3486,7 @@
                                         <textarea id="aiSkillRequirement" class="ai-textarea" style="min-height:120px;" placeholder="例如：一个帮我做 Python 代码审查的 Skill，要求给出具体改进建议..." data-i18n-placeholder="import_ai_placeholder"></textarea>
                                     </div>
                                     <div style="display:flex;gap:10px;margin-bottom:16px;">
-                                        <button type="button" id="aiGenerateBtn" class="btn btn-primary" onclick="generateSkillWithAI()" data-i18n="import_ai_btn">🤖 AI 生成</button>
+                                        <button type="button" id="aiGenerateBtn" class="btn btn-primary" data-permission="ai_generate" onclick="generateSkillWithAI()" data-i18n="import_ai_btn">🤖 AI 生成</button>
                                     </div>
                                     <div id="aiProgressContainer" style="display:none;margin-bottom:16px;">
                                         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;font-size:0.85rem;color:var(--text-secondary);">
@@ -3521,7 +3527,7 @@
                                     <div style="margin-bottom:16px;color:var(--text-muted);font-size:0.82rem;" data-i18n="import_github_hint">支持完整路径：/tree/branch/path/to/SKILL.md</div>
                                     <div style="display:flex;gap:10px;margin-bottom:16px;">
                                         <button type="button" class="btn btn-secondary" onclick="browseGithubSkills()" data-i18n="import_github_browse">🔍 浏览</button>
-                                        <button type="button" class="btn btn-primary" onclick="importFromGithub()" data-i18n="import_github_btn">🐙 导入</button>
+                                        <button type="button" class="btn btn-primary" data-permission="skill_import" onclick="importFromGithub()" data-i18n="import_github_btn">🐙 导入</button>
                                     </div>
                                     <div id="browseResults" style="display:none;margin-top:16px;"></div>
                                 </form>
@@ -3753,9 +3759,9 @@
             </div>
         </div>
         <div class="cart-sidebar-footer">
-            <button class="btn btn-primary" onclick="packageSelectedFromSidebar()" style="width:100%;margin-bottom:10px;" data-i18n="btn_package">📦 打包下载选中项</button>
+            <button class="btn btn-primary" data-permission="skill_export" data-package-action onclick="packageSelectedFromSidebar()" style="width:100%;margin-bottom:10px;" data-i18n="btn_package">📦 打包下载选中项</button>
             <div style="display:flex;gap:10px;">
-                <button class="btn btn-secondary" onclick="packageAll()" style="flex:1;" data-i18n="btn_package_all">打包全部</button>
+                <button class="btn btn-secondary" data-permission="skill_export" data-package-action onclick="packageAll()" style="flex:1;" data-i18n="btn_package_all">打包全部</button>
                 <button class="btn btn-ghost" onclick="clearCart()" style="flex:1;" data-i18n="btn_clear_cart">清空</button>
             </div>
         </div>
@@ -3814,7 +3820,8 @@
     <script>
         // ========== i18n 多语言支持 ==========
         console.log('[script] inline script start');
-        let currentLang = localStorage.getItem('lang') || 'zh';
+        let currentLang = 'zh';
+        try { currentLang = localStorage.getItem('lang') || 'zh'; } catch (e) {}
 
         /* ========== 主题切换（白天 / 夜晚） ========== */
         const THEME_KEY = 'skills-manager-theme';
@@ -4801,7 +4808,7 @@
 
         function setLang(lang) {
             currentLang = lang;
-            localStorage.setItem('lang', lang);
+            try { localStorage.setItem('lang', lang); } catch (e) {}
             document.getElementById('langMenu').classList.remove('show');
             applyI18n();
             // Re-render current view with new language
@@ -4813,11 +4820,11 @@
             // Always reload stats on lang change to update footer and stats bar
             loadStats();
             if (view === 'search') {
-                // Re-render search results with current language
-                if (currentSearchResults.length > 0) {
-                    renderSkillsPage(currentPage);
+                if (searchSource === 'github') {
+                    searchSkills({ navigate: false });
                 } else {
-                    document.getElementById('searchTag').textContent = t('tag_local_all', allLoadedSkills.length);
+                    // Re-render search results with current language
+                    applyLocalResults(currentSearchResults, currentCategoryFilter, currentPage, !!document.getElementById('searchInput').value.trim());
                 }
                 renderBrowseCategories();
             }
@@ -4862,6 +4869,7 @@
             });
             // Update section headers
             updateSectionHeaders();
+            applyPermissionVisibility();
             // Update discover tab texts
             const keywordTab = document.querySelector('[data-mode="keyword"]');
             const aiTab = document.querySelector('[data-mode="ai"]');
@@ -4910,7 +4918,7 @@
 
         // ========== 全局状态 ==========
         let cart = [];
-        let allSkillsCache = {};      // name -> skill 映射
+        let allSkillsCache = {};      // registry 标识 -> skill 映射
         let currentView = 'search';
         let prevView = 'search';      // 用于详情页返回
         let currentSearchResults = [];
@@ -4922,6 +4930,159 @@
         let searchSource = 'local';   // 'local' | 'github'
         let currentCategoryFilter = ''; // 当前分类筛选
         let categoriesData = [];      // 分类数据缓存
+        let libraryReady = false;
+        let libraryRequest = 0;
+        let browseRequest = 0;
+        let browseController = null;
+        let detailRequest = 0;
+        let detailController = null;
+        let detailScrollY = 0;
+        let packageBusy = false;
+        window.CURRENT_USER = null;
+        const SECTION_PERMISSIONS = {
+            search:'skill_view', scenarios:'skill_view', categories:'skill_view', curated:'skill_view', registry:'skill_view', detail:'skill_view', releases:'skill_view',
+            import:'skill_import,ai_generate', discover:'discover', update:'discover', ai:'ai_generate', trash:'skill_manage', cart:'skill_export'
+        };
+        function canUsePermission(keys) {
+            const user = window.CURRENT_USER;
+            if (!user) return true;
+            if (user.is_super_admin) return true;
+            const permissions = Array.isArray(user.permissions) ? user.permissions : [];
+            return permissions.includes('*') || keys.split(',').some(key => permissions.includes(key));
+        }
+        function canOpenSection(section) {
+            return !SECTION_PERMISSIONS[section] || canUsePermission(SECTION_PERMISSIONS[section]);
+        }
+        function applyPermissionVisibility() {
+            const user = window.CURRENT_USER;
+            const button = document.getElementById('permissionVisibilityBtn');
+            if (button) {
+                button.hidden = !user;
+                button.textContent = currentLang === 'en'
+                    ? (user?.hide_unauthorized ? 'Show unavailable functions' : 'Hide unavailable functions')
+                    : (user?.hide_unauthorized ? '显示无权限功能' : '一键隐藏无权限功能');
+                button.setAttribute('aria-pressed', user?.hide_unauthorized ? 'true' : 'false');
+            }
+            document.querySelectorAll('.nav-tab[data-tab]').forEach(el => { el.dataset.permission = SECTION_PERMISSIONS[el.dataset.tab] || ''; });
+            document.querySelectorAll('.manage-menu-item').forEach(el => {
+                const match = (el.getAttribute('onclick') || '').match(/showManage\(['"]([^'"]+)/);
+                if (match) el.dataset.permission = SECTION_PERMISSIONS[match[1]] || '';
+            });
+            const actionPermissions = {
+                generateSkillWithAI:'ai_generate',saveAiConfig:'ai_generate',testAiConnection:'ai_generate',
+                submitImport:'skill_import',importFromGithub:'skill_import',browseGithubSkills:'skill_import',submitPublish:'skill_import',
+                deleteUserSkill:'skill_manage',restoreTrashSkill:'skill_manage',purgeTrashSkill:'skill_manage',emptyTrash:'skill_manage',
+                runDiscovery:'discover',runAIDiscovery:'discover',runFullUpdate:'discover',runSingleStep:'discover'
+            };
+            document.querySelectorAll('button[onclick]').forEach(el => {
+                const match = (el.getAttribute('onclick') || '').match(/^\s*(\w+)\(/);
+                if (match && actionPermissions[match[1]]) el.dataset.permission = actionPermissions[match[1]];
+            });
+            document.querySelectorAll('[data-permission]').forEach(el => {
+                const allowed = !user || !el.dataset.permission || canUsePermission(el.dataset.permission);
+                el.classList.toggle('permission-hidden', !!user?.hide_unauthorized && !allowed);
+                el.classList.toggle('permission-denied', !allowed);
+                el.setAttribute('aria-disabled', allowed ? 'false' : 'true');
+                if (!allowed) el.title = currentLang === 'en' ? 'Permission required' : '当前账号没有此功能权限';
+            });
+            if (user && !canOpenSection(currentView)) {
+                const next = ['search','import','ai','trash','cart'].find(canOpenSection);
+                if (next) showManage(next);
+                else renderEmpty('searchResults', '当前账户未分配功能权限', '请联系管理员分配权限');
+            }
+        }
+        async function togglePermissionVisibility() {
+            const user = window.CURRENT_USER;
+            if (!user) return;
+            const button = document.getElementById('permissionVisibilityBtn');
+            button.disabled = true;
+            try {
+                const data = await fetchJSON('/api/auth/visibility', {
+                    method:'POST', headers:{'Content-Type':'application/json'},
+                    body:JSON.stringify({hide_unauthorized:!user.hide_unauthorized})
+                });
+                user.hide_unauthorized = data.hide_unauthorized;
+                applyPermissionVisibility();
+            } catch (error) { showToast(error.message, 'error'); }
+            finally { button.disabled = false; }
+        }
+        document.addEventListener('click', event => {
+            const element = event.target.closest?.('[data-permission]');
+            if (element?.dataset.permission && !canUsePermission(element.dataset.permission)) {
+                event.preventDefault(); event.stopImmediatePropagation();
+                showToast(currentLang === 'en' ? 'Permission required' : '当前账号没有此功能权限', 'warning');
+            }
+        }, true);
+        new MutationObserver(records => {
+            if (records.some(record => [...record.addedNodes].some(node =>
+                node.nodeType === 1 && (node.matches?.('[data-permission],button[onclick],.nav-tab') ||
+                node.querySelector?.('[data-permission],button[onclick],.nav-tab'))))) applyPermissionVisibility();
+        }).observe(document.body, {childList:true,subtree:true});
+
+        const flowText = {
+            zh: { retry: '重试', timeout: '请求超时，请重试', login: '请先登录再执行此操作', forbidden: '当前账号没有此操作权限',
+                failed: '请求失败', aiFailed: 'AI 推荐暂不可用，本地结果已显示', githubHint: '输入关键词后搜索 GitHub 仓库',
+                stale: '技能已失效，请移除后重新选择', ambiguous: '存在多个同名实现，请移除后重新选择',
+                installing: '在本项目根目录执行；默认安装到 ~/.workbuddy/skills。可用 -t 指定 IDE 的 skills 目录。',
+                privateInstall: '此技能属于当前账号，请下载后解压到 IDE 的 skills 目录。', loading: '正在加载技能', processing: '处理中…', copyFailed: '复制失败，请选中命令后手动复制' },
+            en: { retry: 'Retry', timeout: 'Request timed out. Please retry.', login: 'Please sign in to continue', forbidden: 'You do not have permission for this action',
+                failed: 'Request failed', aiFailed: 'AI recommendations are unavailable. Local results are ready.', githubHint: 'Enter keywords to search GitHub repositories',
+                stale: 'Skill unavailable. Remove it and select again.', ambiguous: 'Multiple implementations. Remove it and select again.',
+                installing: 'Run from this project root. Installs to ~/.workbuddy/skills by default. Use -t for your IDE skills directory.',
+                privateInstall: 'This skill belongs to your account. Download and extract it into your IDE skills directory.', loading: 'Loading skills', processing: 'Working…', copyFailed: 'Copy failed. Please select and copy the command manually.' }
+        };
+        function ft(key) { return (flowText[currentLang] || flowText.zh)[key]; }
+
+        async function fetchJSON(url, options = {}, timeout = 30000) {
+            const controller = new AbortController();
+            const abort = () => controller.abort();
+            if (options.signal?.aborted) controller.abort();
+            else options.signal?.addEventListener('abort', abort, { once: true });
+            let timedOut = false;
+            const timer = setTimeout(() => { timedOut = true; controller.abort(); }, timeout);
+            try {
+                const response = await fetch(url, { ...options, signal: controller.signal });
+                const data = await response.json().catch(() => ({}));
+                if (!response.ok || data.error || data.success === false) {
+                    const message = response.status === 401 ? ft('login') : response.status === 403 ? ft('forbidden') : (data.error || data.message || `${ft('failed')} (${response.status})`);
+                    throw new Error(message);
+                }
+                return data;
+            } catch (error) {
+                if (timedOut) throw new Error(ft('timeout'));
+                throw error;
+            } finally {
+                clearTimeout(timer);
+                options.signal?.removeEventListener('abort', abort);
+            }
+        }
+
+        function skillKey(skill) {
+            return skill.id || (skill.namespace ? `${skill.source === 'user-imports' && skill.owner ? 'user:' + skill.owner : skill.namespace}/${skill.name}` : skill.name);
+        }
+        function skillApiUrl(identifier, suffix = '') {
+            const name = identifier.includes('/') ? identifier.slice(identifier.lastIndexOf('/') + 1) : identifier;
+            return `/api/skill/${encodeURIComponent(name)}${suffix}?id=${encodeURIComponent(identifier)}`;
+        }
+        function cacheSkills(skills) {
+            skills.forEach(skill => { allSkillsCache[skillKey(skill)] = skill; });
+        }
+        function beginBrowseRequest() {
+            browseController?.abort();
+            browseController = new AbortController();
+            const id = ++browseRequest;
+            document.getElementById('searchPagination').innerHTML = '';
+            document.getElementById('aiRecommendation').innerHTML = '';
+            return { id, signal: browseController.signal, current: () => id === browseRequest };
+        }
+        function renderFlowError(containerId, error, retry) {
+            renderEmpty(containerId, t('load_failed'), escHtml(error.message || ft('failed')));
+            const button = document.createElement('button');
+            button.className = 'btn btn-secondary';
+            button.textContent = ft('retry');
+            button.onclick = retry;
+            document.getElementById(containerId).querySelector('.empty-state')?.appendChild(button);
+        }
 
         const langColors = {
             'Python': '#3572A5', 'JavaScript': '#f1e05a', 'TypeScript': '#3178c6',
@@ -4935,16 +5096,14 @@
             console.log('[init] start');
             // 读取全局配置（游客可访问）：EMAIL_VERIFY 开关决定注册是否要邮箱验证码
             window.EMAIL_VERIFY_REQUIRED = true;
-            try{
-                const rc = await fetch('/api/config');
-                const jc = await rc.json();
-                if (jc && jc.email_verify_required === false) window.EMAIL_VERIFY_REQUIRED = false;
-            }catch(e){}
+            const configReady = fetchJSON('/api/config').then(jc => {
+                if (jc.email_verify_required === false) window.EMAIL_VERIFY_REQUIRED = false;
+            }).catch(() => {});
             // 鉴权门禁：已登录走完整模式；未登录进入游客模式（只读浏览）
             const authed = await ensureAuth();
             if (!authed) return;
+            loadCart();
             if (!window.VIEWER_MODE){
-                loadCart();
                 setupManageMenu();
             }
             setupTabs();
@@ -4952,9 +5111,8 @@
             console.log('[init] before applyI18n');
             applyI18n();  // 应用初始语言
             console.log('[init] after applyI18n, source_local text:', document.querySelector('[data-source="local"]')?.textContent);
-            await loadStats();
-            await loadCategoriesData();
-            await loadInitialSkills();
+            await Promise.all([configReady, loadStats().then(loadCategoriesData), loadInitialSkills()]);
+            applyPermissionVisibility();
             console.log('[init] done');
         }
 
@@ -5093,6 +5251,7 @@
         }
 
         function showManage(section) {
+            if (!canOpenSection(section)) { showToast('当前账号没有此功能权限', 'warning'); return; }
             document.getElementById('manageMenu').classList.remove('show');
             showSection(section);
             if (section === 'discover') { loadDiscoverStats(); loadCandidates(); }
@@ -5127,6 +5286,7 @@
             const overlay = document.getElementById('cartOverlay');
             const sidebar = document.getElementById('cartSidebar');
             const isOpen = sidebar.classList.contains('show');
+            if (!isOpen && !canUsePermission('skill_export')) { showToast('当前账号没有打包权限', 'warning'); return; }
             if (isOpen) {
                 sidebar.classList.remove('show');
                 overlay.classList.remove('show');
@@ -5157,14 +5317,15 @@
             body.innerHTML = cart.map(name => {
                 const s = allSkillsCache[name] || { name, category_emoji: '📦', category: 'other', category_name: '', description: '' };
                 const displayName = (currentLang === 'zh' ? s.name_zh : s.name_en) || s.name;
+                const missing = libraryReady && !allSkillsCache[name];
                 return `
                 <div class="cart-sidebar-item">
                     <span class="emoji">${s.category_emoji || '📦'}</span>
                     <div class="info">
-                        <div class="name">${displayName}</div>
-                        <div class="meta">${categoryName(s.category)}${s.description ? ' · ' + s.description.substring(0, 40) + (s.description.length > 40 ? '...' : '') : ''}</div>
+                        <div class="name">${escHtml(displayName)}</div>
+                        <div class="meta">${missing ? ft(name.includes('/') ? 'stale' : 'ambiguous') : escHtml(s.namespace || categoryName(s.category))}${!missing && s.description ? ' · ' + escHtml(s.description.substring(0, 40)) : ''}</div>
                     </div>
-                    <button class="remove" onclick="removeFromCart('${escHtml(s.name)}'); renderCartSidebar();" title="${t('remove')}">🗑️</button>
+                    <button class="remove" data-key="${escHtml(name)}" onclick="removeFromCart(this.dataset.key)" title="${t('remove')}">🗑️</button>
                 </div>`;
             }).join('');
         }
@@ -5176,15 +5337,14 @@
         // ========== 统计加载 ==========
         async function loadStats() {
             try {
-                const res = await fetch('/api/stats');
-                const data = await res.json();
+                const data = await fetchJSON('/api/stats');
                 totalSkillsCount = data.total;
                 categoriesData = data.categories || [];
                 const totalSkillsEl = document.getElementById('totalSkills');
                 const totalCategoriesEl = document.getElementById('totalCategories');
                 const footerTotalEl = document.getElementById('footerTotal');
                 if (totalSkillsEl) totalSkillsEl.textContent = data.total;
-                if (totalCategoriesEl) totalCategoriesEl.textContent = data.categories.length;
+                if (totalCategoriesEl) totalCategoriesEl.textContent = categoriesData.length;
                 if (footerTotalEl) footerTotalEl.textContent = data.total;
             } catch (e) {
                 console.error('Failed to load stats:', e);
@@ -5258,65 +5418,89 @@
         async function setCategoryFilter(key) {
             currentCategoryFilter = key;
             renderCategoryFilterBar();
-            document.getElementById('searchInput').value = '';
-            const heroInput = document.getElementById('heroSearchInput');
-            if (heroInput) heroInput.value = '';
-
-            // GitHub 搜索结果没有本地分类，切换分类时回到本地数据源
-            if (searchSource === 'github') {
-                setSearchSource('local');
-            }
-
-            if (!key) {
-                // 显示全部
-                document.getElementById('searchTag').textContent = t('tag_local_all', allLoadedSkills.length);
-                currentSearchResults = allLoadedSkills;
-                renderSkillsPage(1);
-                return;
-            }
-
-            showGridLoading('searchResults', 6);
-            try {
-                const res = await fetch(`/api/category/${key}`);
-                const data = await res.json();
-                document.getElementById('searchTag').textContent = `${categoryName(key)} · ${t('skill_count', data.count)}`;
-                currentSearchResults = data.skills || [];
-                renderSkillsPage(1);
-            } catch (e) {
-                showToast(t('msg_packing_fail', e.message), 'error');
-            }
+            setSearchSource('local', false);
+            return searchSkills();
         }
 
         // ========== 搜索来源切换 ==========
-        function setSearchSource(source) {
+        function setSearchSource(source, refresh = true) {
             searchSource = source;
             document.querySelectorAll('.search-source').forEach(btn => {
                 btn.classList.toggle('active', btn.dataset.source === source);
             });
+            if (source === 'github') {
+                currentCategoryFilter = '';
+                renderCategoryFilterBar();
+            }
+            ['refFilterToggle', 'sortOrder'].forEach(id => {
+                const control = document.getElementById(id);
+                if (control) control.disabled = source === 'github';
+            });
+            if (refresh) return searchSkills();
         }
 
         // ========== 初始加载全部 Skills ==========
-        async function loadInitialSkills() {
-            showGridLoading('searchResults', 6);
+        async function loadInitialSkills({ render = true } = {}) {
+            const requestId = ++libraryRequest;
+            const viewId = browseRequest;
+            if (render && !libraryReady) showGridLoading('searchResults', 6);
             try {
-                const res = await fetch('/api/skills/all?page=1&per_page=300');
-                const data = await res.json();
-                allLoadedSkills = data.results || [];
-                // Build cache
-                allLoadedSkills.forEach(s => { allSkillsCache[s.name] = s; });
-                document.getElementById('searchTag').textContent = t('tag_local_all', data.total);
-                currentSearchResults = allLoadedSkills;
-                renderSkillsPage(1);
+                const skills = [];
+                let total = Infinity;
+                for (let page = 1; skills.length < total; page++) {
+                    const data = await fetchJSON(`/api/skills/all?page=${page}&per_page=300`);
+                    if (requestId !== libraryRequest) return false;
+                    const batch = data.results || [];
+                    total = Number(data.total) || 0;
+                    skills.push(...batch);
+                    if (!batch.length && skills.length < total) throw new Error(ft('failed'));
+                    if (render && viewId === browseRequest && !libraryReady) {
+                        document.getElementById('searchTag').textContent = `${ft('loading')} (${skills.length}/${total})`;
+                    }
+                }
+                allLoadedSkills = skills;
+                allSkillsCache = {};
+                cacheSkills(skills);
+                libraryReady = true;
+                reconcileCart();
+                if (render && viewId === browseRequest && searchSource === 'local') {
+                    await searchSkills({ navigate: false });
+                }
+                return true;
             } catch (e) {
-                renderEmpty('searchResults', t('load_failed'), t('msg_please_select'));
+                if (requestId === libraryRequest && render && viewId === browseRequest) {
+                    renderFlowError('searchResults', e, () => loadInitialSkills());
+                }
+                return false;
             }
         }
 
+        async function refreshLibrary() {
+            const page = currentPage;
+            const viewId = browseRequest;
+            const loaded = await loadInitialSkills({ render: false });
+            if (!loaded) { showToast(ft('failed'), 'error'); return; }
+            await loadStats();
+            renderCategoryFilterBar();
+            renderBrowseCategories();
+            if (viewId === browseRequest && searchSource === 'local') {
+                await searchSkills({ navigate: false, page });
+            }
+            if (currentView === 'cart') renderCart();
+            updateAllCartButtons();
+            registryAll = [];
+        }
+
         // ========== 区域切换 ==========
-        function showSection(section) {
-            if (section !== 'detail') {
+        function showSection(section, { load = true } = {}) {
+            if (!canOpenSection(section)) { showToast('当前账号没有此功能权限', 'warning'); return; }
+            if (section === 'detail' && currentView !== 'detail') {
                 prevView = currentView;
-                if (currentView === 'detail') currentDetailSkillName = null;
+                detailScrollY = window.scrollY || 0;
+            } else if (section !== 'detail') {
+                currentDetailSkillName = null;
+                ++detailRequest;
+                detailController?.abort();
             }
             currentView = section;
             document.querySelectorAll('.nav-tab').forEach(tab => {
@@ -5337,11 +5521,11 @@
             // 渲染打包清单页面
             if (section === 'cart') renderCart();
             // 渲染回收站
-            if (section === 'trash') loadTrash();
+            if (load && section === 'trash') loadTrash();
             // 中文精选与私有 Registry：进入时按需加载，避免出现空白页。
             // registry 索引较大，仅在首次进入时拉取（发布成功后由 submitPublish 刷新）。
-            if (section === 'curated') loadCurated();
-            if (section === 'registry' && !registryAll.length) loadRegistry();
+            if (load && section === 'curated') loadCurated();
+            if (load && section === 'registry' && !registryAll.length) loadRegistry();
             // Update section tags
             const tagMap = {
                 'github': 'tag_github',
@@ -5359,10 +5543,12 @@
         }
 
         function goBack() {
-            showSection(prevView);
+            const returnView = prevView;
+            showSection(returnView, { load: false });
             // Re-activate the corresponding tab
-            const tab = document.querySelector(`[data-tab="${prevView}"]`);
+            const tab = document.querySelector(`[data-tab="${returnView}"]`);
             if (tab) tab.classList.add('active');
+            requestAnimationFrame(() => window.scrollTo?.({ top: detailScrollY, behavior: 'instant' }));
         }
 
         // ========== 快捷搜索 ==========
@@ -5383,6 +5569,7 @@
 
         // ========== 排序 ==========
         function onSortChange() {
+            if (searchSource === 'github') return;
             renderSkillsPage(1);
         }
 
@@ -5398,65 +5585,75 @@
         }
 
         // ========== 搜索功能 ==========
-        async function searchSkills() {
+        async function searchSkills({ navigate = true, page = 1 } = {}) {
+            const request = beginBrowseRequest();
             const query = document.getElementById('searchInput').value.trim();
-            if (!query) {
-                // Reset to all skills
-                currentCategoryFilter = '';
-                renderCategoryFilterBar();
-                document.getElementById('searchTag').textContent = t('tag_local_all', allLoadedSkills.length);
-                document.getElementById('aiRecommendation').innerHTML = '';
-                currentSearchResults = allLoadedSkills;
-                renderSkillsPage(1);
-                showSection('search');
+            const category = currentCategoryFilter;
+            const heroInput = document.getElementById('heroSearchInput');
+            if (heroInput) heroInput.value = query;
+            if (navigate) showSection('search');
+            if (searchSource === 'github') {
+                return searchGithub(query, request);
+            }
+            if (!query && libraryReady) {
+                applyLocalResults(allLoadedSkills, category, page, false);
                 return;
             }
-
             showGridLoading('searchResults', 6);
-            document.getElementById('searchTag').textContent = t('tag_searching', query);
-            document.getElementById('searchPagination').innerHTML = '';
-
-            if (searchSource === 'github') {
-                return searchGithub(query);
-            }
-
+            document.getElementById('searchTag').textContent = query ? t('tag_searching', query) : ft('loading');
             try {
-                const [res, aiRes] = await Promise.all([
-                    fetch(`/api/search?q=${encodeURIComponent(query)}&top_k=100`),
-                    fetch(`/api/search/ai?q=${encodeURIComponent(query)}`)
-                ]);
-
-                const data = await res.json();
-                const aiData = await aiRes.json();
-
-                document.getElementById('searchTag').textContent = t('tag_search', data.count);
-                showAIRecommendation(aiData.recommendation);
-
-                currentSearchResults = data.results;
-                renderSkillsPage(1);
-                showSection('search');
+                if (!query) {
+                    if (await loadInitialSkills({ render: false }) && request.current()) {
+                        applyLocalResults(allLoadedSkills, category, page, false);
+                    } else if (request.current()) throw new Error(ft('failed'));
+                    return;
+                }
+                const data = await fetchJSON(`/api/search?q=${encodeURIComponent(query)}&top_k=${Math.max(totalSkillsCount, allLoadedSkills.length, 100)}`, { signal: request.signal });
+                if (!request.current()) return;
+                applyLocalResults(data.results || [], category, page, true);
+                // AI 是补充信息，慢请求或失败均不阻塞本地结果。
+                if (!canUsePermission('ai_generate')) return;
+                fetchJSON(`/api/search/ai?q=${encodeURIComponent(query)}`, { signal: request.signal }, 60000)
+                    .then(data => { if (request.current()) showAIRecommendation(data.recommendation); })
+                    .catch(error => {
+                        if (request.current() && error.name !== 'AbortError') {
+                            document.getElementById('aiRecommendation').textContent = ft('aiFailed');
+                        }
+                    });
             } catch (e) {
-                showToast(t('msg_packing_fail', e.message), 'error');
-                renderEmpty('searchResults', t('load_failed'), t('msg_search_empty'));
+                if (!request.current() || e.name === 'AbortError') return;
+                document.getElementById('searchTag').textContent = t('load_failed');
+                renderFlowError('searchResults', e, () => searchSkills({ navigate: false }));
             }
         }
 
-        async function searchGithub(query) {
+        function applyLocalResults(skills, category, page, searched) {
+            cacheSkills(skills);
+            currentSearchResults = category ? skills.filter(s => s.category === category) : skills;
+            const count = currentSearchResults.length;
+            document.getElementById('searchTag').textContent = category
+                ? `${categoryName(category)} · ${t('skill_count', count)}`
+                : t(searched ? 'tag_search' : 'tag_local_all', count);
+            renderSkillsPage(page);
+        }
+
+        async function searchGithub(query, request = beginBrowseRequest()) {
+            if (!query) {
+                document.getElementById('searchTag').textContent = t('tag_github');
+                renderEmpty('searchResults', t('source_github'), ft('githubHint'));
+                return;
+            }
             showGridLoading('searchResults', 4);
-            showToast(t('msg_searching_github'), 'info');
-
             try {
-                const res = await fetch(`/api/search/github?q=${encodeURIComponent(query)}`);
-                const data = await res.json();
-                if (data.error) { showToast(data.message || t('msg_packing_fail', ''), 'error'); return; }
-
+                const data = await fetchJSON(`/api/search/github?q=${encodeURIComponent(query)}`, { signal: request.signal });
+                if (!request.current()) return;
                 document.getElementById('searchTag').textContent = t('tag_github_result', data.count);
-                document.getElementById('aiRecommendation').innerHTML = '';
                 currentSearchResults = [];
                 renderGithubResults(data.repos || []);
-                showSection('search');
             } catch (e) {
-                showToast(t('msg_packing_fail', e.message), 'error');
+                if (!request.current() || e.name === 'AbortError') return;
+                document.getElementById('searchTag').textContent = t('load_failed');
+                renderFlowError('searchResults', e, () => searchSkills());
             }
         }
 
@@ -5466,7 +5663,7 @@
             if (!rec || !rec.recommendation) { container.innerHTML = ''; return; }
 
             const suggestions = rec.suggestions?.map(s =>
-                `<span class="ai-suggestion" onclick="quickSearch('${s}')">${s}</span>`
+                `<button class="ai-suggestion" data-query="${escHtml(s)}" onclick="quickSearch(this.dataset.query)">${escHtml(s)}</button>`
             ).join('') || '';
 
             container.innerHTML = `
@@ -5478,7 +5675,7 @@
                             <div class="ai-label">${t('detail_based_on')}</div>
                         </div>
                     </div>
-                    <div class="ai-text">${rec.recommendation}</div>
+                    <div class="ai-text">${escHtml(rec.recommendation).replace(/\n/g, '<br>')}</div>
                     ${suggestions ? `<div class="ai-suggestions">${suggestions}</div>` : ''}
                 </div>`;
         }
@@ -5489,6 +5686,7 @@
         let showRefsOnly = false;
 
         function toggleRefFilter() {
+            if (searchSource === 'github') return;
             showRefsOnly = !showRefsOnly;
             const btn = document.getElementById('refFilterToggle');
             if (btn) {
@@ -5499,7 +5697,6 @@
         }
 
         function renderSkillsPage(page) {
-            currentPage = page;
             // 资料筛选放在渲染层：分类视图、全部视图、搜索结果最后都汇到
             // currentSearchResults，在这里过滤一处即全覆盖；放到取数处会漏掉
             // setCategoryFilter 那条独立路径。
@@ -5509,6 +5706,8 @@
             const sorted = getSortedSkills(source);
             const total = sorted.length;
             const totalPages = Math.ceil(total / PAGE_SIZE);
+            page = Math.max(1, Math.min(page, totalPages || 1));
+            currentPage = page;
             const start = (page - 1) * PAGE_SIZE;
             const pageSkills = sorted.slice(start, start + PAGE_SIZE);
 
@@ -5546,7 +5745,7 @@
             body.textContent = t('ref_viewer_loading');
 
             try {
-                const res = await fetch(`/api/skill/${encodeURIComponent(skillName)}/file?path=${encodeURIComponent(path)}`);
+                const res = await fetch(`${skillApiUrl(skillName, '/file')}&path=${encodeURIComponent(path)}`);
                 const data = await res.json().catch(() => ({}));
                 if (reqId !== _refViewerReq) return;
                 if (!res.ok) throw new Error(data.error || res.status);
@@ -5571,6 +5770,7 @@
         });
 
         function renderSkills(containerId, skills) {
+            cacheSkills(skills || []);
             const container = document.getElementById(containerId);
             if (!skills || skills.length === 0) {
                 container.innerHTML = '';
@@ -5579,7 +5779,7 @@
             }
 
             container.innerHTML = skills.map((skill, i) => {
-                const inCart = cart.includes(skill.name);
+                const inCart = cart.includes(skillKey(skill));
                 const displayName = (currentLang === 'zh' ? skill.name_zh : skill.name_en) || skill.name;
                 const downloads = skill.downloads;
                 const rating = skill.rating;
@@ -5591,13 +5791,13 @@
                 return `
                 <div class="skill-card ${accent}">
                     <div class="skill-card-header">
-                        <div class="skill-emoji">${nameInitial}</div>
+                        <div class="skill-emoji">${escHtml(nameInitial)}</div>
                         <div class="skill-info">
-                            <div class="skill-name" title="${skill.name}">${displayName}</div>
-                            <span class="skill-category">${categoryName(skill.category)}</span>
+                            <div class="skill-name" title="${escHtml(skillKey(skill))}">${escHtml(displayName)}</div>
+                            <span class="skill-category" title="${escHtml(skillKey(skill))}">${categoryName(skill.category)}${skill.namespace ? ' · ' + escHtml(skill.namespace) : ''}</span>
                         </div>
                     </div>
-                    ${desc ? `<p class="skill-desc">${desc}</p>` : ''}
+                    ${desc ? `<p class="skill-desc">${escHtml(desc)}</p>` : ''}
                     ${trustBadges(skill)}
                     ${hasStats ? `<div class="skill-stats">
                         <span class="skill-stat">
@@ -5614,18 +5814,19 @@
                         </span>
                     </div>` : ''}
                     <div class="skill-actions">
-                        <button class="skill-action secondary" onclick="showSkillDetail('${escHtml(skill.name)}')">
+                        <button data-permission="skill_view" class="skill-action secondary" onclick="showSkillDetail('${escHtml(skillKey(skill))}')">
                             ${t('view_detail')}
                         </button>
                         <button class="skill-action ${inCart ? 'danger' : 'primary'}"
-                            id="cart-btn-${escHtml(skill.name).replace(/[^a-z0-9]/gi, '_')}"
-                            data-skill-name="${escHtml(skill.name)}"
-                            onclick="${inCart ? `removeFromCart('${escHtml(skill.name)}')` : `addToCart('${escHtml(skill.name)}')`}">
+                            id="cart-btn-${escHtml(skillKey(skill)).replace(/[^a-z0-9]/gi, '_')}"
+                            data-permission="skill_export" data-skill-name="${escHtml(skillKey(skill))}"
+                            onclick="${inCart ? `removeFromCart('${escHtml(skillKey(skill))}')` : `addToCart('${escHtml(skillKey(skill))}')`}">
                             ${inCart ? t('added') : t('add_to_cart')}
                         </button>
                     </div>
                 </div>`;
             }).join('');
+            applyPermissionVisibility();
         }
 
         // ========== 信任信号（P2） ==========
@@ -5852,8 +6053,8 @@
                         <span class="trust-chip tone-${trustToneFor('risk', s.risk_level)}">${escHtml(riskLabel(s.risk_level))}</span>
                     </div>
                     <div class="registry-actions">
-                        <button class="btn btn-ghost" onclick="showSkillDetail('${escHtml(s.name)}')">${t('view_detail')}</button>
-                        <a class="btn btn-secondary" href="${escHtml(s.download_url || '#')}" download>${t('registry_download')}</a>
+                        <button class="btn btn-ghost" onclick="showSkillDetail('${escHtml(skillKey(s))}')">${t('view_detail')}</button>
+                        <a data-permission="skill_export" class="btn btn-secondary" href="${escHtml(s.download_url || '#')}" download>${t('registry_download')}</a>
                     </div>
                 </div>`).join('');
             renderPagination('registryPagination', registryPage, totalPages, rows.length, gotoRegistryPage);
@@ -5883,6 +6084,7 @@
                 return;
             }
             const btn = document.getElementById('publishSubmitBtn');
+            if (btn.disabled) return;
             btn.disabled = true;
             out.className = 'publish-result';
             out.textContent = t('pf_submitting');
@@ -5896,7 +6098,8 @@
                 if (res.ok) {
                     out.className = 'publish-result ok';
                     out.textContent = t('pf_ok', data.id || body.name, data.version || '');
-                    loadRegistry();
+                    await refreshLibrary();
+                    await loadRegistry();
                 } else {
                     out.className = 'publish-result err';
                     // 门禁拒绝必须把原因原样展示，否则用户不知道该改什么。
@@ -5975,8 +6178,11 @@
 
         // ========== 详情页 (SkillStore 风格) ==========
         async function showSkillDetail(name) {
-            currentDetailSkillName = name;
             showSection('detail');
+            currentDetailSkillName = name;
+            const requestId = ++detailRequest;
+            detailController?.abort();
+            detailController = new AbortController();
             document.getElementById('skillDetail').innerHTML = `
                 <div class="skeleton-card" style="max-width:900px;">
                     <div class="skeleton-header">
@@ -5991,9 +6197,10 @@
                 </div>`;
 
             try {
-                const res = await fetch(`/api/skill/${encodeURIComponent(name)}`);
-                if (!res.ok) throw new Error('Skill not found');
-                const skill = await res.json();
+                const skill = await fetchJSON(skillApiUrl(name), { signal: detailController.signal });
+                if (requestId !== detailRequest || currentView !== 'detail') return;
+                currentDetailSkillName = skillKey(skill);
+                cacheSkills([skill]);
 
                 // references/ 下的文件是「按需加载的资料」，与技能本体文件分开展示。
                 // 混在同一个列表里，用户看不出这个技能的正文其实是轻的。
@@ -6017,7 +6224,7 @@
                 const refItem = f => `
                         <li>
                             <button class="file-item file-item-link"
-                                data-skill="${escHtml(skill.name)}"
+                                data-skill="${escHtml(skillKey(skill))}"
                                 data-path="${escHtml(String(f.path).replace(/\\/g, '/'))}"
                                 onclick="showRefFile(this.dataset.skill, this.dataset.path)">
                                 <span class="file-name">📎 ${escHtml(f.path)}</span>
@@ -6033,27 +6240,28 @@
                             <ul class="file-list">${refFiles.map(refItem).join('')}</ul>
                         </div>` : '';
 
-                const inCart = cart.includes(skill.name);
+                const inCart = cart.includes(skillKey(skill));
                 const displayName = (currentLang === 'zh' ? skill.name_zh : skill.name_en) || skill.name;
                 const downloads = skill.downloads;
                 const rating = skill.rating;
                 const ratingCount = skill.rating_count;
                 const hasStats = downloads || rating || ratingCount;
 
-                const installCmd = `npx skillstore add ${skill.name}`;
+                const cliQuote = value => '"' + String(value).replace(/[^a-zA-Z0-9_.:-]/g, '-') + '"';
+                const installCmd = `python cli/sm.py install ${cliQuote(skill.name)}${skill.namespace ? ' -n ' + cliQuote(skill.namespace) : ''}`;
                 const nameInitial = displayName.charAt(0).toUpperCase();
                 const desc = (currentLang === 'zh' ? skill.description_zh : skill.description_en) || skill.description;
 
                 document.getElementById('skillDetail').innerHTML = `
                     <div class="detail-section">
                         <div class="detail-header">
-                            <div class="detail-emoji">${nameInitial}</div>
+                            <div class="detail-emoji">${escHtml(nameInitial)}</div>
                             <div class="detail-info">
-                                <h2>${displayName}</h2>
+                                <h2>${escHtml(displayName)}</h2>
                                 <div class="detail-meta">
                                     <span>${categoryName(skill.category)}</span>
                                     <span>📁 ${t('detail_files_count', skill.files?.length || 0)}</span>
-                                    <span style="word-break:break-all;max-width:300px;" title="${skill.path}">📍 ${skill.path ? skill.path.slice(-40) : t('detail_no_path')}</span>
+                                    <span style="word-break:break-all;max-width:300px;" title="${escHtml(skill.path || '')}">📍 ${escHtml(skill.path ? skill.path.slice(-40) : t('detail_no_path'))}</span>
                                 </div>
                             </div>
                         </div>
@@ -6072,20 +6280,21 @@
                                 <span>${rating} (${ratingCount || 0})</span>
                             </div>` : ''}
                         </div>` : ''}
-                        ${desc ? `<p class="detail-desc">${desc}</p>` : ''}
-                        <div class="detail-install">
+                        ${desc ? `<p class="detail-desc">${escHtml(desc)}</p>` : ''}
+                        ${skill.owner ? '' : `<div class="detail-install">
                             <h4>${t('detail_install_cmd')}</h4>
                             <div class="install-cmd">
-                                <code>${installCmd}</code>
-                                <button class="copy-btn" onclick="copyToClipboard('${installCmd}', this)">
+                                <code>${escHtml(installCmd)}</code>
+                                <button class="copy-btn" onclick="copyToClipboard(this.previousElementSibling.textContent, this)">
                                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                         <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
                                         <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
                                     </svg>
                                 </button>
                             </div>
-                            <p class="install-hint">${t('detail_install_hint')}</p>
-                        </div>
+                            <p class="install-hint">${ft('installing')}</p>
+                        </div>`}
+                        ${skill.owner ? `<p class="install-hint">${ft('privateInstall')}</p>` : ''}
                         <div class="detail-files">
                             <h4>${t('detail_files')}</h4>
                             <ul class="file-list">${files}</ul>
@@ -6094,22 +6303,17 @@
                         <div class="detail-actions">
                             <button class="btn ${inCart ? 'btn-secondary' : 'btn-primary'}"
                                 id="detail-cart-btn"
-                                onclick="${inCart ? `removeFromCart('${escHtml(skill.name)}');updateDetailBtn('${escHtml(skill.name)}',false)` : `addToCart('${escHtml(skill.name)}');updateDetailBtn('${escHtml(skill.name)}',true)`}">
+                                onclick="${inCart ? `removeFromCart('${escHtml(skillKey(skill))}');updateDetailBtn('${escHtml(skillKey(skill))}',false)` : `addToCart('${escHtml(skillKey(skill))}');updateDetailBtn('${escHtml(skillKey(skill))}',true)`}">
                                 ${inCart ? t('detail_in_cart') : t('detail_add_cart')}
                             </button>
-                            <button class="btn btn-secondary" onclick="packageSingle('${escHtml(skill.name)}')">
+                            <button class="btn btn-secondary" data-permission="skill_export" data-package-action onclick="packageSingle('${escHtml(skillKey(skill))}')">
                                 ${t('detail_download')}
                             </button>
                         </div>
                     </div>`;
             } catch (e) {
-                showToast(t('msg_packing_fail', e.message), 'error');
-                document.getElementById('skillDetail').innerHTML = `
-                    <div class="empty-state">
-                        <div class="empty-icon">😕</div>
-                        <h3 class="empty-title">${t('load_failed')}</h3>
-                        <p class="empty-desc">${e.message}</p>
-                    </div>`;
+                if (requestId !== detailRequest || e.name === 'AbortError') return;
+                renderFlowError('skillDetail', e, () => showSkillDetail(name));
             }
         }
 
@@ -6224,26 +6428,27 @@
 
         // ========== 渲染 Skills HTML（不依赖 container）==========
         function renderSkillsHTML(skills) {
+            cacheSkills(skills);
             return skills.map(skill => {
-                const inCart = cart.includes(skill.name);
+                const inCart = cart.includes(skillKey(skill));
                 const displayName = (currentLang === 'zh' ? skill.name_zh : skill.name_en) || skill.name;
                 const downloads = skill.downloads;
                 const rating = skill.rating;
                 const ratingCount = skill.rating_count;
                 const hasStats = downloads || rating || ratingCount;
-                const safeName = escHtml(skill.name).replace(/[^a-z0-9]/gi, '_');
+                const safeName = escHtml(skillKey(skill)).replace(/[^a-z0-9]/gi, '_');
                 const nameInitial = displayName.charAt(0).toUpperCase();
                 const desc = (currentLang === 'zh' ? skill.description_zh : skill.description_en) || skill.description;
                 return `
                 <div class="skill-card">
                     <div class="skill-card-header">
-                        <div class="skill-emoji">${nameInitial}</div>
+                        <div class="skill-emoji">${escHtml(nameInitial)}</div>
                         <div class="skill-info">
-                            <div class="skill-name" title="${skill.name}">${displayName}</div>
-                            <span class="skill-category">${categoryName(skill.category)}</span>
+                            <div class="skill-name" title="${escHtml(skillKey(skill))}">${escHtml(displayName)}</div>
+                            <span class="skill-category" title="${escHtml(skillKey(skill))}">${categoryName(skill.category)}${skill.namespace ? ' · ' + escHtml(skill.namespace) : ''}</span>
                         </div>
                     </div>
-                    ${desc ? `<p class="skill-desc">${desc}</p>` : ''}
+                    ${desc ? `<p class="skill-desc">${escHtml(desc)}</p>` : ''}
                     ${trustBadges(skill)}
                     ${hasStats ? `<div class="skill-stats">
                         <span class="skill-stat">
@@ -6260,11 +6465,11 @@
                         </span>
                     </div>` : ''}
                     <div class="skill-actions">
-                        <button class="skill-action secondary" onclick="showSkillDetail('${escHtml(skill.name)}')">${t('view_detail')}</button>
+                        <button data-permission="skill_view" class="skill-action secondary" onclick="showSkillDetail('${escHtml(skillKey(skill))}')">${t('view_detail')}</button>
                         <button class="skill-action ${inCart ? 'danger' : 'primary'}"
                             id="cart-btn-${safeName}"
-                            data-skill-name="${escHtml(skill.name)}"
-                            onclick="${inCart ? `removeFromCart('${escHtml(skill.name)}')` : `addToCart('${escHtml(skill.name)}')`}">
+                            data-permission="skill_export" data-skill-name="${escHtml(skillKey(skill))}"
+                            onclick="${inCart ? `removeFromCart('${escHtml(skillKey(skill))}')` : `addToCart('${escHtml(skillKey(skill))}')`}">
                             ${inCart ? t('added') : t('add_to_cart')}
                         </button>
                     </div>
@@ -6331,14 +6536,27 @@
             const titleText = document.getElementById('cartSidebarTitleText');
             if (countEl) countEl.textContent = `(${cart.length})`;
             if (titleText) titleText.textContent = t('cart_sidebar_title');
-            localStorage.setItem('cart', JSON.stringify(cart));
+            try { localStorage.setItem('cart', JSON.stringify(cart)); } catch (e) { /* 会话内清单仍可用 */ }
         }
 
         function loadCart() {
+            cart = [];
             try {
                 const stored = localStorage.getItem('cart');
-                if (stored) { cart = JSON.parse(stored); updateCart(); }
+                const parsed = stored ? JSON.parse(stored) : [];
+                if (Array.isArray(parsed)) cart = [...new Set(parsed.filter(n => typeof n === 'string' && n.trim()))];
             } catch(e) {}
+            updateCart();
+        }
+
+        function reconcileCart() {
+            cart = [...new Set(cart.map(identifier => {
+                if (identifier.includes('/')) return identifier;
+                const matches = allLoadedSkills.filter(skill => skill.name === identifier);
+                return matches.length === 1 ? skillKey(matches[0]) : identifier;
+            }))];
+            updateCart();
+            updateAllCartButtons();
         }
 
         function clearCart() {
@@ -6361,20 +6579,20 @@
                 return;
             }
 
-            const skills = cart.map(name => allSkillsCache[name] || {name, category_emoji: '📦', category: 'other', category_name: '', description: ''});
+            const skills = cart.map(name => allSkillsCache[name] || {name, id: name, category_emoji: '📦', category: 'other', category_name: '', description: ''});
             container.innerHTML = `<div class="skills-grid">${skills.map(s => `
                 <div class="skill-card">
                     <div class="skill-card-header">
                         <div class="skill-emoji">${s.category_emoji || '📦'}</div>
                         <div class="skill-info">
-                            <div class="skill-name">${s.name}</div>
+                            <div class="skill-name">${escHtml(s.name)}</div>
                             <span class="skill-category">${categoryName(s.category)}</span>
                         </div>
                     </div>
-                    ${s.description ? `<p class="skill-desc">${s.description}</p>` : ''}
+                    ${s.description ? `<p class="skill-desc">${escHtml(s.description)}</p>` : ''}
                     <div class="skill-actions">
-                        <button class="skill-action secondary" onclick="showSkillDetail('${escHtml(s.name)}')">${t('view_detail')}</button>
-                        <button class="skill-action danger" onclick="removeFromCart('${escHtml(s.name)}')">🗑️ ${t('remove')}</button>
+                        <button data-permission="skill_view" class="skill-action secondary" onclick="showSkillDetail('${escHtml(skillKey(s))}')">${t('view_detail')}</button>
+                        <button class="skill-action danger" onclick="removeFromCart('${escHtml(skillKey(s))}')">🗑️ ${t('remove')}</button>
                     </div>
                 </div>`).join('')}</div>`;
         }
@@ -6382,45 +6600,40 @@
         // ========== 打包功能 ==========
         async function packageSelected() {
             if (cart.length === 0) { showToast(t('msg_please_select'), 'warning'); return; }
-            showToast(t('msg_packing', cart.length), 'info');
-            try {
-                const res = await fetch('/api/package', {
-                    method: 'POST', headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({skills: cart})
-                });
-                const data = await res.json();
-                if (data.success) {
-                    window.location.href = `/download/${data.filename}`;
-                    showToast(t('msg_pack_success', data.count, formatSize(data.size)), 'success');
-                }
-            } catch (e) { showToast(t('msg_pack_fail', e.message), 'error'); }
+            return requestPackage('/api/package', [...cart]);
         }
 
         async function packageAll() {
-            showToast(t('msg_packing_all'), 'info');
-            try {
-                const res = await fetch('/api/package-all', {method: 'POST'});
-                const data = await res.json();
-                if (data.success) {
-                    window.location.href = `/download/${data.filename}`;
-                    showToast(t('msg_pack_success', data.count, ''), 'success');
-                }
-            } catch (e) { showToast(t('msg_pack_fail', e.message), 'error'); }
+            return requestPackage('/api/package-all');
         }
 
         async function packageSingle(name) {
-            showToast(t('msg_packing_single', name), 'info');
+            return requestPackage('/api/package', [name]);
+        }
+
+        async function requestPackage(url, skills) {
+            if (window.VIEWER_MODE) {
+                window.openAuthModal && window.openAuthModal('login');
+                return;
+            }
+            if (packageBusy) return;
+            packageBusy = true;
+            const buttons = [...document.querySelectorAll('[data-package-action]')].map(btn => ({ btn, disabled: btn.disabled, html: btn.innerHTML }));
+            buttons.forEach(({ btn }) => { btn.disabled = true; btn.setAttribute('aria-busy', 'true'); btn.textContent = t('msg_packing', skills?.length || totalSkillsCount); });
             try {
-                const res = await fetch('/api/package', {
+                if (libraryReady && skills?.some(id => !allSkillsCache[id])) throw new Error(ft('stale'));
+                const data = await fetchJSON(url, {
                     method: 'POST', headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({skills: [name]})
-                });
-                const data = await res.json();
-                if (data.success) {
-                    window.location.href = `/download/${data.filename}`;
-                    showToast(t('msg_pack_success_single'), 'success');
-                }
-            } catch (e) { showToast(t('msg_pack_fail', e.message), 'error'); }
+                    ...(skills ? { body: JSON.stringify({ skills }) } : {})
+                }, 120000);
+                if (!data.success || !data.filename || !data.files_packed) throw new Error(ft('failed'));
+                window.location.href = `/download/${encodeURIComponent(data.filename)}`;
+                showToast(t('msg_pack_success', data.count, formatSize(data.size)), 'success');
+            } catch (e) { showToast(t('msg_pack_fail', escHtml(e.message)), 'error'); }
+            finally {
+                packageBusy = false;
+                buttons.forEach(({ btn, disabled, html }) => { btn.disabled = disabled; btn.innerHTML = html; btn.removeAttribute('aria-busy'); });
+            }
         }
 
         // ========== 骨架屏 ==========
@@ -6956,6 +7169,7 @@
                 setTimeout(() => btn.classList.remove('copied'), 2000);
             } catch (err) {
                 console.error('Failed to copy:', err);
+                showToast(ft('copyFailed'), 'error');
             }
         }
 
@@ -7616,7 +7830,7 @@
             }
         }
 
-        async function submitImport() {
+        async function _submitImport() {
             const name = document.getElementById('importName').value.trim();
             const description = document.getElementById('importDesc').value.trim();
             const content = document.getElementById('importContent').value.trim();
@@ -7629,12 +7843,12 @@
                 return;
             }
             try {
-                const res = await fetch('/api/import/user', {
+                const data = await fetchJSON('/api/import/user', {
                     method: 'POST', headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({name, description, content})
                 });
-                const data = await res.json();
                 if (data.success) {
+                    await refreshLibrary();
                     showToast(`${t('imported_successfully')}: ${data.name}`, 'success');
                     document.getElementById('importName').value = '';
                     document.getElementById('importDesc').value = '';
@@ -7648,7 +7862,7 @@
             }
         }
 
-        async function importFromGithub() {
+        async function _importFromGithub() {
             const url = document.getElementById('importGithubUrl').value.trim();
             if (!url) {
                 showToast(t('enter_github_url'), 'warning');
@@ -7656,12 +7870,12 @@
             }
             showToast(t('importing'), 'info');
             try {
-                const res = await fetch('/api/import/github', {
+                const data = await fetchJSON('/api/import/github', {
                     method: 'POST', headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({url})
                 });
-                const data = await res.json();
                 if (data.success) {
+                    await refreshLibrary();
                     showToast(`${t('imported_successfully')}: ${data.name}`, 'success');
                     document.getElementById('importGithubUrl').value = '';
                     document.getElementById('browseResults').style.display = 'none';
@@ -7739,7 +7953,7 @@
                             </div>
                             <p class="skill-desc">${s.description || t('detail_no_desc')}</p>
                             <div class="skill-actions">
-                                <button class="skill-action secondary" onclick="showSkillDetail('${escHtml(s.name)}')">📄 ${t('view')}</button>
+                                <button data-permission="skill_view" class="skill-action secondary" onclick="showSkillDetail('${escHtml(skillKey(s))}')">📄 ${t('view')}</button>
                                 <button class="skill-action danger" onclick="deleteUserSkill('${escHtml(s.name)}')">🗑️ ${t('delete')}</button>
                             </div>
                         </div>`).join('')}</div>`;
@@ -7749,16 +7963,16 @@
             }
         }
 
-        async function deleteUserSkill(name) {
+        async function _deleteUserSkill(name) {
             const confirmed = await showConfirm(t('confirm_delete', name));
             if (!confirmed) return;
             try {
-                const res = await fetch('/api/import/delete', {
+                const data = await fetchJSON('/api/import/delete', {
                     method: 'POST', headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({name})
                 });
-                const data = await res.json();
                 if (data.success) {
+                    await refreshLibrary();
                     showToast(`${t('moved_to_trash')}: ${name}`, 'success');
                     loadUserSkills();
                 } else {
@@ -7768,6 +7982,23 @@
                 showToast(`${t('delete_failed')}: ${e.message}`, 'error');
             }
         }
+
+        const mutationPending = new Set();
+        async function runMutation(key, action) {
+            if (mutationPending.has(key)) return;
+            mutationPending.add(key);
+            const buttons = [...document.querySelectorAll(`[onclick*="${key}("]`)].map(btn => ({ btn, html: btn.innerHTML, disabled: btn.disabled }));
+            buttons.forEach(({ btn }) => { btn.disabled = true; btn.setAttribute('aria-busy', 'true'); btn.textContent = ft('processing'); });
+            try { return await action(); }
+            finally {
+                mutationPending.delete(key);
+                buttons.forEach(({ btn, html, disabled }) => { btn.innerHTML = html; btn.disabled = disabled; btn.removeAttribute('aria-busy'); });
+            }
+        }
+        async function submitImport() { return runMutation('submitImport', _submitImport); }
+        async function importFromGithub() { return runMutation('importFromGithub', _importFromGithub); }
+        async function deleteUserSkill(name) { return runMutation('deleteUserSkill', () => _deleteUserSkill(name)); }
+        async function restoreTrashSkill(name) { return runMutation('restoreTrashSkill', () => _restoreTrashSkill(name)); }
 
         // ========== 回收站（软删除恢复） ==========
         async function loadTrash() {
@@ -7815,15 +8046,15 @@
             }
         }
 
-        async function restoreTrashSkill(name) {
+        async function _restoreTrashSkill(name) {
             if (!(await showConfirm(t('trash_confirm_restore', name)))) return;
             try {
-                const res = await fetch('/api/trash/restore', {
+                const data = await fetchJSON('/api/trash/restore', {
                     method: 'POST', headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({name})
                 });
-                const data = await res.json();
                 if (data.success) {
+                    await refreshLibrary();
                     showToast(`${t('trash_restored')}: ${name}`, 'success');
                     loadTrash();
                     if (window.loadUserSkills) loadUserSkills();
@@ -7930,9 +8161,15 @@
     <!-- ========== 鉴权逻辑 ========== -->
     <style>
         .auth-overlay{position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;
-            background:rgba(8,12,24,.82);backdrop-filter:blur(8px);}
-        .auth-card{width:340px;max-width:90vw;padding:32px 28px;border-radius:18px;background:rgba(20,26,44,.95);
+            background:rgba(8,12,24,.82);backdrop-filter:blur(8px);padding:16px;}
+        .auth-card{position:relative;width:340px;max-width:90vw;max-height:calc(100dvh - 32px);overflow-y:auto;padding:32px 28px;border-radius:18px;background:rgba(20,26,44,.95);
             border:1px solid rgba(120,140,200,.25);box-shadow:0 20px 60px rgba(0,0,0,.5);text-align:center;}
+        .auth-close{position:absolute;top:8px;right:8px;width:32px;height:32px;border:0;border-radius:8px;
+            background:transparent;color:#9aa6c8;font-size:24px;cursor:pointer;}
+        .auth-close:hover,.auth-close:focus-visible{background:rgba(108,140,255,.15);color:#eaf0ff;}
+        .auth-guest-btn{display:block;margin:14px auto 0;padding:8px 12px;border:1px solid rgba(120,140,200,.3);
+            border-radius:8px;background:transparent;color:#9aa6c8;font-size:12px;cursor:pointer;}
+        .auth-guest-btn:hover{color:#eaf0ff;border-color:#6c8cff;}
         .auth-logo{font-size:40px;margin-bottom:8px;}
         .auth-title{font-size:20px;margin:0 0 6px;color:#eaf0ff;}
         .auth-sub{font-size:12px;color:#9aa6c8;margin:0 0 20px;line-height:1.5;}
@@ -8090,6 +8327,8 @@
             const submitBtn = document.getElementById('auth-submit');
             const switchText = document.getElementById('auth-switch-text');
             const switchLink = document.getElementById('auth-switch-link');
+            const guestContinueBtn = document.getElementById('auth-guest-continue');
+            let authReturnFocus = null;
 
             const emailEl = document.getElementById('auth-email');
             const codeRow = document.getElementById('auth-code-row');
@@ -8135,15 +8374,42 @@
 
             function enterGuestMode(){
                 window.VIEWER_MODE = true;
-                overlay.style.display = 'none';
-                showGuestBar();
+                closeAuthModal();
             }
 
+            function closeAuthModal(){
+                cancelCaptchaDrag();
+                overlay.style.display = 'none';
+                if (window.VIEWER_MODE) showGuestBar();
+                if (authReturnFocus && authReturnFocus.isConnected) authReturnFocus.focus();
+            }
+            document.getElementById('auth-close').addEventListener('click', closeAuthModal);
+            guestContinueBtn.addEventListener('click', closeAuthModal);
+            overlay.addEventListener('click', function(e){
+                if (e.target === overlay) closeAuthModal();
+            });
+            document.addEventListener('keydown', function(e){
+                if (overlay.style.display === 'none') return;
+                if (e.key === 'Escape'){
+                    e.preventDefault();
+                    closeAuthModal();
+                } else if (e.key === 'Tab'){
+                    const controls = Array.from(overlay.querySelectorAll('button, input, a[href]'))
+                        .filter(el => !el.disabled && el.getClientRects().length);
+                    const first = controls[0], last = controls[controls.length - 1];
+                    if (e.shiftKey && document.activeElement === first){ e.preventDefault(); last.focus(); }
+                    else if (!e.shiftKey && document.activeElement === last){ e.preventDefault(); first.focus(); }
+                }
+            });
+
             window.openAuthModal = function(mode){
+                if (overlay.style.display === 'none') authReturnFocus = document.activeElement;
                 authMode = (mode === 'register') ? 'register' : 'login';
                 renderMode();
                 errEl.textContent = '';
+                guestContinueBtn.style.display = window.VIEWER_MODE ? '' : 'none';
                 overlay.style.display = 'flex';
+                document.getElementById('auth-username').focus();
                 loadCaptcha();
             };
 
@@ -8184,6 +8450,7 @@
             }
 
             async function loadCaptcha(){
+                cancelCaptchaDrag();
                 captchaToken = '';
                 captchaPassEl.style.display = 'none';
                 captchaHint.style.display = '';
@@ -8233,7 +8500,13 @@
                 }catch(e){ captchaMsg.textContent = '网络错误：' + e.message; captchaMsg.className='captcha-msg err'; }
             }
 
-            captchaHandle.addEventListener('pointerdown', function(e){ if (captchaToken) return; e.preventDefault(); dragging = true; captchaHandle.classList.add('dragging'); });
+            function cancelCaptchaDrag(){
+                dragging = false;
+                captchaHandle.classList.remove('dragging');
+            }
+            window.addEventListener('pointercancel', cancelCaptchaDrag);
+            window.addEventListener('blur', cancelCaptchaDrag);
+            captchaHandle.addEventListener('pointerdown', function(e){ if (captchaToken || e.button !== 0) return; e.preventDefault(); dragging = true; captchaHandle.classList.add('dragging'); });
             window.addEventListener('pointermove', function(e){
                 if (!dragging) return;
                 const trackW = captchaTrack.clientWidth;
@@ -8314,7 +8587,8 @@
                         loadCaptcha();
                         return;
                     }
-                    overlay.style.display = 'none';
+                    window.VIEWER_MODE = false;
+                    closeAuthModal();
                     window.hideGuestBar && window.hideGuestBar();
                     showUserBadge(data.user);
                     // 重新初始化业务数据
@@ -8381,7 +8655,9 @@
                     const topbar = document.querySelector('.topbar') || document.getElementById('sidebar');
                     (topbar || document.body).appendChild(badge);
                 }
-                const role = user.is_admin ? '（管理员）' : '';
+                window.CURRENT_USER = user;
+                applyPermissionVisibility();
+                const role = user.is_super_admin ? '（超级管理员）' : user.is_admin ? '（管理员）' : '';
                 badge.innerHTML = '<span>👤 ' + escapeHtml(user.username) + role + '</span>' +
                     '<button class="auth-logout" id="auth-logout-btn">退出</button>';
                 document.getElementById('auth-logout-btn').addEventListener('click', async function(){

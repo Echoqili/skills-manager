@@ -1,0 +1,20 @@
+[Unit]
+Description=Skills Manager (Gunicorn)
+After=network.target
+
+[Service]
+Type=simple
+User=skills-manager
+Group=skills-manager
+WorkingDirectory=/opt/skills-manager/current
+EnvironmentFile=/etc/skills-manager.env
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/skills-manager/venv/bin/gunicorn --bind 127.0.0.1:5555 --workers 1 --threads 8 --timeout 180 --access-logfile - --error-logfile - web.app:app
+Restart=on-failure
+RestartSec=3
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

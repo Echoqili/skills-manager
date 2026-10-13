@@ -87,6 +87,22 @@ jobs:
           python cli/gen-render-fixtures.py
           node tests/render_contract.js
 
+      - name: Browse and import flow contract tests
+        run: node tests/flow_contract.js
+
+      - name: Package selection and completeness tests
+        run: python tests/test_package_flow.py
+
+      - name: Admin proxy authentication tests
+        run: |
+          python tests/test_admin_proxy.py
+          node tests/admin_proxy_contract.js
+
+      - name: Role boundaries and function visibility
+        run: |
+          python tests/test_roles.py
+          node tests/visibility_contract.js
+
       # 资料只读接口 /api/skill/<name>/file 的边界：目录穿越的多种变体
       # （`..`、`....//`、绝对路径）与**符号链接逃逸**。后者靠字符串过滤挡不住，
       # 必须有 resolve() 之后的边界判断，这条测试专门钉住它。

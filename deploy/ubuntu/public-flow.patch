@@ -1,0 +1,23 @@
+--- a/web/templates/index.html
++++ b/web/templates/index.html
+@@ -5102,8 +5102,8 @@
+             // 鉴权门禁：已登录走完整模式；未登录进入游客模式（只读浏览）
+             const authed = await ensureAuth();
+             if (!authed) return;
++            loadCart();
+             if (!window.VIEWER_MODE){
+-                loadCart();
+                 setupManageMenu();
+             }
+             setupTabs();
+@@ -6610,6 +6610,10 @@
+         }
+ 
+         async function requestPackage(url, skills) {
++            if (window.VIEWER_MODE) {
++                window.openAuthModal && window.openAuthModal('login');
++                return;
++            }
+             if (packageBusy) return;
+             packageBusy = true;
+             const buttons = [...document.querySelectorAll('[data-package-action]')].map(btn => ({ btn, disabled: btn.disabled, html: btn.innerHTML }));

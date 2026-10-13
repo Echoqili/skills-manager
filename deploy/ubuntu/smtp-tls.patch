@@ -1,0 +1,16 @@
+--- a/web/app.py
++++ b/web/app.py
+@@ -1174,7 +1174,12 @@
+     """强制 IPv4 的 SMTP_SSL（465）"""
+ 
+     def _get_socket(self, host, port, timeout):
+-        return _smtp_connect_ipv4(host, port, timeout)
++        sock = _smtp_connect_ipv4(host, port, timeout)
++        try:
++            return self.context.wrap_socket(sock, server_hostname=host)
++        except Exception:
++            sock.close()
++            raise
+ 
+ 
+ def _send_verification_email(to: str, code: str) -> None:

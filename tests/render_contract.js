@@ -51,7 +51,7 @@ function buildSandbox() {
         // 这里全部静音；断言输出走 harness 自己的 console（Node 全局）。
         console: { log() {}, warn() {}, error() {}, info() {}, debug() {} },
         setTimeout, clearTimeout, setInterval, clearInterval,
-        Promise, JSON, Math, Date, RegExp, Error, Map, Set, Symbol,
+        Promise, JSON, Math, Date, RegExp, Error, Map, Set, Symbol, AbortController,
         Object, Array, String, Number, Boolean, Function,
         encodeURIComponent, decodeURIComponent, parseInt, parseFloat, isNaN,
         URL, URLSearchParams, TextEncoder, TextDecoder, Buffer,
@@ -72,6 +72,7 @@ function buildSandbox() {
         CustomEvent: function () {},
         Event: function () {},
         document: {
+            readyState: 'loading',
             getElementById: (id) => (elements[id] || (elements[id] = mk())),
             querySelector: () => mk(),
             querySelectorAll: () => [],
@@ -243,7 +244,8 @@ async function main() {
     return 0;
 }
 
-main().then((c) => process.exit(c)).catch((e) => {
+module.exports = { buildSandbox, extractInlineScript };
+if (require.main === module) main().then((c) => process.exit(c)).catch((e) => {
     console.error('[FAIL] 契约测试异常：', e && e.stack ? e.stack : e);
     process.exit(1);
 });

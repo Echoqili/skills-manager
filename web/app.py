@@ -25,7 +25,7 @@ from pathlib import Path
 from datetime import datetime, timedelta, timezone
 from functools import lru_cache, wraps
 
-from flask import Flask, render_template, request, jsonify, send_file, Response, session, has_request_context
+from flask import Flask, render_template, request, jsonify, send_file, Response, session, has_request_context, g
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "cli"))
 try:
@@ -81,6 +81,9 @@ def init_users_table():
         conn.execute("ALTER TABLE users ADD COLUMN approved_by TEXT")
     if "permissions" not in cols:
         conn.execute("ALTER TABLE users ADD COLUMN permissions TEXT DEFAULT '[\"*\"]'")
+    for field in ('is_super_admin', 'must_change_password', 'hide_unauthorized'):
+        if field not in cols:
+            conn.execute(f"ALTER TABLE users ADD COLUMN {field} INTEGER NOT NULL DEFAULT 0")
     # 审批日志表：完整追溯每次审批/权限变更动作
     conn.execute(
         """
@@ -103,9 +106,9 @@ def get_current_user():
     if not uid:
         return None
     row = skills_db.get_conn().execute(
-        "SELECT id, username, is_admin, status, permissions FROM users WHERE id=?", (uid,)
+        "SELECT id, username, is_admin, is_super_admin, must_change_password, hide_unauthorized, status, permissions FROM users WHERE id=?", (uid,)
     ).fetchone()
-    return dict(row) if row else None
+    return dict(row) if row and row['status'] == 'approved' else None
 
 
 def login_required(f):
@@ -147,6 +150,40 @@ def _rate_clear(bucket: str) -> None:
 
 # ========== 管理员密钥：数据库加密存储 ==========
 DEFAULT_ADMIN_KEY = "q15900358736"  # 首次启动的默认管理密钥（公开于代码仓库，上线后务必修改）
+
+
+def admin_proxy_auth_enabled():
+    return os.environ.get('ADMIN_PROXY_AUTH', '0') == '1'
+
+
+def admin_dynamic_auth_enabled():
+    return os.environ.get('ADMIN_DYNAMIC_AUTH', '0') == '1'
+
+
+def get_admin_actor():
+    if admin_dynamic_auth_enabled() and hasattr(g, 'admin_actor'):
+        return g.admin_actor
+    if admin_proxy_auth_enabled():
+        if not _admin_key_valid():
+            return None
+        name = request.headers.get('X-Admin-User', '')
+        if admin_dynamic_auth_enabled():
+            try:
+                name = base64.b64decode(request.headers.get('X-Admin-User64', ''), validate=True).decode('utf-8')
+            except (ValueError, UnicodeError):
+                return None
+        if name:
+            row = skills_db.get_conn().execute(
+                "SELECT id,username,is_admin,is_super_admin,must_change_password,hide_unauthorized,status,permissions "
+                "FROM users WHERE username=?", (name,)).fetchone()
+            if row and row['status'] == 'approved' and (row['is_admin'] or row['is_super_admin']):
+                actor = dict(row)
+                if admin_dynamic_auth_enabled():
+                    g.admin_actor = actor
+                return actor
+        return None if admin_dynamic_auth_enabled() else get_current_user()
+    user = get_current_user()
+    return user if user and (user.get('is_admin') or user.get('is_super_admin')) else None
 
 
 def init_app_settings() -> None:
@@ -201,22 +238,27 @@ def _admin_key_valid() -> bool:
     密钥仅接受请求头 X-Admin-Key 或 JSON body 的 key 字段，
     不接受 URL query 传参（避免密钥进入访问日志）；连续失败按 IP 限流。
     """
+    if admin_dynamic_auth_enabled() and hasattr(g, 'admin_gateway_valid'):
+        return g.admin_gateway_valid
     stored = _get_admin_key_hash()
     if not stored:
         return False
-    provided = (
-        request.headers.get("X-Admin-Key")
-        or (request.get_json(silent=True) or {}).get("key")
-        or ""
-    )
+    provided = request.headers.get("X-Admin-Key") or ""
+    if not admin_proxy_auth_enabled():
+        provided = provided or (request.get_json(silent=True) or {}).get("key") or ""
     if not provided or not check_password_hash(stored, provided):
         _rate_limit(f"adminkey:{_client_ip()}", 20, 900)
         return False
+    if admin_dynamic_auth_enabled():
+        g.admin_gateway_valid = True
     return True
 
 
 def require_admin() -> bool:
     """管理员判定：已登录管理员 或 提供了正确的管理员密钥"""
+    if admin_proxy_auth_enabled():
+        # Nginx 完成独立账号认证后注入服务端密钥，普通系统 Cookie 不授权后台。
+        return bool(get_admin_actor()) if admin_dynamic_auth_enabled() else _admin_key_valid()
     u = get_current_user()
     if u and u.get("is_admin"):
         return True
@@ -227,8 +269,17 @@ def admin_only(f):
     """装饰器：需管理员（登录管理员 或 密钥），否则 401"""
     @wraps(f)
     def decorated(*args, **kwargs):
+        if (admin_proxy_auth_enabled() and request.method not in ('GET', 'HEAD', 'OPTIONS')
+                and request.headers.get('X-Admin-Request') != '1'):
+            return jsonify({"error": "缺少管理员请求验证头", "code": "csrf_required"}), 403
         if not require_admin():
             return jsonify({"error": "管理员密钥错误或缺失", "code": "admin_required"}), 401
+        actor = get_admin_actor()
+        if request.path.startswith('/api/super-admin/') and not (actor or {}).get('is_super_admin'):
+            return jsonify({'error': '仅超级管理员可访问'}), 403
+        if actor and actor.get('must_change_password') and request.path not in (
+                '/api/admin/me', '/api/admin/change-password', '/api/super-admin/me', '/api/super-admin/change-password'):
+            return jsonify({"error": "请先修改初始密码", "code": "password_change_required"}), 403
         return f(*args, **kwargs)
     return decorated
 
@@ -243,14 +294,13 @@ PERMISSIONS = [
     {"key": "skill_manage", "name": "管理自有 Skill", "desc": "删除、恢复、清空回收站"},
     {"key": "ai_generate", "name": "AI 生成 Skill", "desc": "使用 AI 根据需求生成 Skill 草稿"},
     {"key": "discover", "name": "GitHub 发现", "desc": "运行发现任务、审批候选仓库"},
-    {"key": "admin", "name": "管理员", "desc": "账号审批、权限分配、密钥管理"},
 ]
 ALL_PERMISSIONS = "*"
 
 
 def _parse_permissions(raw) -> list:
-    """解析 users.permissions（JSON 字符串 / 列表 / None）为列表；空视为全权限"""
-    if not raw:
+    """None 兼容历史默认值；显式空数组表示无权限，无效数据拒绝授权。"""
+    if raw is None:
         return [ALL_PERMISSIONS]
     if isinstance(raw, list):
         perms = raw
@@ -259,16 +309,16 @@ def _parse_permissions(raw) -> list:
             perms = json.loads(raw)
         except Exception:
             perms = []
-    if not perms:
-        return [ALL_PERMISSIONS]
-    return perms
+    return [p for p in perms if isinstance(p, str)] if isinstance(perms, list) else []
 
 
 def has_permission(user, perm) -> bool:
     """用户是否拥有指定权限；user 为 dict（须含 permissions / is_admin）。管理员天然全权限。"""
     if not user:
         return False
-    if user.get("is_admin"):
+    if user.get('must_change_password'):
+        return False
+    if user.get("is_super_admin"):
         return True
     perms = _parse_permissions(user.get("permissions"))
     return ALL_PERMISSIONS in perms or perm in perms
@@ -293,7 +343,10 @@ def _log_approval(username, action, detail="", actor="admin"):
     """写入审批日志（action: approve / reject / create / update_permission）"""
     conn = skills_db.get_conn()
     me = get_current_user()
-    actor = (me or {}).get("username") or actor
+    if admin_proxy_auth_enabled():
+        actor = (get_admin_actor() or {}).get('username') or actor
+    else:
+        actor = (me or {}).get("username") or actor
     conn.execute(
         "INSERT INTO approval_logs (username, action, detail, actor, created_at) VALUES (?,?,?,?,?)",
         (username, action, detail, actor, datetime.now(timezone.utc).isoformat()),
@@ -356,7 +409,7 @@ def _security_headers(resp):
 # 未登录时 owner="" 只能看到共享(owner='')数据，不会泄露任何私有 Skill。
 _PUBLIC_EXACT = {
     "/api/stats", "/api/categories", "/api/skills/all", "/api/search",
-    "/api/releases", "/api/package", "/api/package-all", "/api/config",
+    "/api/releases", "/api/config",
     "/api/trust/report",  # 信任档案为只读公开数据，与 /api/stats 同级
     "/api/curated",       # 中文精选专题（只读公开）
 }
@@ -389,7 +442,29 @@ def _require_auth():
         if p.startswith('/api/admin/'):
             # 管理员接口由密钥/管理员登录把关（见 admin_only），不在此处要求登录
             return None
+        if p.startswith('/api/super-admin/') or p == '/api/internal/admin-auth':
+            return None
+        current = get_current_user()
+        gated = [('/api/ai/', 'ai_generate'), ('/api/discover/', 'discover'), ('/api/auto-update/', 'discover'), ('/api/index/', 'discover')]
+        for prefix, permission in gated:
+            if current and p.startswith(prefix) and not has_permission(current, permission):
+                return jsonify({'error': '当前账号没有此功能权限', 'code': 'forbidden'}), 403
+        exact_permissions = {
+            '/api/search/ai': ('skill_view', 'ai_generate'),
+            '/api/search/all': ('skill_view', 'ai_generate'),
+            '/api/search/github': ('skill_view',),
+            '/api/trash': ('skill_manage',),
+            '/api/import/list-user': ('skill_view,skill_import,skill_manage',),
+        }
+        required = exact_permissions.get(p, ())
+        if p.startswith('/api/registry/') and p.endswith('/download'):
+            required = ('skill_export',)
+        for group in required:
+            if current and not any(has_permission(current, key) for key in group.split(',')):
+                return jsonify({'error': '当前账号没有此功能权限', 'code': 'forbidden'}), 403
         if _is_public_route(p):
+            if current and p != '/api/config' and not required and not has_permission(current, 'skill_view'):
+                return jsonify({'error': '当前账号没有查看权限', 'code': 'forbidden'}), 403
             # 游客/未登录用户可浏览公开数据（内部按 owner 过滤）
             return None
         if not get_current_user():
@@ -848,7 +923,22 @@ def build_skills_cache():
 
 def _strip_content(skills):
     """列表接口去掉 content 字段，减少响应体积"""
-    return [{k: v for k, v in s.items() if k != "content"} for s in skills]
+    return [{**{k: v for k, v in s.items() if k != "content"},
+             "id": registry.registry_id(s)} for s in skills]
+
+
+def _resolve_visible_skill(identifier, skills):
+    """精确选择当前可见技能；旧名称仅在没有歧义时兼容。"""
+    if '/' in identifier:
+        matches = [s for s in skills if registry.registry_id(s) == identifier]
+    else:
+        matches = [s for s in skills if s['name'].lower() == identifier.lower()]
+    if not matches:
+        return None, (jsonify({"error": f"Skill not found: {identifier}"}), 404)
+    if len(matches) > 1:
+        return None, (jsonify({"error": f"Ambiguous skill: {identifier}. Select a namespace.",
+                               "candidates": [registry.registry_id(s) for s in matches]}), 409)
+    return matches[0], None
 
 
 def search_skills(query, top_k=20):
@@ -1084,7 +1174,12 @@ class _IPv4SMTP_SSL(smtplib.SMTP_SSL):
     """强制 IPv4 的 SMTP_SSL（465）"""
 
     def _get_socket(self, host, port, timeout):
-        return _smtp_connect_ipv4(host, port, timeout)
+        sock = _smtp_connect_ipv4(host, port, timeout)
+        try:
+            return self.context.wrap_socket(sock, server_hostname=host)
+        except Exception:
+            sock.close()
+            raise
 
 
 def _send_verification_email(to: str, code: str) -> None:
@@ -1364,19 +1459,24 @@ def api_auth_login():
     if not _rate_limit(bucket, 10, 900):
         return jsonify({"error": "失败次数过多，请 15 分钟后再试", "code": "rate_limited"}), 429
     row = skills_db.get_conn().execute(
-        "SELECT id, username, password_hash, is_admin, status, permissions FROM users WHERE username=?", (username,)
+        "SELECT id, username, password_hash, is_admin, is_super_admin, hide_unauthorized, must_change_password, status, permissions FROM users WHERE username=?", (username,)
     ).fetchone()
     if not row or not check_password_hash(row["password_hash"], password):
         return jsonify({"error": "用户名或密码错误"}), 401
     if row["status"] != "approved":
+        if row["status"] == "disabled":
+            return jsonify({"error": "账号已停用，请联系超级管理员", "code": "disabled"}), 403
         if row["status"] == "rejected":
             return jsonify({"error": "账号已被拒绝，请联系管理员", "code": "rejected"}), 403
         return jsonify({"error": "账号待审批，请等待管理员批准", "code": "pending"}), 403
+    if row["is_admin"] and row["must_change_password"]:
+        return jsonify({"error": "请先在管理员后台修改初始密码", "code": "password_change_required"}), 403
     _rate_clear(bucket)
     session['user_id'] = row["id"]
     _consume_captcha(data)  # 登录成功即消耗滑块验证（一次性）
     return jsonify({"success": True, "user": {
         "id": row["id"], "username": row["username"], "is_admin": bool(row["is_admin"]),
+        "is_super_admin": bool(row["is_super_admin"]), "hide_unauthorized": bool(row["hide_unauthorized"]), "must_change_password": bool(row["must_change_password"]),
         "permissions": _parse_permissions(row["permissions"]),
     }})
 
@@ -1419,9 +1519,11 @@ def api_admin_approve():
     if not username:
         return jsonify({"error": "用户名必填"}), 400
     conn = skills_db.get_conn()
-    row = conn.execute("SELECT id, status FROM users WHERE username=?", (username,)).fetchone()
+    row = conn.execute("SELECT id, status, is_admin, is_super_admin FROM users WHERE username=?", (username,)).fetchone()
     if not row:
         return jsonify({"error": "用户不存在"}), 404
+    if row["is_super_admin"] or (row["is_admin"] and not (get_admin_actor() or {}).get("is_super_admin")):
+        return jsonify({"error": "管理员账号只能由超级管理员管理"}), 403
     if row["status"] == "approved":
         return jsonify({"success": True, "message": "已是批准状态", "status": "approved"})
     conn.execute(
@@ -1441,9 +1543,11 @@ def api_admin_reject():
     if not username:
         return jsonify({"error": "用户名必填"}), 400
     conn = skills_db.get_conn()
-    row = conn.execute("SELECT id, status FROM users WHERE username=?", (username,)).fetchone()
+    row = conn.execute("SELECT id, status, is_admin, is_super_admin FROM users WHERE username=?", (username,)).fetchone()
     if not row:
         return jsonify({"error": "用户不存在"}), 404
+    if row["is_super_admin"] or (row["is_admin"] and not (get_admin_actor() or {}).get("is_super_admin")):
+        return jsonify({"error": "管理员账号只能由超级管理员管理"}), 403
     conn.execute(
         "UPDATE users SET status='rejected', approved_at=?, approved_by='admin' WHERE username=?",
         (datetime.now(timezone.utc).isoformat(), username),
@@ -1462,10 +1566,15 @@ def api_admin_create():
     password = data.get('password') or ''
     email = (data.get('email') or '').strip().lower()
     make_admin = bool(data.get('is_admin'))
+    if make_admin and not (get_admin_actor() or {}).get('is_super_admin'):
+        return jsonify({'error': '仅超级管理员可以创建管理员账号'}), 403
     if not username or not password:
         return jsonify({"error": "用户名和密码必填"}), 400
     if not re.fullmatch(r"[A-Za-z0-9_\u4e00-\u9fa5]{3,20}", username):
         return jsonify({"error": "用户名需 3-20 位，仅限中文/字母/数字/下划线"}), 400
+    if make_admin:
+        error = roles_layer.password_error(password)
+        if error: return jsonify({'error': error}), 400
     if len(password) < 6:
         return jsonify({"error": "密码至少 6 位"}), 400
     if len(password) > 64:
@@ -1476,9 +1585,9 @@ def api_admin_create():
     if conn.execute("SELECT id FROM users WHERE username=?", (username,)).fetchone():
         return jsonify({"error": "用户名已存在"}), 409
     conn.execute(
-        "INSERT INTO users (username, password_hash, email, is_admin, status, approved_at, approved_by, created_at) "
-        "VALUES (?,?,?,?,'approved',?,?,?)",
-        (username, generate_password_hash(password), email, 1 if make_admin else 0,
+        "INSERT INTO users (username, password_hash, email, is_admin, must_change_password, status, approved_at, approved_by, created_at) "
+        "VALUES (?,?,?,?,?,'approved',?,?,?)",
+        (username, generate_password_hash(password), email, 1 if make_admin else 0, 1 if make_admin else 0,
          datetime.now(timezone.utc).isoformat(), "admin",
          datetime.now(timezone.utc).isoformat()),
     )
@@ -1491,6 +1600,8 @@ def api_admin_create():
 @admin_only
 def api_admin_set_key():
     """轮换管理密钥：明文加密（哈希）后入库，立即生效（旧密钥随即失效）"""
+    if admin_proxy_auth_enabled():
+        return jsonify({"error": "代理认证模式下，管理密钥需通过服务器配置维护"}), 409
     data = request.get_json() or {}
     new_key = (data.get('key') or '').strip()
     if len(new_key) < 8:
@@ -1504,7 +1615,9 @@ def api_admin_set_key():
 @app.route('/admin/approvals')
 def admin_approvals_page():
     """密钥门禁的管理员审批页（不对外开放，无主界面入口）"""
-    return render_template('admin_approvals.html')
+    if admin_dynamic_auth_enabled() and not get_admin_actor():
+        return jsonify({'error': '需要管理员认证'}), 401
+    return render_template('admin_approvals.html', proxy_auth=admin_proxy_auth_enabled())
 
 
 # ========== 管理员：历史审批 / 用户与权限 ==========
@@ -1545,8 +1658,8 @@ def api_admin_history():
 def api_admin_users():
     """列出全部用户（含状态、权限、审批信息），供权限分配"""
     rows = skills_db.get_conn().execute(
-        "SELECT id, username, email, is_admin, status, approved_at, approved_by, permissions, created_at "
-        "FROM users ORDER BY id DESC"
+        "SELECT id, username, email, is_admin, is_super_admin, must_change_password, hide_unauthorized, status, approved_at, approved_by, permissions, created_at "
+        "FROM users WHERE is_admin=0 AND is_super_admin=0 ORDER BY id DESC"
     ).fetchall()
     out = []
     for r in rows:
@@ -1565,28 +1678,26 @@ def api_admin_set_permissions():
     if not username:
         return jsonify({"error": "用户名必填"}), 400
     conn = skills_db.get_conn()
-    row = conn.execute("SELECT id, username, is_admin FROM users WHERE username=?", (username,)).fetchone()
+    row = conn.execute("SELECT id, username, is_admin, is_super_admin FROM users WHERE username=?", (username,)).fetchone()
     if not row:
         return jsonify({"error": "用户不存在"}), 404
+    if row["is_super_admin"] or (row["is_admin"] and not (get_admin_actor() or {}).get("is_super_admin")):
+        return jsonify({"error": "管理员账号只能由超级管理员管理"}), 403
 
     valid_keys = {p["key"] for p in PERMISSIONS}
     perms = data.get('permissions')
-    if perms is None or perms == []:
+    if perms is None:
         perms = [ALL_PERMISSIONS]  # 默认全权限
     elif not isinstance(perms, list):
         return jsonify({"error": "permissions 必须是数组"}), 400
     else:
-        perms = [p for p in perms if p in valid_keys or p == ALL_PERMISSIONS]
-
-    # 安全：不允许移除自己的管理员权限（防止把自己锁死）
-    me = get_current_user()
-    if row["is_admin"] and me and me.get("id") == row["id"] \
-            and "admin" not in perms and ALL_PERMISSIONS not in perms:
-        return jsonify({"error": "不能移除自己的管理员权限，请由其他管理员操作"}), 400
+        if any(not isinstance(p, str) or (p not in valid_keys and p != ALL_PERMISSIONS) for p in perms):
+            return jsonify({"error": "包含无效权限"}), 400
+        perms = list(dict.fromkeys(perms))
 
     conn.execute(
-        "UPDATE users SET permissions=? WHERE id=?",
-        (json.dumps(perms, ensure_ascii=False), row["id"]),
+        "UPDATE users SET permissions=?, hide_unauthorized=? WHERE id=?",
+        (json.dumps(perms, ensure_ascii=False), int(bool(data.get("hide_unauthorized", False))), row["id"]),
     )
     conn.commit()
     detail = "权限：全权限" if ALL_PERMISSIONS in perms else "权限：" + ", ".join(perms)
@@ -1752,7 +1863,7 @@ def _consistency_issues(row) -> list:
         return []
 
 
-def trust_fields_for(name: str, owner: str = "") -> dict:
+def trust_fields_for(name: str, owner: str = "", namespace=None) -> dict:
     """按技能名取信任档案，供详情接口附加。
 
     详情页是「敢不敢装」的决策点，没有信任信号的详情页等于把决策成本
@@ -1761,11 +1872,12 @@ def trust_fields_for(name: str, owner: str = "") -> dict:
     row = {}
     try:
         conn = skills_db.get_conn()
-        r = conn.execute(
-            "SELECT * FROM skills WHERE name = ? AND (owner = ? OR owner = '') "
-            "AND deleted_at IS NULL ORDER BY (owner = ''), namespace LIMIT 1",
-            (name, owner),
-        ).fetchone()
+        sql = "SELECT * FROM skills WHERE name = ? AND (owner = ? OR owner = '') AND deleted_at IS NULL"
+        params = [name, owner]
+        if namespace:
+            sql += " AND namespace = ?"
+            params.append(namespace)
+        r = conn.execute(sql + " ORDER BY (owner = ''), namespace LIMIT 1", params).fetchone()
         row = dict(r) if r else {}
     except Exception:
         row = {}
@@ -1878,6 +1990,9 @@ def api_skills_all():
     """返回所有技能列表（分页）"""
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 20, type=int)
+    if page < 1 or per_page < 1:
+        return jsonify({"error": "page and per_page must be positive"}), 400
+    per_page = min(per_page, 300)
     all_skills, _, _ = build_skills_cache()
     total = len(all_skills)
     start = (page - 1) * per_page
@@ -1998,16 +2113,10 @@ def api_scenario(scenario_key):
 
 @app.route('/api/skill/<name>')
 def api_skill(name):
-    _, _, by_name = build_skills_cache()
-    skill = by_name.get(name.lower())
-    if not skill:
-        # Fuzzy match
-        for k, v in by_name.items():
-            if name.lower() in k:
-                skill = v
-                break
-    if not skill:
-        return jsonify({"error": "Skill not found"}), 404
+    all_skills, _, _ = build_skills_cache()
+    skill, error = _resolve_visible_skill(request.args.get('id') or name, all_skills)
+    if error:
+        return error
 
     skill_dir = get_skill_dir(skill)
     files = []
@@ -2033,7 +2142,11 @@ def api_skill(name):
         "rating": skill.get("rating"),
         "rating_count": skill.get("rating_count"),
         # 信任档案：让详情页能直接回答「这个技能敢不敢装」
-        **trust_fields_for(skill.get("name", ""), _visible_owner()),
+        **trust_fields_for(skill.get("name", ""), skill.get('owner') or '', skill.get('namespace')),
+        "id": registry.registry_id(skill),
+        "namespace": skill.get('namespace', 'default'),
+        "source": skill.get('source', ''),
+        "owner": skill.get('owner', ''),
     })
 
 
@@ -2050,10 +2163,10 @@ REF_FILE_MAX_BYTES = 1024 * 1024
 
 @app.route('/api/skill/<name>/file')
 def api_skill_file(name):
-    _, _, by_name = build_skills_cache()
-    skill = by_name.get(name.lower())
-    if not skill:
-        return jsonify({"error": "Skill not found"}), 404
+    all_skills, _, _ = build_skills_cache()
+    skill, error = _resolve_visible_skill(request.args.get('id') or name, all_skills)
+    if error:
+        return error
 
     rel = (request.args.get("path") or "").strip().replace("\\", "/")
     if not rel:
@@ -2099,11 +2212,19 @@ def api_skill_file(name):
 @permission_required('skill_export')
 def api_package():
     data = request.get_json() or {}
+    if not isinstance(data, dict):
+        return jsonify({"error": "Expected a JSON object"}), 400
     skill_names = data.get('skills', [])
     all_skills, _, _ = build_skills_cache()
-    if not skill_names:
-        return jsonify({"error": "No skills selected"}), 400
-    selected = [s for s in all_skills if s["name"] in skill_names]
+    if (not isinstance(skill_names, list) or not skill_names
+            or any(not isinstance(n, str) or not n.strip() for n in skill_names)):
+        return jsonify({"error": "Select a non-empty list of skill identifiers"}), 400
+    selected = []
+    for identifier in dict.fromkeys(skill_names):
+        skill, error = _resolve_visible_skill(identifier, all_skills)
+        if error:
+            return error
+        selected.append(skill)
     return package_skills(selected, f"custom_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip")
 
 
@@ -2115,19 +2236,45 @@ def api_package_all():
 
 
 def package_skills(skills, filename):
+    if not skills:
+        return jsonify({"error": "No skills available to package"}), 400
+    # 在写包前检查全部目录，任何一项失效都明确失败，避免悄悄漏包。
+    sources = []
+    for skill in skills:
+        skill_dir = get_skill_dir(skill)
+        if not skill_dir or not skill_dir.is_dir() or not (skill_dir / 'SKILL.md').is_file():
+            return jsonify({"error": f"Skill files missing: {registry.registry_id(skill)}"}), 409
+        root = skill_dir.resolve()
+        files = [f for f in skill_dir.rglob('*') if f.is_file()]
+        if any(not f.resolve().is_relative_to(root) for f in files):
+            return jsonify({"error": f"Skill contains an external file link: {skill['name']}"}), 409
+        sources.append((skill, skill_dir, files))
     output_dir = PROJECT_ROOT / "packages"
     output_dir.mkdir(exist_ok=True)
+    filename = f"{Path(filename).stem}_{secrets.token_hex(8)}.zip"
     output_path = output_dir / filename
     packaged = 0
-    with zipfile.ZipFile(output_path, 'w', zipfile.ZIP_DEFLATED) as zf:
-        for skill in skills:
-            skill_dir = get_skill_dir(skill)
-            if skill_dir and skill_dir.exists() and skill_dir.is_dir():
-                for file_path in skill_dir.rglob("*"):
-                    if file_path.is_file():
-                        arcname = f"{skill['name']}/{file_path.relative_to(skill_dir)}"
-                        zf.write(file_path, arcname)
-                        packaged += 1
+    counts = {}
+    for skill in skills:
+        counts[skill['name']] = counts.get(skill['name'], 0) + 1
+    reserved = set(counts)
+    used_folders = set()
+    try:
+        with zipfile.ZipFile(output_path, 'w', zipfile.ZIP_DEFLATED) as zf:
+            for index, (skill, skill_dir, files) in enumerate(sources):
+                folder = skill['name']
+                if counts[folder] > 1:
+                    folder = f"{folder}--{index + 1}-{re.sub(r'[^a-zA-Z0-9_-]', '-', skill.get('namespace', 'default'))}"
+                    while folder in reserved or folder in used_folders:
+                        folder += '-'
+                used_folders.add(folder)
+                for file_path in files:
+                    arcname = f"{folder}/{file_path.relative_to(skill_dir).as_posix()}"
+                    zf.write(file_path, arcname)
+                    packaged += 1
+    except OSError as exc:
+        output_path.unlink(missing_ok=True)
+        return jsonify({"error": f"Unable to package all selected files: {exc}"}), 409
     return jsonify({
         "success": True,
         "filename": filename,
@@ -2138,6 +2285,7 @@ def package_skills(skills, filename):
 
 
 @app.route('/download/<filename>')
+@permission_required('skill_export')
 def download(filename):
     filepath = PROJECT_ROOT / "packages" / filename
     if not filepath.exists():
@@ -2807,6 +2955,10 @@ def api_list_user_skills():
                             break
                     skills.append({
                         "name": item.name,
+                        "id": f"user:{uid}/{item.name}",
+                        "namespace": "user-imports",
+                        "source": "user-imports",
+                        "owner": uid,
                         "description": desc,
                         "path": str(item.relative_to(PROJECT_ROOT))
                     })
@@ -3329,6 +3481,10 @@ def api_admin_rebuild():
         })
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+
+
+import roles as roles_layer
+roles_layer.register(app, sys.modules[__name__])
 
 
 if __name__ == '__main__':

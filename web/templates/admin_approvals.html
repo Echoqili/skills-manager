@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-admin-proxy="{{ 'true' if proxy_auth else 'false' }}">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -60,6 +60,7 @@
 
   /* 权限分配弹窗 */
   .modal-mask{position:fixed;inset:0;background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;z-index:99}
+  .modal-mask.hidden{display:none}
   .modal{background:#fff;border-radius:12px;padding:20px;width:min(520px,92vw);max-height:80vh;overflow:auto}
   .modal h3{margin:0 0 4px;font-size:16px}
   .perm-item{display:flex;align-items:flex-start;gap:8px;padding:8px 6px;border-bottom:1px solid var(--border)}
@@ -72,17 +73,20 @@
 <body>
 <div class="wrap">
   <h1>🔐 管理员审批台</h1>
-  <div class="sub">此页面不对外开放，需输入管理员密钥进入。密钥以加密（哈希）形式存于数据库，不再明文存放。</div>
+  <button class="btn-ghost" onclick="AdminSession.changePassword()">修改我的密码</button>
+  <div class="sub">{% if proxy_auth %}管理员专用入口，使用独立账号和密码验证。{% else %}需输入管理员密钥进入。密钥以哈希形式存于数据库。{% endif %}</div>
 
   <!-- 密钥门禁 -->
-  <div class="card" id="gate">
+  <div class="card{{ ' hidden' if proxy_auth else '' }}" id="gate">
+    {% if not proxy_auth %}
     <label for="key">管理员密钥</label>
     <input type="password" id="key" placeholder="请输入 ADMIN_APPROVAL_KEY" autocomplete="off">
+    {% endif %}
     <div class="row">
       <button class="btn-primary" id="enterBtn">进入</button>
     </div>
     <div class="msg err hidden" id="gateErr"></div>
-    <div class="tip">密钥仅在本地内存中保存，用于后续接口调用；刷新页面需重新输入。</div>
+    {% if not proxy_auth %}<div class="tip">密钥仅在本地内存中保存，用于后续接口调用；刷新页面需重新输入。</div>{% endif %}
   </div>
 
   <!-- 管理面板 -->
@@ -110,7 +114,7 @@
     <!-- 用户与权限 -->
     <div id="tab-perms" class="hidden">
       <div class="h2">用户与权限</div>
-      <div class="tip" style="margin-bottom:12px">为每个用户分配权限，默认全权限（拥有全部功能）。管理员天然拥有全部权限。</div>
+      <div class="tip" style="margin-bottom:12px">为每个用户分配权限，按账号分配功能权限。管理员遵守分配结果；超级管理员拥有全部权限。</div>
       <div id="usersWrap"><div class="msg">加载中…</div></div>
     </div>
   </div>
@@ -167,6 +171,7 @@
       <span class="tip">取消部分勾选可自定义权限；保存时全选将按「全权限」授予。</span>
     </div>
     <div id="permList">加载中…</div>
+    <label class="row" style="margin-top:16px"><input type="checkbox" id="hideUnauthorized">隐藏该账号无权限功能</label>
     <div class="actions">
       <button class="btn-ghost" id="permCancel">取消</button>
       <button class="btn-primary" id="permSave">保存</button>
@@ -175,29 +180,37 @@
   </div>
 </div>
 
+<script src="/static/js/admin-session.js"></script>
 <script>
-let ADMIN_KEY = sessionStorage.getItem('admin_key') || '';
+const PROXY_AUTH = document.documentElement.dataset.adminProxy === 'true';
+let ADMIN_KEY = '';
+try {
+  if (PROXY_AUTH) sessionStorage.removeItem('admin_key');
+  else ADMIN_KEY = sessionStorage.getItem('admin_key') || '';
+} catch (e) {}
 let PERM_DEFS = [];           // 权限点定义
 const ACTION_LABEL = {approve:['批准','b-approved'], reject:['拒绝','b-rejected'],
                       create:['创建账号','b-admin'], update_permission:['权限变更','b-perm']};
 const STATUS_LABEL = {approved:['已批准','b-approved'], pending:['待审批','b-pending'], rejected:['已拒绝','b-rejected']};
 let permEditing = null;       // 正在编辑权限的用户名
 
-function authHeaders(){ return {'Content-Type':'application/json', 'X-Admin-Key': ADMIN_KEY}; }
+function authHeaders(){ return {'Content-Type':'application/json', ...(PROXY_AUTH ? {'X-Admin-Request':'1'} : {'X-Admin-Key': ADMIN_KEY})}; }
 function show(id, on){ document.getElementById(id).classList.toggle('hidden', !on); }
 function esc(s){ return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function fmtTime(s){ return s ? String(s).replace('T',' ').slice(0,19) : ''; }
 
 async function enter(){
+  if (!PROXY_AUTH) {
   const key = document.getElementById('key').value.trim();
   if(!key){ document.getElementById('gateErr').textContent='请输入密钥'; show('gateErr', true); return; }
   ADMIN_KEY = key; sessionStorage.setItem('admin_key', key);
+  }
   const r = await fetch('/api/admin/pending', {headers: authHeaders()});
-  if(r.status === 401){
-    document.getElementById('gateErr').textContent='密钥错误，拒绝访问'; show('gateErr', true);
+  if(!r.ok){
+    document.getElementById('gateErr').textContent=PROXY_AUTH ? '后台验证失败，请刷新页面重新登录' : '密钥错误，拒绝访问'; show('gateErr', true); show('gate', true);
     ADMIN_KEY=''; sessionStorage.removeItem('admin_key'); return;
   }
-  show('gate', false); show('panel', true); show('createCard', true); show('keyCard', true); show('mailCard', true);
+  show('gate', false); show('panel', true); show('createCard', true); show('keyCard', !PROXY_AUTH); show('mailCard', true);
   loadPending(); loadHistory(); loadUsers(); loadPermDefs();
 }
 
@@ -291,17 +304,18 @@ async function loadUsers(){
       let permHtml;
       if(perms.includes('*')){ permHtml = '<span class="perm-tag all">全权限</span>'; }
       else if(perms.length){ permHtml = perms.map(p=>`<span class="perm-tag">${esc(p)}</span>`).join(''); }
-      else { permHtml = '<span class="perm-tag all">全权限</span>'; }
+      else { permHtml = '<span class="perm-tag">无功能权限</span>'; }
       html += `<tr>
         <td>${esc(u.username)}</td>
         <td><span class="badge ${st[1]}">${st[0]}</span></td>
         <td>${role}</td>
         <td>${permHtml}</td>
         <td>${esc(fmtTime(u.approved_at || u.created_at))}</td>
-        <td><button class="btn-ghost btn-sm" data-perm="${esc(u.username)}">分配权限</button></td></tr>`;
+        <td><button class="btn-ghost btn-sm" data-perm="${esc(u.username)}">分配权限</button> <button class="btn-ghost btn-sm" data-hide="${esc(u.username)}" data-value="${u.hide_unauthorized ? 'false' : 'true'}">${u.hide_unauthorized ? '显示无权限入口' : '一键隐藏无权限功能'}</button></td></tr>`;
     }
     html += '</tbody></table>';
     wrap.innerHTML = html;
+    wrap.querySelectorAll('button[data-hide]').forEach(b=>b.addEventListener('click',async()=>{ b.disabled=true;try{await AdminSession.api('/api/admin/visibility',{method:'POST',body:JSON.stringify({username:b.dataset.hide,hide_unauthorized:b.dataset.value==='true'})});loadUsers();}catch(e){alert(e.message);}finally{b.disabled=false;} }));
     wrap.querySelectorAll('button[data-perm]').forEach(b=>{
       b.addEventListener('click', ()=>openPermModal(b.dataset.perm, d.users.find(x=>x.username===b.dataset.perm)));
     });
@@ -312,16 +326,23 @@ async function loadPermDefs(){
   try{
     const r = await fetch('/api/admin/permissions', {headers: authHeaders()});
     const d = await r.json();
+    if (!r.ok) throw new Error(d.error || '权限加载失败');
     PERM_DEFS = d.permissions || [];
   }catch(e){ PERM_DEFS = []; }
 }
 
-function openPermModal(username, user){
+async function openPermModal(username, user){
   permEditing = username;
-  document.getElementById('permTarget').textContent = '用户：' + username + (user && user.is_admin ? '（管理员，天然全权限）' : '');
+  document.getElementById('permTarget').textContent = '用户：' + username + (user && user.is_admin ? '（管理员，遵守分配权限）' : '');
   show('permErr', false);
   const list = document.getElementById('permList');
   const cur = (user && user.permissions) || ['*'];
+  document.getElementById('hideUnauthorized').checked=!!user?.hide_unauthorized;
+  show('permMask',true);document.getElementById('permSave').disabled=true;
+  list.textContent='加载中…';
+  if (!PERM_DEFS.length) await loadPermDefs();
+  if (permEditing !== username) return;
+  if (!PERM_DEFS.length) { list.textContent='权限点加载失败，请取消后重试'; return; }
   list.innerHTML = PERM_DEFS.map(p=>
     `<div class="perm-item"><input type="checkbox" id="perm-${esc(p.key)}" value="${esc(p.key)}" checked>
       <div><b>${esc(p.name)}</b><small>${esc(p.desc)}</small></div></div>`).join('')
@@ -331,6 +352,7 @@ function openPermModal(username, user){
   } else {
     list.querySelectorAll('input').forEach(i=>i.checked = cur.includes(i.value));
   }
+  document.getElementById('permSave').disabled=false;
   show('permMask', true);
 }
 
@@ -338,14 +360,15 @@ function currentPermSelection(){
   const list = document.getElementById('permList');
   const checked = [...list.querySelectorAll('input:checked')].map(i=>i.value);
   // 全选 -> 全权限；否则保存勾选的权限点
-  return checked.length === PERM_DEFS.length ? ['*'] : checked;
+  return PERM_DEFS.length && checked.length === PERM_DEFS.length ? ['*'] : checked;
 }
 
 async function savePerms(){
   show('permErr', false);
+  if (!permEditing || !PERM_DEFS.length || document.querySelectorAll('#permList input').length !== PERM_DEFS.length) { document.getElementById('permErr').textContent='请等待权限加载完成'; show('permErr',true); return; }
   const perms = currentPermSelection();
   const r = await fetch('/api/admin/permissions', {method:'POST', headers: authHeaders(),
-    body: JSON.stringify({username: permEditing, permissions: perms})});
+    body: JSON.stringify({username: permEditing, permissions: perms, hide_unauthorized: document.getElementById('hideUnauthorized').checked})});
   const d = await r.json().catch(()=>({}));
   if(r.ok){
     show('permMask', false);
@@ -412,12 +435,12 @@ async function createUser(){
 
 // ---------- 事件绑定 ----------
 document.getElementById('enterBtn').addEventListener('click', enter);
-document.getElementById('key').addEventListener('keydown', e=>{ if(e.key==='Enter') enter(); });
+document.getElementById('key')?.addEventListener('keydown', e=>{ if(e.key==='Enter') enter(); });
 document.getElementById('createBtn').addEventListener('click', createUser);
 document.getElementById('setKeyBtn').addEventListener('click', setKey);
 document.getElementById('mailTestBtn').addEventListener('click', runMailTest);
 document.getElementById('permSave').addEventListener('click', savePerms);
-document.getElementById('permCancel').addEventListener('click', ()=>{ show('permMask', false); });
+document.getElementById('permCancel').addEventListener('click', ()=>{ permEditing=null;show('permMask', false); });
 document.getElementById('permAll').addEventListener('click', ()=>{
   document.getElementById('permList').querySelectorAll('input').forEach(i=>i.checked = true);
 });
@@ -430,7 +453,8 @@ document.querySelectorAll('.tab').forEach(t=>{
     });
   });
 });
-if(ADMIN_KEY){ enter(); }
+if(PROXY_AUTH) {document.getElementById('cAdmin').closest('label').style.display='none';}
+if(PROXY_AUTH || ADMIN_KEY){ (PROXY_AUTH ? AdminSession.ready.then(() => enter()) : enter()).catch(() => { document.getElementById('gateErr').textContent='后台加载失败，请刷新重试'; show('gateErr', true); }); }
 </script>
 </body>
 </html>
