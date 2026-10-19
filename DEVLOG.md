@@ -13,10 +13,12 @@
 5. 路径 B 站内发布 API（`/api/registry/publish`，即时生效）。
 6. 固化服务器发布命令：rsync 上传 → `data`/`packages` 软链共享目录 → 原子切换 `current` → 重启 `skills-manager`，服务启动时自动从文件重建索引。
 7. `deploy/ubuntu/README.md` 增加指向该规范的链接。
+8. **数据库位置可单独指定**（web/db.py，cli/sm.py）：新增环境变量 `SKILLS_DB_PATH`，默认仍为 `data/skills.db`；绝对路径直接使用，相对路径相对项目根解析，父目录自动创建。`sm doctor` 的数据库检查改用 `db.DB_PATH` 与 Web 同源。部署 README 与上架规范同步说明。
 
 ### 验证
 - `python -m pytest tests/` 全量 50 项通过。
 - `_clone_approved_repo` 冒烟测试：clone 失败返回错误、成功返回相对路径、目录已存在幂等跳过，三条路径均符合预期。
+- `SKILLS_DB_PATH` 冒烟测试：绝对路径覆盖（在指定位置创建库文件）、相对路径解析到项目根，均符合预期；未设置时默认行为不变。
 - `python -m py_compile web/app.py` 通过。
 
 ## 2026-08-30 智能 AI 功能块更新

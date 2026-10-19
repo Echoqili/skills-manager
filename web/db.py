@@ -6,11 +6,13 @@ Skills Manager Web - SQLite 索引层
 - 启动时全量扫描 data/all-skills/ 与用户导入目录，重建 skills.db
 - 运行时 API 查询直接走 SQLite
 - 导入 / 删除 / 移动操作双写 DB + Markdown
-- DB 路径: data/skills.db
+- DB 路径: 默认 data/skills.db，可用环境变量 SKILLS_DB_PATH 单独指定
+  （绝对路径直接使用；相对路径相对项目根解析，父目录自动创建）
 """
 
 import hashlib
 import json
+import os
 import re
 import shutil
 import sqlite3
@@ -28,7 +30,12 @@ import trust         # 信任档案：质量分 + 安全审计 + 声明/行为�
 PROJECT_ROOT = Path(__file__).parent.parent
 DATA_DIR = PROJECT_ROOT / "data"
 SKILLS_ROOT = DATA_DIR / "all-skills"
-DB_PATH = DATA_DIR / "skills.db"
+
+# 数据库位置：默认 data/skills.db，可用环境变量 SKILLS_DB_PATH 单独指定
+# （如独立磁盘、共享目录；绝对路径直接使用，相对路径相对项目根解析）
+DB_PATH = Path(os.environ.get("SKILLS_DB_PATH") or (DATA_DIR / "skills.db")).expanduser()
+if not DB_PATH.is_absolute():
+    DB_PATH = (PROJECT_ROOT / DB_PATH).resolve()
 
 # 用户导入目录
 USER_IMPORT_ROOT = DATA_DIR / "user-imports"
@@ -426,7 +433,7 @@ def get_conn() -> sqlite3.Connection:
     """线程级连接（Flask 多线程安全）"""
     conn = getattr(_local, "conn", None)
     if conn is None:
-        DATA_DIR.mkdir(parents=True, exist_ok=True)
+        DB_PATH.parent.mkdir(parents=True, exist_ok=True)
         conn = sqlite3.connect(str(DB_PATH), check_same_thread=False)
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA journal_mode=WAL")

@@ -12,6 +12,8 @@ Gunicorn 26 的控制目录 `/opt/skills-manager/.gunicorn` 需要服务用户�
 
 `/etc/skills-manager.env` 由首次部署生成，权限为 0600，保存固定会话密钥。仅 IP 访问时使用 HTTP 与 `SESSION_COOKIE_SECURE=0`；配置域名与 TLS 后改为 `1`。
 
+技能库 SQLite 默认位于 `shared/data/skills.db`（经 `data` 软链）。如需单独指定数据库位置（如独立磁盘），在环境文件中设置 `SKILLS_DB_PATH=/绝对/路径/skills.db` 并重启 `skills-manager`；相对路径相对发布目录解析，父目录自动创建。
+
 初次启动前设置随机 `ADMIN_APPROVAL_KEY`，并核实数据库里的审批密钥已经替换公开默认值。现有数据库中的密钥优先于环境变量；仅修改环境文件不能覆盖已播种的默认值。首次网站管理员通过数据库初始化创建，`ADMIN_USER` / `ADMIN_PASS` 在当前代码中没有实际播种逻辑。
 
 运维命令：

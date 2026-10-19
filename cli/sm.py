@@ -438,11 +438,11 @@ def cmd_registry(args) -> int:
 def cmd_doctor(args) -> int:
     print("=== Skills Manager 健康检查 ===\n")
     problems = []
-    db_path = PROJECT_ROOT / "data" / "skills.db"
+    db_path = db.DB_PATH  # 与 Web 同源：默认 data/skills.db，可用 SKILLS_DB_PATH 单独指定
     if db_path.exists():
-        print(f"[OK]   数据库存在（{db_path.stat().st_size / 1024:.0f} KB）")
+        print(f"[OK]   数据库存在（{db_path.stat().st_size / 1024:.0f} KB，{db_path}）")
     else:
-        print("[WARN] 数据库不存在，将自动重建")
+        print(f"[WARN] 数据库不存在（{db_path}），将自动重建")
         problems.append("skills.db 缺失")
 
     db.init_db()
