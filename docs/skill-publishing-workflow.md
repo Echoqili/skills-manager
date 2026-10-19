@@ -17,7 +17,7 @@
 
 | 路径 | 适用场景 | 技能落点 | 生效方式 |
 |------|----------|----------|----------|
-| **C. 定时发布任务流水线**（主流程） | 周期性发现新技能，审查 → 审批 → 入库 | 线上 `data/all-skills/discovered/<owner>_<repo>/` | 审批通过 + clone + 重建索引后生效 |
+| **C. 定时发布任务流水线**（主流程） | 周期性发现新技能，审查 → 审批 → 入库 | 线上 `data/all-skills/discovered/<owner>_<repo>/` | 审批通过即自动入库生效 |
 | **A. 捆绑技能** | 人工精选的正式公共技能 | 仓库 `data/all-skills/<分类目录>/<技能名>/SKILL.md` | 随服务器发布更新生效 |
 | **B. 站内导入 / 发布 API** | 单个登录用户的私有技能 | 线上 `shared/data/user-imports/<uid>/<name>/` | 即时生效，无需发版 |
 
@@ -48,26 +48,29 @@
 - 人工核对：描述与实际用途是否相符、license 是否允许、是否与库内已有技能重复（重复的走 `cli/dedupe-skills.py` 或直接拒绝）
 - 查看接口：`GET /api/discover/candidates`（待审列表）、`GET /api/discover/stats`（按状态/分类统计）
 
-### 阶段 3：审批（等待通过，人工卡点）
+### 阶段 3：审批（等待通过，人工卡点 = 上架触发点）
 
-- 通过：`POST /api/discover/approve`（界面「批准」按钮）→ 状态 `approved`
+- 通过：`POST /api/discover/approve`（界面「批准」按钮）→ 状态 `approved`，**并自动完成入库**（见阶段 4）
 - 拒绝：`POST /api/discover/reject`，**必须写明 `reason`** → 状态 `rejected`，不再进入上架队列
 - 权限：`discover` 权限（管理账号），审批是发布前的唯一人工卡点
-- **审批通过前不执行任何入库动作**；通过后也不自动上架，需显式执行阶段 4
+- **审批通过前不执行任何入库动作**；审批通过即自动上架，无需再手动操作
 
-### 阶段 4：入库上架（审批通过后）
+### 阶段 4：自动入库（审批通过的内置动作，无需手动执行）
+
+审批接口在内部依次完成：
+
+1. clone 候选仓库到 `data/all-skills/discovered/<owner>_<repo>/`（幂等，已存在则跳过；服务器上经软链实际写入 `shared/data/all-skills/discovered/`）
+2. 重建索引（`rebuild_all`）→ 扫描 SKILL.md 入库 skills.db 并作废语义索引缓存，网站列表/搜索立即可见
+3. 返回结果：成功时 `{"success": true, "message": "已批准并自动入库", "path", "total"}`
+
+失败时的表现与处置：
+
+- clone 失败（网络/超时）：返回 `success=false, approved=true`，候选保持已批准状态；用「克隆入库」`POST /api/discover/clone` 重试（幂等），成功后再调 `POST /api/index/rebuild`
+- 重建索引失败：返回 `success=false, approved=true, path`；手动 `POST /api/index/rebuild`（或管理员 `POST /api/admin/rebuild`）补一次即可
+
+线上验证（每次入库后）：
 
 ```bash
-# 1) 拉取已批准的技能仓库（界面「克隆入库」或 API）
-curl -fsS -b <session> -X POST -H 'Content-Type: application/json' \
-  -d '{"full_name": "<owner>/<repo>"}' http://127.0.0.1/api/discover/clone
-#    落点：data/all-skills/discovered/<owner>_<repo>/（服务器上经软链实际写入 shared/data/all-skills/discovered/）
-
-# 2) 重建索引 → 扫描 SKILL.md 入库 skills.db（网站列表/搜索以 DB 为准）
-curl -fsS -b <session> -X POST http://127.0.0.1/api/index/rebuild
-#    或管理员：POST /api/admin/rebuild；或重启服务（启动时自动从文件重建）
-
-# 3) 线上验证（缺一不可）
 curl -fsS http://81.70.101.100/api/stats | head -c 400       # 技能总数 +N
 curl -fsS "http://81.70.101.100/api/search?q=<关键词>"        # 能搜到新技能
 ```

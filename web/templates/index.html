@@ -7542,7 +7542,7 @@
                     body: JSON.stringify({full_name: fullName})
                 });
                 const data = await res.json();
-                if (data.success) { showToast(`✅ ${t('approved')}: ${fullName}`, 'success'); loadCandidates(); loadDiscoverStats(); }
+                if (data.success) { showToast(`✅ ${data.message || `${t('approved')}: ${fullName}`}`, 'success'); loadCandidates(); loadDiscoverStats(); }
                 else showToast(`${t('approve_failed')}: ${data.error || ''}`, 'error');
             } catch (e) { showToast(`${t('approve_failed')}: ${e.message}`, 'error'); }
         }

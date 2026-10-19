@@ -2439,6 +2439,26 @@ def api_discover_ai():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+def _clone_approved_repo(full_name: str):
+    """把已批准候选 clone 到 discovered 目录（幂等：已存在则跳过）。
+
+    返回 (相对路径, 错误信息)；成功时错误信息为 None。
+    """
+    clone_dir = SKILLS_ROOT / "discovered" / full_name.replace("/", "_")
+    if not clone_dir.exists():
+        clone_url = f"https://github.com/{full_name}.git"
+        try:
+            result = subprocess.run(
+                ["git", "clone", "--depth", "1", clone_url, str(clone_dir)],
+                capture_output=True, text=True, timeout=60
+            )
+        except subprocess.TimeoutExpired:
+            return None, "Clone timeout"
+        if result.returncode != 0:
+            return None, f"Clone failed: {result.stderr}"
+    return str(clone_dir.relative_to(PROJECT_ROOT)), None
+
+
 @app.route('/api/discover/approve', methods=['POST'])
 @permission_required('discover')
 def api_discover_approve():
@@ -2451,9 +2471,35 @@ def api_discover_approve():
         return jsonify({"error": "full_name required"}), 400
     d._load_candidates()
     result = d.approve(full_name)
-    if result:
-        return jsonify({"success": True, "message": f"Approved: {full_name}", "candidate": {"name": result.name, "full_name": result.full_name, "url": result.url}})
-    return jsonify({"error": "Not found"}), 404
+    if not result:
+        return jsonify({"error": "Not found"}), 404
+    # 审批通过即自动入库：clone 到 discovered 目录并重建索引，技能立即在网站可见
+    if not re.match(r'^[a-zA-Z0-9][a-zA-Z0-9_.-]*/[a-zA-Z0-9][a-zA-Z0-9_.-]*$', full_name):
+        return jsonify({"success": False, "approved": True, "error": "Invalid repository name format"}), 400
+    path, clone_err = _clone_approved_repo(full_name)
+    if clone_err:
+        return jsonify({
+            "success": False,
+            "approved": True,
+            "error": f"已批准，但自动入库失败（可用「克隆入库」重试）：{clone_err}",
+        })
+    try:
+        skills_db.rebuild_all()
+        total = skills_db.count_all()
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "approved": True,
+            "path": path,
+            "error": f"已批准并拉取，但重建索引失败：{e}",
+        })
+    return jsonify({
+        "success": True,
+        "message": f"已批准并自动入库：{full_name}",
+        "candidate": {"name": result.name, "full_name": result.full_name, "url": result.url},
+        "path": path,
+        "total": total,
+    })
 
 
 @app.route('/api/discover/reject', methods=['POST'])
@@ -2476,6 +2522,7 @@ def api_discover_reject():
 @app.route('/api/discover/clone', methods=['POST'])
 @permission_required('discover')
 def api_discover_clone():
+    """手动入库（审批通过时自动入库失败后的重试入口，幂等）"""
     d = get_discoverer()
     if not d:
         return jsonify({"error": "Discoverer not available"}), 503
@@ -2486,28 +2533,18 @@ def api_discover_clone():
     # 安全校验：GitHub 仓库名只允许字母、数字、连字符、下划线和斜杠
     if not re.match(r'^[a-zA-Z0-9][a-zA-Z0-9_.-]*/[a-zA-Z0-9][a-zA-Z0-9_.-]*$', full_name):
         return jsonify({"error": "Invalid repository name format"}), 400
+    d._load_candidates()
     candidate = d.approve(full_name)
     if not candidate:
         return jsonify({"error": "Candidate not found"}), 404
-    try:
-        clone_dir = SKILLS_ROOT / "discovered" / full_name.replace("/", "_")
-        if not clone_dir.exists():
-            clone_url = f"https://github.com/{full_name}.git"
-            result = subprocess.run(
-                ["git", "clone", "--depth", "1", clone_url, str(clone_dir)],
-                capture_output=True, text=True, timeout=60
-            )
-            if result.returncode != 0:
-                return jsonify({"success": False, "error": f"Clone failed: {result.stderr}"}), 500
-        return jsonify({
-            "success": True,
-            "message": f"Cloned to {clone_dir.relative_to(PROJECT_ROOT)}",
-            "path": str(clone_dir.relative_to(PROJECT_ROOT))
-        })
-    except subprocess.TimeoutExpired:
-        return jsonify({"success": False, "error": "Clone timeout"}), 500
-    except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+    path, clone_err = _clone_approved_repo(full_name)
+    if clone_err:
+        return jsonify({"success": False, "error": clone_err}), 500
+    return jsonify({
+        "success": True,
+        "message": f"Cloned to {path}",
+        "path": path
+    })
 
 
 @app.route('/api/import/user', methods=['POST'])

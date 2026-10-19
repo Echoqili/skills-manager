@@ -5,13 +5,19 @@
 ### 背景
 "上架"曾被误解为提交到外部技能市场或推送 GitHub 即完成。实际唯一目标是自部署线上站点 `http://81.70.101.100/`（Render 演示站已暂停）。经核对，仓库 235 个捆绑技能与 10-13 服务器部署记录一致，`nihaisha` / `nihaisha-perspective` 应已随该次发布上线。
 
-### 变更内容（docs/skill-publishing-workflow.md，deploy/ubuntu/README.md）
+### 变更内容（docs/skill-publishing-workflow.md，deploy/ubuntu/README.md，web/app.py，web/templates/index.html）
 1. 新增《技能上架流程规范》：明确上架定义与唯一判据（技能入库 skills.db 且线上可搜可看），区分三条路径。
-2. **路径 C 定时发布任务流水线（主流程）**：定时发现（`/api/discover/run`，候选入 candidates.json 且网站不可见）→ 审查（quality_score 自动项 + 人工复核）→ 审批（`approve`/`reject`，唯一人工卡点，通过前不入库）→ 入库上架（`clone` 到 `data/all-skills/discovered/` + 重建索引进 DB）→ 线上三项验证，含 crontab 定时示例与回滚方式。
-3. 路径 A 捆绑技能：质检门禁 → 本地验证 → git 入库 → 服务器新 release 原子切换 → 线上验证，可回滚。
-4. 路径 B 站内发布 API（`/api/registry/publish`，即时生效）。
-5. 固化服务器发布命令：rsync 上传 → `data`/`packages` 软链共享目录 → 原子切换 `current` → 重启 `skills-manager`，服务启动时自动从文件重建索引。
-6. `deploy/ubuntu/README.md` 增加指向该规范的链接。
+2. **路径 C 定时发布任务流水线（主流程）**：定时发现（`/api/discover/run`，候选入 candidates.json 且网站不可见）→ 审查（quality_score 自动项 + 人工复核）→ 审批（唯一人工卡点）→ 自动入库 → 线上三项验证，含 crontab 定时示例与回滚方式。
+3. **审批通过自动入库**（web/app.py）：提取 `_clone_approved_repo` 幂等助手；`/api/discover/approve` 批准后自动 clone 到 `data/all-skills/discovered/` 并 `rebuild_all` 入库，返回入库路径与技能总数；clone/索引失败时返回 `success=false, approved=true`，`/api/discover/clone` 保留为幂等重试入口。前端成功提示改为展示服务端 message（"已批准并自动入库"）。
+4. 路径 A 捆绑技能：质检门禁 → 本地验证 → git 入库 → 服务器新 release 原子切换 → 线上验证，可回滚。
+5. 路径 B 站内发布 API（`/api/registry/publish`，即时生效）。
+6. 固化服务器发布命令：rsync 上传 → `data`/`packages` 软链共享目录 → 原子切换 `current` → 重启 `skills-manager`，服务启动时自动从文件重建索引。
+7. `deploy/ubuntu/README.md` 增加指向该规范的链接。
+
+### 验证
+- `python -m pytest tests/` 全量 50 项通过。
+- `_clone_approved_repo` 冒烟测试：clone 失败返回错误、成功返回相对路径、目录已存在幂等跳过，三条路径均符合预期。
+- `python -m py_compile web/app.py` 通过。
 
 ## 2026-08-30 智能 AI 功能块更新
 
