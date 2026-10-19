@@ -1,5 +1,7 @@
 # Ubuntu 部署
 
+> 技能上架（新增捆绑技能到线上站点）的标准流程见 [docs/skill-publishing-workflow.md](../docs/skill-publishing-workflow.md)；本文只讲环境与运维。
+
 运行目录 `/opt/skills-manager/current` 指向当前发布；源代码位于 `releases/`，持久化数据库、用户技能与配置位于 `shared/data/`，打包结果位于 `shared/packages/`。虚拟环境位于 `/opt/skills-manager/venv`。
 
 `skills-manager.service` 使用单 Gunicorn 进程和 8 个线程，保持进程内任务状态一致。Nginx 使用 80 端口反向代理，Gunicorn 只监听回环地址。

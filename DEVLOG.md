@@ -1,5 +1,15 @@
 # Skills Manager - 开发日志
 
+## 2026-10-19 技能上架流程规范化
+
+### 背景
+"上架"曾被误解为提交到外部技能市场或推送 GitHub 即完成。实际唯一目标是自部署线上站点 `http://81.70.101.100/`（Render 演示站已暂停）。经核对，仓库 235 个捆绑技能与 10-13 服务器部署记录一致，`nihaisha` / `nihaisha-perspective` 应已随该次发布上线。
+
+### 变更内容（docs/skill-publishing-workflow.md，deploy/ubuntu/README.md）
+1. 新增《技能上架流程规范》：明确上架定义与唯一判据（线上可搜可看），区分两条路径——A 捆绑技能（质检门禁 → 本地验证 → git 入库 → 服务器新 release 原子切换 → 线上三项验证 → 可回滚）、B 站内发布 API（`/api/registry/publish`，即时生效）。
+2. 固化服务器发布命令：rsync 上传 → `data`/`packages` 软链共享目录 → 原子切换 `current` → 重启 `skills-manager`，服务启动时自动从文件重建索引。
+3. `deploy/ubuntu/README.md` 增加指向该规范的链接。
+
 ## 2026-08-30 智能 AI 功能块更新
 
 ### 背景
