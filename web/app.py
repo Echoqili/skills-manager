@@ -12,6 +12,7 @@ import time
 import hmac
 import uuid
 import random
+import shutil
 import zipfile
 import base64
 import smtplib
@@ -303,7 +304,7 @@ ALL_PERMISSIONS = "*"
 # 这四项各自有独立权限点，可由超级管理员按需分配给特定用户。
 DEFAULT_USER_PERMISSIONS = [
     "skill_view", "skill_import", "skill_export", "skill_manage",
-    "discover", "ai_generate",
+    "discover",
 ]
 DEFAULT_PERMISSIONS_JSON = json.dumps(DEFAULT_USER_PERMISSIONS, ensure_ascii=False)
 
@@ -1665,6 +1666,108 @@ def admin_approvals_page():
 
 # ========== 管理员：历史审批 / 用户与权限 ==========
 
+@app.route('/api/admin/public-requests', methods=['GET'])
+@admin_only
+def api_admin_public_requests():
+    """列出技能公开申请。?status=pending|approved|rejected|all"""
+    status = (request.args.get('status') or 'pending').strip()
+    if status == 'all':
+        status = ''
+    items = skills_db.list_public_requests(status)
+    return jsonify({"requests": items})
+
+
+def _approve_public_request(req: dict) -> tuple:
+    """把一个 pending 申请转为共享技能。返回 (响应dict, http_code)。"""
+    name = req["name"]
+    applicant = req["applicant"]
+    # 精确校验归属：源文件必须在申请人目录下
+    src_dir = skills_db.USER_IMPORT_ROOT / applicant / name
+    src_file = src_dir / "SKILL.md"
+    if '..' in name or '/' in name or '\\' in name or not src_file.is_file():
+        return {"error": "源技能文件不存在或已被移除"}, 404
+    dst_dir = skills_db.PUBLIC_SKILLS_ROOT / name
+    dst_file = dst_dir / "SKILL.md"
+    if dst_file.exists():
+        return {"error": "公开区已存在同名技能，请先处理冲突"}, 409
+
+    # 移动整个技能目录（含 references/ 资料）到公开区
+    dst_dir.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        shutil.move(str(src_dir), str(dst_dir))
+    except Exception as e:
+        return {"error": f"移动文件失败：{e}"}, 500
+
+    # 重建 DB：公开区扫描为 owner=''，私有区旧记录随之消失，保证 DB 与文件一致。
+    # 若重建异常则回滚文件移动，避免文件与 DB 不一致。
+    try:
+        skills_db.rebuild_all()
+    except Exception as e:
+        try:
+            shutil.move(str(dst_dir), str(src_dir))
+        except Exception:
+            pass
+        return {"error": f"重建索引失败，已回滚：{e}"}, 500
+
+    # frontmatter 写入持久化公开标记：记录原作者，便于溯源（owner 仍以目录为准）
+    try:
+        text = dst_file.read_text(encoding='utf-8')
+        if 'public_approved:' not in text:
+            lines = text.split('\n')
+            # 在第一对 --- frontmatter 的闭合前插入标记
+            if lines and lines[0].strip() == '---':
+                for i in range(1, len(lines)):
+                    if lines[i].strip() == '---':
+                        stamp = (f"public_approved: true\n"
+                                 f"public_owner: {applicant}\n"
+                                 f"public_approved_by: {req.get('reviewed_by', '')}")
+                        lines.insert(i, stamp)
+                        dst_file.write_text('\n'.join(lines), encoding='utf-8')
+                        skills_db.rebuild_all()
+                        break
+    except Exception:
+        pass  # 标记写入失败不影响已完成的公开
+
+    return {"success": True, "name": name, "public": True}, 200
+
+
+@app.route('/api/admin/public-requests/<int:req_id>/approve', methods=['POST'])
+@admin_only
+def api_admin_public_approve(req_id):
+    """通过公开申请：转共享技能 → 记录审核"""
+    actor = (get_admin_actor() or {}).get('username') or 'admin'
+    updated = skills_db.decide_public_request(req_id, 'approved', reviewer=actor)
+    if not updated:
+        return jsonify({"error": "申请不存在或已处理"}), 404
+    body, code = _approve_public_request(updated)
+    if code != 200:
+        # 文件处理失败：把申请状态回滚为 pending，允许重试
+        with skills_db.tx() as conn:
+            conn.execute(
+                "UPDATE skill_public_requests SET status='pending', reviewed_by='', reviewed_at='' WHERE id=?",
+                (req_id,),
+            )
+        return jsonify(body), code
+    _log_approval(updated.get("applicant_name") or updated["applicant"],
+                  "approve_public", detail=f"公开技能 {updated['name']}", actor=actor)
+    return jsonify(body), 200
+
+
+@app.route('/api/admin/public-requests/<int:req_id>/reject', methods=['POST'])
+@admin_only
+def api_admin_public_reject(req_id):
+    """拒绝公开申请"""
+    actor = (get_admin_actor() or {}).get('username') or 'admin'
+    data = request.get_json() or {}
+    note = (data.get('note') or '').strip()[:500]
+    updated = skills_db.decide_public_request(req_id, 'rejected', reviewer=actor, note=note)
+    if not updated:
+        return jsonify({"error": "申请不存在或已处理"}), 404
+    _log_approval(updated.get("applicant_name") or updated["applicant"],
+                  "reject_public", detail=f"拒绝公开 {updated['name']}" + (f"：{note}" if note else ""), actor=actor)
+    return jsonify({"success": True, "name": updated["name"], "status": "rejected"})
+
+
 @app.route('/api/admin/permissions', methods=['GET'])
 @admin_only
 def api_admin_permissions_def():
@@ -1738,9 +1841,11 @@ def api_admin_set_permissions():
             return jsonify({"error": "包含无效权限"}), 400
         perms = list(dict.fromkeys(perms))
 
+    # 隐藏策略已改为按角色自动决定（普通用户只看到有权限的功能，管理员/超管看全部），
+    # 不再由账号单独配置 hide_unauthorized。旧字段与接口保留兼容，但此处不再写入。
     conn.execute(
-        "UPDATE users SET permissions=?, hide_unauthorized=? WHERE id=?",
-        (json.dumps(perms, ensure_ascii=False), int(bool(data.get("hide_unauthorized", False))), row["id"]),
+        "UPDATE users SET permissions=? WHERE id=?",
+        (json.dumps(perms, ensure_ascii=False), row["id"]),
     )
     conn.commit()
     detail = "权限：全权限" if ALL_PERMISSIONS in perms else "权限：" + ", ".join(perms)
@@ -2996,6 +3101,7 @@ def api_list_user_skills():
                         if line.strip().startswith('description:'):
                             desc = line.split('description:')[1].strip().strip('"').strip("'")
                             break
+                    req = skills_db.get_public_request(item.name, uid)
                     skills.append({
                         "name": item.name,
                         "id": f"user:{uid}/{item.name}",
@@ -3003,12 +3109,58 @@ def api_list_user_skills():
                         "source": "user-imports",
                         "owner": uid,
                         "description": desc,
-                        "path": str(item.relative_to(PROJECT_ROOT))
+                        "path": str(item.relative_to(PROJECT_ROOT)),
+                        "public_status": req["status"] if req else None,
+                        "public_note": (req.get("reviewed_by") or "") if req else "",
                     })
                 except Exception:
                     pass
 
     return jsonify({"skills": skills})
+
+
+@app.route('/api/import/public-request', methods=['POST'])
+@permission_required('skill_import')
+def api_request_public():
+    """用户提交「把我的 Skill 公开给所有人」申请"""
+    user = get_current_user()
+    if not user:
+        return jsonify({"error": "unauthorized", "code": 401}), 401
+    uid = str(user["id"])
+    data = request.get_json() or {}
+    name = (data.get("name") or "").strip()
+    note = (data.get("note") or "").strip()[:500]
+    if not name or '..' in name or '/' in name or '\\' in name:
+        return jsonify({"error": "Invalid skill name"}), 400
+    # 校验归属：必须是当前用户自己的技能，且仍在私有区
+    existing = skills_db.get_by_name(name, uid, namespace="user-imports")
+    if not existing or existing.get("owner") != uid:
+        return jsonify({"error": "Skill not found or not yours"}), 404
+    result = skills_db.request_public(name, uid, user.get("username", ""), note)
+    if not result["ok"]:
+        return jsonify({"error": f"已存在申请（{result['status']}）", "code": "exists"}), 409
+    return jsonify({
+        "success": True, "status": "pending", "name": name,
+        "resubmitted": bool(result.get("resubmitted")),
+    })
+
+
+@app.route('/api/import/public-request', methods=['DELETE'])
+@permission_required('skill_import')
+def api_cancel_public_request():
+    """用户撤销尚未审核的公开申请"""
+    user = get_current_user()
+    if not user:
+        return jsonify({"error": "unauthorized", "code": 401}), 401
+    uid = str(user["id"])
+    data = request.get_json() or {}
+    name = (data.get("name") or "").strip()
+    if not name or '..' in name or '/' in name or '\\' in name:
+        return jsonify({"error": "Invalid skill name"}), 400
+    ok = skills_db.cancel_public_request(name, uid)
+    if not ok:
+        return jsonify({"error": "没有可撤销的待审申请"}), 404
+    return jsonify({"success": True, "name": name})
 
 
 @app.route('/api/import/delete', methods=['POST'])

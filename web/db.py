@@ -33,6 +33,12 @@ DB_PATH = DATA_DIR / "skills.db"
 # 用户导入目录
 USER_IMPORT_ROOT = DATA_DIR / "user-imports"
 
+# 用户导入技能经管理员审核通过后的「公开区」：owner 归一化为 ''，对所有账号可见。
+# 用独立目录而非混入 all-skills，避免与内置开源技能的分类/命名冲突；
+# 目录名以下划线开头，绝不与数字用户 id 冲突。DB 重建时扫描此目录即得共享技能。
+PUBLIC_SKILLS_DIRNAME = "_public"
+PUBLIC_SKILLS_ROOT = USER_IMPORT_ROOT / PUBLIC_SKILLS_DIRNAME
+
 # 外部注册表导入目录（ClawHub 等）
 # 结构：data/external/<registry>/<owner>/<slug>/SKILL.md
 #       data/external/.quarantine/** 为质检未通过、暂不放行的隔离区
@@ -311,7 +317,13 @@ def scan_all_skills() -> List[Dict[str, Any]]:
             if ".trash" in md.parts:
                 continue
             # md.parent = skill 目录, md.parent.parent = owner 目录
-            owner = md.parent.parent.name if md.parent.parent != USER_IMPORT_ROOT else ""
+            owner_dir = md.parent.parent.name
+            # 审核通过的公开区：owner 归一化为共享('')，使所有账号可见。
+            # 这样「转公开」以文件位置为真相源，DB 重建后依然保持公开。
+            if md.parent.parent == PUBLIC_SKILLS_ROOT or owner_dir == PUBLIC_SKILLS_DIRNAME:
+                owner = ""
+            else:
+                owner = owner_dir
             data = scan_skill_file(md, source="user-imports", owner=owner)
             if data:
                 skills.append(data)
@@ -379,6 +391,22 @@ CREATE TABLE IF NOT EXISTS skills (
     updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
     deleted_at TEXT DEFAULT NULL,
     PRIMARY KEY (namespace, name, owner)
+);
+
+-- 用户技能「申请公开」审核单。一个用户的一个技能同时只有一条有效申请。
+-- status: pending(待审核) / approved(已通过并转公开) / rejected(已拒绝)
+CREATE TABLE IF NOT EXISTS skill_public_requests (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    namespace TEXT NOT NULL DEFAULT 'user-imports',
+    applicant TEXT NOT NULL,       -- 申请人 user id（字符串）
+    applicant_name TEXT DEFAULT '',-- 申请人用户名（展示用）
+    status TEXT NOT NULL DEFAULT 'pending',
+    note TEXT DEFAULT '',          -- 申请人说明 / 审核备注
+    reviewed_by TEXT DEFAULT '',
+    reviewed_at TEXT DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (name, applicant)
 );
 """
 
@@ -936,6 +964,93 @@ def _fetch_by_key(key: Tuple[str, str, str]) -> Optional[Dict[str, Any]]:
         (ns, name, own),
     ).fetchone()
     return dict(row) if row else None
+
+
+# ========== 用户技能公开审核单 ==========
+def request_public(name: str, applicant: str, applicant_name: str = "",
+                   note: str = "", namespace: str = "user-imports") -> Dict[str, Any]:
+    """提交公开申请；同技能同申请人已有申请则拒绝（含已通过的，避免重复公开）。"""
+    conn = get_conn()
+    existing = conn.execute(
+        "SELECT status FROM skill_public_requests WHERE name=? AND applicant=? AND namespace=?",
+        (name, applicant, namespace),
+    ).fetchone()
+    if existing:
+        # 被拒绝后允许重新申请（用户可能已按反馈修改技能内容）
+        if existing["status"] == "rejected":
+            with tx() as conn:
+                conn.execute(
+                    "UPDATE skill_public_requests SET status='pending', note=?, reviewed_by='', "
+                    "reviewed_at='', created_at=? WHERE name=? AND applicant=? AND namespace=?",
+                    (note, datetime.now(timezone.utc).isoformat(), name, applicant, namespace),
+                )
+            return {"ok": True, "status": "pending", "resubmitted": True}
+        return {"ok": False, "status": existing["status"], "error": "已存在申请"}
+    with tx() as conn:
+        conn.execute(
+            "INSERT INTO skill_public_requests (name, namespace, applicant, applicant_name, status, note, created_at) "
+            "VALUES (?,?,?,?, 'pending', ?, ?)",
+            (name, namespace, applicant, applicant_name, note,
+             datetime.now(timezone.utc).isoformat()),
+        )
+    return {"ok": True, "status": "pending"}
+
+
+def cancel_public_request(name: str, applicant: str, namespace: str = "user-imports") -> bool:
+    """撤销申请；仅允许撤销 pending 状态的记录。"""
+    with tx() as conn:
+        cur = conn.execute(
+            "DELETE FROM skill_public_requests WHERE name=? AND applicant=? AND namespace=? AND status='pending'",
+            (name, applicant, namespace),
+        )
+        return cur.rowcount > 0
+
+
+def get_public_request(name: str, applicant: str,
+                       namespace: str = "user-imports") -> Optional[Dict[str, Any]]:
+    conn = get_conn()
+    row = conn.execute(
+        "SELECT * FROM skill_public_requests WHERE name=? AND applicant=? AND namespace=?",
+        (name, applicant, namespace),
+    ).fetchone()
+    return dict(row) if row else None
+
+
+def list_public_requests(status: str = "pending") -> List[Dict[str, Any]]:
+    conn = get_conn()
+    if status:
+        rows = conn.execute(
+            "SELECT * FROM skill_public_requests WHERE status=? ORDER BY created_at",
+            (status,),
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            "SELECT * FROM skill_public_requests ORDER BY created_at"
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def decide_public_request(request_id: int, decision: str,
+                          reviewer: str = "", note: str = "") -> Optional[Dict[str, Any]]:
+    """记录审核决定；decision: approved / rejected。仅处理 pending 记录。"""
+    if decision not in ("approved", "rejected"):
+        return None
+    with tx() as conn:
+        row = conn.execute(
+            "SELECT * FROM skill_public_requests WHERE id=? AND status='pending'",
+            (request_id,),
+        ).fetchone()
+        if not row:
+            return None
+        conn.execute(
+            "UPDATE skill_public_requests SET status=?, reviewed_by=?, reviewed_at=?, note=? WHERE id=?",
+            (decision, reviewer, datetime.now(timezone.utc).isoformat(),
+             note or row["note"], request_id),
+        )
+        updated = dict(row)
+        updated["status"] = decision
+        updated["reviewed_by"] = reviewer
+        return updated
 
 
 # ========== 启动自检 ==========

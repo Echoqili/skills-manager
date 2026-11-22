@@ -24,7 +24,7 @@ th{color:#64748b;font-size:12px}.tag{background:#eff6ff;color:#2563eb;padding:3p
 <section class="card"><div class="row toolbar"><h2>管理员账户</h2><select id="adminStatus" aria-label="管理员状态" onchange="refresh()"><option value="active">未删除管理员</option><option value="deleted">已删除（可恢复）</option></select><button id="refreshBtn">刷新</button></div><p id="message" role="status"></p><div class="table-wrap" id="accounts">加载中…</div></section>
 </main>
 <div class="mask" id="permissionsMask" hidden><div class="dialog"><h2 id="permissionTitle">分配功能权限</h2>
-<div id="permissionOptions"></div><label class="permission"><input type="checkbox" id="hideNoPermission">隐藏该账号无权限功能</label>
+<div id="permissionOptions"></div>
 <p class="error" id="permissionError"></p><div class="row"><button class="primary" id="savePermissions">保存</button><button id="cancelPermissions">取消</button></div></div></div>
 <script src="/static/js/admin-session.js?v=user-lifecycle-20261018"></script>
 <script>
@@ -34,7 +34,7 @@ const message=(text,error=false)=>{const el=document.getElementById('message');e
 function actions(user){
  if(user.status==='deleted')return '<button data-action="restore" data-user="'+esc(user.username)+'">恢复管理员</button>';
  if(user.is_super_admin)return '<span class="muted">受保护账号</span>';
- const buttons=[['permissions','分配权限'],['hide',user.hide_unauthorized?'显示无权限入口':'一键隐藏无权限功能'],['status',user.status==='approved'?'禁用':'启用'],['reset','重置密码'],['demote','降级为普通用户']];
+ const buttons=[['permissions','分配权限'],['status',user.status==='approved'?'禁用':'启用'],['reset','重置密码'],['demote','降级为普通用户']];
  if(user.id!==AdminSession.user?.id)buttons.push(['delete','删除']);
  return '<div class="actions">'+buttons.map(b=>'<button data-action="'+b[0]+'" data-user="'+esc(user.username)+'">'+b[1]+'</button>').join('')+'</div>';
 }
@@ -45,14 +45,13 @@ async function refresh(){
  const admins=users.filter(u=>(u.is_admin||u.is_super_admin)&&(document.getElementById('adminStatus').value==='deleted'?u.status==='deleted':u.status!=='deleted'));
  document.getElementById('accounts').innerHTML='<table><thead><tr><th>账号</th><th>角色与状态</th><th>功能权限</th><th>操作</th></tr></thead><tbody>'+admins.map(u=>{
  const permission=u.is_super_admin?'全部权限':u.permissions.includes('*')?'全部权限':u.permissions.length?esc(u.permissions.join('、')):'无功能权限';
- return '<tr><td>'+esc(u.username)+'</td><td><span class="tag">'+(u.is_super_admin?'超级管理员':'管理员')+'</span><p>'+(u.status==='deleted'?'已删除':u.status==='approved'?'已启用':'已禁用')+'</p></td><td>'+permission+'<p class="muted">'+(u.hide_unauthorized?'隐藏未授权入口':'显示未授权入口')+'</p></td><td>'+actions(u)+'</td></tr>';
+ return '<tr><td>'+esc(u.username)+'</td><td><span class="tag">'+(u.is_super_admin?'超级管理员':'管理员')+'</span><p>'+(u.status==='deleted'?'已删除':u.status==='approved'?'已启用':'已禁用')+'</p></td><td>'+permission+'</td><td>'+actions(u)+'</td></tr>';
  }).join('')+'</tbody></table>';
  document.querySelectorAll('[data-action]').forEach(button=>button.addEventListener('click',()=>action(button).catch(e=>message(e.message,true))));
 }
 function openPermissions(user){
  editing=user;document.getElementById('permissionTitle').textContent='分配权限 · '+user.username;
  document.getElementById('permissionOptions').innerHTML=defs.map(p=>'<label class="permission"><input type="checkbox" value="'+esc(p.key)+'" '+(user.permissions.includes('*')||user.permissions.includes(p.key)?'checked':'')+'><span>'+esc(p.name)+'</span></label>').join('');
- document.getElementById('hideNoPermission').checked=!!user.hide_unauthorized;
  document.getElementById('permissionError').textContent='';document.getElementById('permissionsMask').hidden=false;
 }
 async function action(button){
@@ -60,7 +59,6 @@ async function action(button){
  if(kind==='delete'||kind==='restore'){button.disabled=true;try{if(await AdminSession.manageUser(user,kind)){message('操作成功');await refresh();}}finally{button.disabled=false;}return;}
  if(kind==='permissions'){openPermissions(user);return;}
  let endpoint,body={username:user.username};
- if(kind==='hide'){endpoint='/api/admin/visibility';body.hide_unauthorized=!user.hide_unauthorized;}
  if(kind==='demote'){if(!confirm('将 '+user.username+' 降级为普通用户？'))return;endpoint='/api/super-admin/role';body.role='user';}
  if(kind==='status'){if(!confirm((user.status==='approved'?'禁用':'启用')+' '+user.username+'？'))return;endpoint='/api/super-admin/status';body.enabled=user.status!=='approved';}
  if(kind==='reset'){const value=prompt('请输入新的管理员密码（至少12位，包含三类字符）。下次登录需修改：');if(!value)return;endpoint='/api/super-admin/reset-password';body.password=value;}
@@ -74,7 +72,7 @@ document.getElementById('promoteBtn').onclick=async function(){
 document.getElementById('savePermissions').onclick=async function(){
  const selected=[...document.querySelectorAll('#permissionOptions input:checked')].map(el=>el.value);
  const permissions=selected.length===defs.length&&defs.length?['*']:selected;
- this.disabled=true;try{await AdminSession.api('/api/admin/permissions',{method:'POST',body:JSON.stringify({username:editing.username,permissions,hide_unauthorized:document.getElementById('hideNoPermission').checked})});document.getElementById('permissionsMask').hidden=true;await refresh();}catch(e){document.getElementById('permissionError').textContent=e.message;}finally{this.disabled=false;}
+ this.disabled=true;try{await AdminSession.api('/api/admin/permissions',{method:'POST',body:JSON.stringify({username:editing.username,permissions})});document.getElementById('permissionsMask').hidden=true;await refresh();}catch(e){document.getElementById('permissionError').textContent=e.message;}finally{this.disabled=false;}
 };
 document.getElementById('cancelPermissions').onclick=()=>document.getElementById('permissionsMask').hidden=true;
 document.getElementById('refreshBtn').onclick=()=>refresh().catch(e=>message(e.message,true));

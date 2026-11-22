@@ -54,15 +54,15 @@ async function main(){
   catch(e){failed++;console.error('[FAIL] '+name+': '+e.stack);console.error(JSON.stringify({posts:state.posts,accounts:state.accounts,select:await page.locator('#adminStatus').inputValue().catch(()=>null),text:await page.locator('#accounts').innerText().catch(()=>null),errors:state.errors}));}
   finally{await context.close();}
  }
- await test('超级管理员独立管理管理员并支持空权限与隐藏', '/super-admin',async(page,state)=>{
+ await test('超级管理员独立管理管理员并支持空权限', '/super-admin',async(page,state)=>{
   await page.locator('[data-action="permissions"][data-user="manager"]').waitFor();
   assert.equal(await page.locator('#permissionsMask').isVisible(),false);
   await page.locator('[data-action="permissions"][data-user="manager"]').click();
   await page.locator('#permissionOptions input[value="skill_view"]').uncheck();
-  await page.locator('#hideNoPermission').check();await page.locator('#savePermissions').click();
+  await page.locator('#savePermissions').click();
   await page.locator('#permissionsMask').waitFor({state:'hidden'});
   assert.deepEqual(state.accounts.find(u=>u.username==='manager').permissions,[]);
-  assert.equal(state.accounts.find(u=>u.username==='manager').hide_unauthorized,true);
+  assert.equal(await page.locator('#hideNoPermission').count(),0);
   await page.locator('#promoteUser').selectOption('member');await page.locator('#promoteBtn').click();
   await page.locator('[data-action="demote"][data-user="member"]').waitFor();
   assert.equal(state.accounts.find(u=>u.username==='member').is_admin,true);
@@ -80,30 +80,36 @@ async function main(){
   await page.locator('[data-action="permissions"][data-user="manager"]').waitFor();
   assert.equal(state.actor.must_change_password,false);
  },true);
- await test('普通系统一键隐藏无权限功能并保存偏好','/',async(page,state)=>{
-  await page.locator('#permissionVisibilityBtn').waitFor();
+ await test('普通用户通过顶栏按钮自助切换无权限功能显示','/',async(page,state)=>{
+  const btn=page.locator('#permissionVisibilityBtn');
+  await btn.waitFor();
   const imports=page.locator('.sidebar .nav-tab[data-tab="import"]');
-  await imports.waitFor();assert.ok(await imports.evaluate(el=>el.classList.contains('permission-denied')));
-  await page.locator('#permissionVisibilityBtn').click();await imports.waitFor({state:'hidden'});
+  const registry=page.locator('.sidebar .nav-tab[data-tab="registry"]');
+  // member 只有 skill_view，初始 hide=false：import 无权限但显示（灰掉），registry 有权限可见
+  await imports.waitFor({state:'visible'});
+  assert.ok(await imports.evaluate(el=>el.classList.contains('permission-denied')));
+  assert.equal(await imports.evaluate(el=>el.classList.contains('permission-hidden')),false);
+  await registry.waitFor({state:'visible'});
+  // 点顶栏按钮开启隐藏 → 无权限功能消失
+  await btn.click();
+  await imports.waitFor({state:'hidden'});
+  assert.equal(state.member.hide_unauthorized,true);
   await page.locator('#cartToggleBtn').waitFor({state:'hidden'});
   await page.evaluate(()=>toggleCartSidebar());
   assert.equal(await page.locator('#cartSidebar').evaluate(el=>el.classList.contains('show')),false);
-  await page.locator('.sidebar .nav-tab[data-tab="registry"]').click();
-  await page.locator('#registryList a[download]').waitFor({state:'attached'});
-  await page.locator('#registryList a[download]').waitFor({state:'hidden'});
-  assert.equal(state.member.hide_unauthorized,true);
-  await page.locator('#permissionVisibilityBtn').click();await imports.waitFor({state:'visible'});
+  // 再点一次恢复显示
+  await btn.click();
+  await imports.waitFor({state:'visible'});
   assert.equal(state.member.hide_unauthorized,false);
  });
- await test('审批台权限弹窗支持隐藏选项和一键设置','/admin',async(page,state)=>{
+ await test('审批台权限弹窗不再有隐藏开关','/admin',async(page,state)=>{
   await page.locator('[data-tab="perms"]').click();await page.locator('[data-perm="member"]').waitFor();
   assert.equal(await page.locator('#permMask').isVisible(),false);
-  await page.locator('[data-perm="member"]').click();await page.locator('#hideUnauthorized').check();
+  await page.locator('[data-perm="member"]').click();
+  assert.equal(await page.locator('#hideUnauthorized').count(),0);
   await page.locator('#permSave').click();await page.locator('#permMask').waitFor({state:'hidden'});
-  assert.equal(state.accounts.find(u=>u.username==='member').hide_unauthorized,true);
-  await page.locator('[data-hide="member"]').click();
-  await page.waitForFunction(()=>document.querySelector('[data-hide="member"]')?.textContent.includes('一键隐藏'));
-  assert.equal(state.accounts.find(u=>u.username==='member').hide_unauthorized,false);
+  assert.equal(await page.locator('button[data-hide]').count(),0);
+  assert.deepEqual(state.accounts.find(u=>u.username==='member').permissions,['skill_view']);
  });
  await test('用户搜索、删除确认取消、删除和恢复闭环','/admin',async(page,state)=>{
   await page.locator('[data-tab="perms"]').click();

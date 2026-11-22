@@ -129,19 +129,29 @@ class RoleTests(unittest.TestCase):
         r=self.client.post('/api/admin/permissions',headers=self.headers(),json={'username':'manager','permissions':['*']})
         self.assertEqual(r.status_code,403)
 
-    def test_assign_empty_and_hide(self):
+    def test_assign_empty_ignores_hide_field(self):
+        # 隐藏策略改为按角色自动决定，hide_unauthorized 字段不再被写入。
         r=self.client.post('/api/admin/permissions',headers=self.headers(),json={'username':'member','permissions':[],'hide_unauthorized':True})
         self.assertEqual(r.status_code,200,r.get_json())
         row=self.conn.execute("SELECT permissions,hide_unauthorized FROM users WHERE username='member'").fetchone()
-        self.assertEqual(json.loads(row[0]),[]);self.assertEqual(row[1],1)
+        self.assertEqual(json.loads(row[0]),[]);self.assertEqual(row[1],0)
 
     def test_visibility_only_updates_self(self):
+        # 顶栏自助切换按钮：只改自己的 hide_unauthorized，不能改他人。
         uid=self.conn.execute("SELECT id FROM users WHERE username='member'").fetchone()[0]
         with self.client.session_transaction() as s:s['user_id']=uid
         r=self.client.post('/api/auth/visibility',json={'hide_unauthorized':True,'username':'manager'})
         self.assertEqual(r.status_code,200)
+        self.assertEqual(r.get_json().get('hide_unauthorized'),True)
         self.assertEqual(self.conn.execute("SELECT hide_unauthorized FROM users WHERE username='member'").fetchone()[0],1)
         self.assertEqual(self.conn.execute("SELECT hide_unauthorized FROM users WHERE username='manager'").fetchone()[0],0)
+
+    def test_admin_visibility_stays_noop(self):
+        # 管理端批量开关 UI 已移除，接口保留但不写字段。
+        r=self.client.post('/api/admin/visibility',headers=self.headers(),json={'username':'member','hide_unauthorized':True})
+        self.assertEqual(r.status_code,200)
+        self.assertEqual(r.get_json().get('auto'),True)
+        self.assertEqual(self.conn.execute("SELECT hide_unauthorized FROM users WHERE username='member'").fetchone()[0],0)
 
     def test_bootstrap_blocks_management(self):
         self.assertTrue(self.schema_ready)
@@ -231,12 +241,15 @@ class RoleTests(unittest.TestCase):
         self.assertEqual(r.status_code,403)
 
     def test_default_permissions_exclude_system_features(self):
+        # ai_generate 已从默认权限移除，改为管理员按需授予（不再是新用户自动获得）
         self.assertEqual(set(web.DEFAULT_USER_PERMISSIONS),
-                         {'skill_view','skill_import','skill_export','skill_manage','discover','ai_generate'})
+                         {'skill_view','skill_import','skill_export','skill_manage','discover'})
+        self.assertNotIn('ai_generate', web.DEFAULT_USER_PERMISSIONS)
         for key in web.SYSTEM_PERMISSION_KEYS:
             self.assertNotIn(key, web.DEFAULT_USER_PERMISSIONS)
-        # 四个系统级权限点都必须在权限定义中，供分配弹窗使用
+        # 权限点仍在定义中，供分配弹窗授予
         defined = {p['key'] for p in web.PERMISSIONS}
+        self.assertIn('ai_generate', defined)
         self.assertTrue(set(web.SYSTEM_PERMISSION_KEYS) <= defined)
 
     def test_system_features_require_own_permission(self):

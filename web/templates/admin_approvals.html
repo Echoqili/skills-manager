@@ -95,6 +95,7 @@
     <div class="tabs">
       <button class="tab active" data-tab="pending">待审批</button>
       <button class="tab" data-tab="history">历史审批</button>
+      <button class="tab" data-tab="public">技能公开审核</button>
       <button class="tab" data-tab="perms">用户与权限</button>
     </div>
 
@@ -110,6 +111,15 @@
       <div class="h2">历史审批记录</div>
       <div class="tip" style="margin-bottom:12px">记录每一次批准 / 拒绝 / 创建账号 / 权限变更动作；老账号无日志的由当前状态兜底展示。</div>
       <div id="historyWrap"><div class="msg">加载中…</div></div>
+    </div>
+
+    <!-- 技能公开审核 -->
+    <div id="tab-public" class="hidden">
+      <div class="h2">技能公开审核</div>
+      <div class="tip" style="margin-bottom:12px">用户申请把自己的 Skill 公开给所有人。通过后将技能移入共享区，所有账号可见；拒绝后用户可修改重新申请。</div>
+      <div class="row" style="margin-bottom:12px"><select id="publicStatus" aria-label="申请状态"><option value="pending">待审核</option><option value="approved">已通过</option><option value="rejected">已拒绝</option><option value="all">全部</option></select><button class="btn-ghost btn-sm" id="publicRefresh">刷新</button><span id="publicCount" class="tip"></span></div>
+      <p id="publicActionMessage" role="status"></p>
+      <div id="publicWrap" style="overflow-x:auto"><div class="msg">加载中…</div></div>
     </div>
 
     <!-- 用户与权限 -->
@@ -173,7 +183,6 @@
       <span class="tip">取消部分勾选可自定义权限；保存时全选将按「全权限」授予。</span>
     </div>
     <div id="permList">加载中…</div>
-    <label class="row" style="margin-top:16px"><input type="checkbox" id="hideUnauthorized">隐藏该账号无权限功能</label>
     <div class="actions">
       <button class="btn-ghost" id="permCancel">取消</button>
       <button class="btn-primary" id="permSave">保存</button>
@@ -192,7 +201,8 @@ try {
 } catch (e) {}
 let PERM_DEFS = [];           // 权限点定义
 const ACTION_LABEL = {approve:['批准','b-approved'], reject:['拒绝','b-rejected'],
-                      delete_user:['删除用户','b-rejected'], restore_user:['恢复用户','b-approved'], change_status:['启用/停用','b-pending'], create:['创建账号','b-admin'], update_permission:['权限变更','b-perm']};
+                      delete_user:['删除用户','b-rejected'], restore_user:['恢复用户','b-approved'], change_status:['启用/停用','b-pending'], create:['创建账号','b-admin'], update_permission:['权限变更','b-perm'],
+                      approve_public:['通过公开','b-approved'], reject_public:['拒绝公开','b-rejected']};
 const STATUS_LABEL = {deleted:['已删除','b-rejected'], disabled:['已停用','b-pending'], approved:['已批准','b-approved'], pending:['待审批','b-pending'], rejected:['已拒绝','b-rejected']};
 let permEditing = null;       // 正在编辑权限的用户名
 
@@ -213,7 +223,7 @@ async function enter(){
     ADMIN_KEY=''; sessionStorage.removeItem('admin_key'); return;
   }
   show('gate', false); show('panel', true); show('createCard', true); show('keyCard', !PROXY_AUTH); show('mailCard', true);
-  loadPending(); loadHistory(); loadUsers(); loadPermDefs();
+  loadPending(); loadHistory(); loadUsers(); loadPermDefs(); loadPublicRequests();
 }
 
 // ---------- 待审批 ----------
@@ -251,6 +261,45 @@ async function decide(act, username){
   if(r.ok){ loadPending(); loadHistory(); loadUsers(); }
   else { document.getElementById('listWrap').insertAdjacentHTML('beforeend',
     '<div class="msg err">'+(d.error||'操作失败')+'</div>'); }
+}
+
+// ---------- 技能公开审核 ----------
+async function loadPublicRequests(){
+  const wrap = document.getElementById('publicWrap');
+  const status = document.getElementById('publicStatus').value;
+  try {
+    const r = await fetch('/api/admin/public-requests?status='+encodeURIComponent(status), {headers:authHeaders()});
+    const d = await r.json().catch(()=>({}));
+    if(!r.ok){ wrap.innerHTML = '<div class="msg err">'+esc(d.error||'加载失败')+'</div>'; return; }
+    const rows = d.requests || [];
+    document.getElementById('publicCount').textContent = rows.length ? ('共 '+rows.length+' 条') : '';
+    if(!rows.length){ wrap.innerHTML = '<div class="msg">暂无'+(status==='pending'?'待审核':'')+'申请 🎉</div>'; return; }
+    wrap.innerHTML = `<table><thead><tr><th>技能</th><th>申请人</th><th>说明</th><th>状态</th><th>申请时间</th><th>操作</th></tr></thead><tbody>${rows.map(x=>{
+      const st = x.status==='pending' ? ['待审核','b-pending'] : x.status==='approved' ? ['已通过','b-approved'] : ['已拒绝','b-rejected'];
+      return `<tr><td><strong>${esc(x.name)}</strong></td><td>${esc(x.applicant_name||x.applicant)}</td><td>${esc(x.note||'—')}</td>`+
+        `<td><span class="badge ${st[1]}">${st[0]}</span></td><td>${fmtTime(x.created_at)}</td><td>`+
+        (x.status==='pending'
+          ? `<button class="btn-ok btn-sm" data-act="approve" data-id="${x.id}">通过</button> `+
+            `<button class="btn-no btn-sm" data-act="reject" data-id="${x.id}">拒绝</button>`
+          : (x.reviewed_by?esc(x.reviewed_by):'—'))+`</td></tr>`;
+    }).join('')}</tbody></table>`;
+    wrap.querySelectorAll('button[data-act]').forEach(b=>{
+      b.addEventListener('click', ()=>decidePublic(b.dataset.act, Number(b.dataset.id)));
+    });
+  } catch(e){ wrap.innerHTML = '<div class="msg err">'+esc(e.message)+'</div>'; }
+}
+
+async function decidePublic(act, id){
+  const msg = document.getElementById('publicActionMessage');
+  if(act==='reject' && !window.confirm('确认拒绝该公开申请？')) return;
+  if(act==='approve' && !window.confirm('确认通过？通过后该技能将对所有账号可见。')) return;
+  try {
+    const r = await fetch('/api/admin/public-requests/'+id+'/'+act,
+      {method:'POST', headers:authHeaders(), body:'{}'});
+    const d = await r.json().catch(()=>({}));
+    if(r.ok){ msg.className='tip'; msg.textContent=(act==='approve'?'已通过并转公开':'已拒绝'); loadPublicRequests(); loadHistory(); }
+    else { msg.className='msg err'; msg.textContent=d.error||'操作失败'; }
+  } catch(e){ msg.className='msg err'; msg.textContent=e.message; }
 }
 
 // ---------- 历史审批 ----------
@@ -323,7 +372,7 @@ function renderUsers(){
         <td>${role}</td>
         <td>${permHtml}</td>
         <td>${esc(fmtTime(u.approved_at || u.created_at))}</td>
-        <td>${u.status === 'deleted' ? `<button class="btn-ghost btn-sm" data-lifecycle="restore" data-uid="${u.id}">恢复用户</button>` : `<button class="btn-ghost btn-sm" data-perm="${esc(u.username)}">分配权限</button> <button class="btn-ghost btn-sm" data-hide="${esc(u.username)}" data-value="${u.hide_unauthorized ? 'false' : 'true'}">${u.hide_unauthorized ? '显示无权限入口' : '一键隐藏无权限功能'}</button> ${['approved','disabled'].includes(u.status) ? `<button class="btn-ghost btn-sm" data-lifecycle="status" data-uid="${u.id}">${u.status === 'approved' ? '停用' : '启用'}</button>` : ''} <button class="btn-no btn-sm" data-lifecycle="delete" data-uid="${u.id}">删除</button>`}</td></tr>`;
+        <td>${u.status === 'deleted' ? `<button class="btn-ghost btn-sm" data-lifecycle="restore" data-uid="${u.id}">恢复用户</button>` : `<button class="btn-ghost btn-sm" data-perm="${esc(u.username)}">分配权限</button> ${['approved','disabled'].includes(u.status) ? `<button class="btn-ghost btn-sm" data-lifecycle="status" data-uid="${u.id}">${u.status === 'approved' ? '停用' : '启用'}</button>` : ''} <button class="btn-no btn-sm" data-lifecycle="delete" data-uid="${u.id}">删除</button>`}</td></tr>`;
     }
     html += '</tbody></table>';
     wrap.innerHTML = html;
@@ -333,7 +382,6 @@ function renderUsers(){
       catch(error) { document.getElementById('userActionMessage').textContent = error.message; }
       finally { button.disabled = false; }
     });
-    wrap.querySelectorAll('button[data-hide]').forEach(b=>b.addEventListener('click',async()=>{ b.disabled=true;try{await AdminSession.api('/api/admin/visibility',{method:'POST',body:JSON.stringify({username:b.dataset.hide,hide_unauthorized:b.dataset.value==='true'})});loadUsers();}catch(e){alert(e.message);}finally{b.disabled=false;} }));
     wrap.querySelectorAll('button[data-perm]').forEach(b=>{
       b.addEventListener('click', ()=>openPermModal(b.dataset.perm, d.users.find(x=>x.username===b.dataset.perm)));
     });
@@ -355,7 +403,6 @@ async function openPermModal(username, user){
   show('permErr', false);
   const list = document.getElementById('permList');
   const cur = (user && user.permissions) || ['*'];
-  document.getElementById('hideUnauthorized').checked=!!user?.hide_unauthorized;
   show('permMask',true);document.getElementById('permSave').disabled=true;
   list.textContent='加载中…';
   if (!PERM_DEFS.length) await loadPermDefs();
@@ -386,7 +433,7 @@ async function savePerms(){
   if (!permEditing || !PERM_DEFS.length || document.querySelectorAll('#permList input').length !== PERM_DEFS.length) { document.getElementById('permErr').textContent='请等待权限加载完成'; show('permErr',true); return; }
   const perms = currentPermSelection();
   const r = await fetch('/api/admin/permissions', {method:'POST', headers: authHeaders(),
-    body: JSON.stringify({username: permEditing, permissions: perms, hide_unauthorized: document.getElementById('hideUnauthorized').checked})});
+    body: JSON.stringify({username: permEditing, permissions: perms})});
   const d = await r.json().catch(()=>({}));
   if(r.ok){
     show('permMask', false);
@@ -456,6 +503,8 @@ document.getElementById('enterBtn').addEventListener('click', enter);
 document.getElementById('key')?.addEventListener('keydown', e=>{ if(e.key==='Enter') enter(); });
 document.getElementById('userSearch').addEventListener('input', renderUsers);
 document.getElementById('userStatus').addEventListener('change', renderUsers);
+document.getElementById('publicStatus').addEventListener('change', loadPublicRequests);
+document.getElementById('publicRefresh').addEventListener('click', loadPublicRequests);
 document.getElementById('createBtn').addEventListener('click', createUser);
 document.getElementById('setKeyBtn').addEventListener('click', setKey);
 document.getElementById('mailTestBtn').addEventListener('click', runMailTest);
@@ -468,9 +517,10 @@ document.querySelectorAll('.tab').forEach(t=>{
   t.addEventListener('click', ()=>{
     document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
     t.classList.add('active');
-    ['pending','history','perms'].forEach(k=>{
+    ['pending','history','public','perms'].forEach(k=>{
       show('tab-'+k, t.dataset.tab === k);
     });
+    if(t.dataset.tab==='public') loadPublicRequests();
   });
 });
 if(PROXY_AUTH) {document.getElementById('cAdmin').closest('label').style.display='none';}

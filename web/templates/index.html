@@ -3506,7 +3506,7 @@
                                     <div id="importValidation" style="display:none;padding:12px;border-radius:8px;font-size:0.88rem;"></div>
                                 </form>
                             </div>
-                            <div id="aiPanel" class="discover-panel" style="display:none;">
+                            <div id="importAiPanel" class="discover-panel" style="display:none;">
                                 <form id="aiImportForm" style="max-width:700px;" onsubmit="event.preventDefault()">
                                     <div style="margin-bottom:16px;">
                                         <label style="display:block;margin-bottom:6px;color:var(--text-secondary);font-size:0.88rem;" data-i18n="import_ai_label">描述你想要的 Skill</label>
@@ -4201,6 +4201,16 @@
                 browse_failed: '浏览失败',
                 no_imported_skills: '暂无导入的 Skills',
                 no_imported_skills_desc: '使用上方表单导入您的自定义 Skills',
+                apply_public: '申请公开',
+                cancel_public: '撤销申请',
+                public_pending: '审核中',
+                public_approved: '已公开',
+                public_rejected: '未通过',
+                public_hint: '公开后所有人可见，需管理员审核',
+                apply_public_done: '已提交公开申请，等待管理员审核',
+                cancel_public_done: '已撤销公开申请',
+                apply_failed: '申请失败',
+                action_failed: '操作失败',
                 today: '今天',
                 yesterday: '昨天',
                 days_ago: '{} 天前',
@@ -4662,6 +4672,16 @@
                 browse_failed: 'Browse failed',
                 no_imported_skills: 'No imported Skills',
                 no_imported_skills_desc: 'Import your custom Skills using the form above',
+                apply_public: 'Request Public',
+                cancel_public: 'Cancel Request',
+                public_pending: 'Under Review',
+                public_approved: 'Public',
+                public_rejected: 'Rejected',
+                public_hint: 'Public skills are visible to everyone after admin approval',
+                apply_public_done: 'Public request submitted, awaiting admin review',
+                cancel_public_done: 'Public request cancelled',
+                apply_failed: 'Request failed',
+                action_failed: 'Action failed',
                 today: 'Today',
                 yesterday: 'Yesterday',
                 days_ago: '{}d ago',
@@ -7811,7 +7831,7 @@
             document.querySelectorAll('#importSection .discover-tab').forEach(tab => tab.classList.remove('active'));
             document.querySelector(`#importSection [data-mode="${mode}"]`).classList.add('active');
             document.getElementById('manualPanel').style.display = mode === 'manual' ? 'block' : 'none';
-            document.getElementById('aiPanel').style.display = mode === 'ai' ? 'block' : 'none';
+            document.getElementById('importAiPanel').style.display = mode === 'ai' ? 'block' : 'none';
             document.getElementById('githubPanel').style.display = mode === 'github' ? 'block' : 'none';
             document.getElementById('listPanel').style.display = mode === 'list' ? 'block' : 'none';
             if (mode === 'list') loadUserSkills();
@@ -8105,14 +8125,61 @@
                                 </div>
                             </div>
                             <p class="skill-desc">${s.description || t('detail_no_desc')}</p>
+                            <div style="margin-bottom:10px;font-size:0.8rem;color:var(--text-muted);">
+                                ${s.public_status === 'pending'
+                                    ? `<span style="color:#d97706;">⏳ ${t('public_pending')}</span>`
+                                    : s.public_status === 'rejected'
+                                    ? `<span style="color:#dc2626;">✖ ${t('public_rejected')}</span>`
+                                    : `<span title="${t('public_hint')}">🔒 ${t('public_hint')}</span>`}
+                            </div>
                             <div class="skill-actions">
                                 <button data-permission="skill_view" class="skill-action secondary" onclick="showSkillDetail('${escHtml(skillKey(s))}')">📄 ${t('view')}</button>
+                                ${s.public_status === 'pending'
+                                    ? `<button class="skill-action secondary" onclick="cancelPublicRequest('${escHtml(s.name)}')">↩️ ${t('cancel_public')}</button>`
+                                    : s.public_status === 'rejected'
+                                    ? `<button class="skill-action secondary" onclick="applyPublic('${escHtml(s.name)}')">🔁 ${t('apply_public')}</button>`
+                                    : `<button class="skill-action primary" onclick="applyPublic('${escHtml(s.name)}')">🌐 ${t('apply_public')}</button>`}
                                 <button class="skill-action danger" onclick="deleteUserSkill('${escHtml(s.name)}')">🗑️ ${t('delete')}</button>
                             </div>
                         </div>`).join('')}</div>`;
                 }
             } catch (e) {
                 showToast(`${t('load_failed')}: ${e.message}`, 'error');
+            }
+        }
+
+        async function applyPublic(name) {
+            let note = '';
+            try {
+                const data = await fetchJSON('/api/import/public-request', {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({name, note})
+                });
+                if (data.success) {
+                    showToast(t('apply_public_done'), 'success');
+                    loadUserSkills();
+                } else {
+                    showToast(data.error || '', 'error');
+                }
+            } catch (e) {
+                showToast(`${t('apply_failed')}: ${e.message}`, 'error');
+            }
+        }
+
+        async function cancelPublicRequest(name) {
+            try {
+                const data = await fetchJSON('/api/import/public-request', {
+                    method: 'DELETE', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({name})
+                });
+                if (data.success) {
+                    showToast(t('cancel_public_done'), 'success');
+                    loadUserSkills();
+                } else {
+                    showToast(data.error || '', 'error');
+                }
+            } catch (e) {
+                showToast(`${t('action_failed')}: ${e.message}`, 'error');
             }
         }
 

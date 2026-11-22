@@ -263,22 +263,21 @@ def register(app, ctx):
         ctx._log_approval(user['username'], 'reset_password', '重置管理员密码，下次登录需修改')
         return jsonify({'success': True})
 
+    # 隐藏偏好由用户自己通过顶栏按钮自助切换（/api/auth/visibility 正常写入）。
+    # /api/admin/visibility 是管理员批量设置入口，UI 已移除，保留仅为兼容旧缓存页面，不再写入字段。
     @app.post('/api/admin/visibility')
     @ctx.admin_only
     def admin_visibility():
         data = request.get_json() or {}
-        if not isinstance(data.get('username'), str) or not isinstance(data.get('hide_unauthorized'), bool):
-            return jsonify({'error': '需要用户名与隐藏设置'}), 400
+        if not isinstance(data.get('username'), str):
+            return jsonify({'error': '需要用户名'}), 400
         conn = db.get_conn()
-        user = conn.execute('SELECT id,is_admin,is_super_admin FROM users WHERE username=?', (data['username'],)).fetchone()
+        user = conn.execute('SELECT is_admin,is_super_admin FROM users WHERE username=?', (data['username'],)).fetchone()
         if not user:
             return jsonify({'error': '账户不存在'}), 404
         if user['is_super_admin'] or (user['is_admin'] and not ctx.get_admin_actor().get('is_super_admin')):
             return jsonify({'error': '该账户只能由超级管理员管理'}), 403
-        conn.execute('UPDATE users SET hide_unauthorized=? WHERE id=?', (int(data['hide_unauthorized']),user['id']))
-        conn.commit()
-        ctx._log_approval(data['username'], 'visibility', '隐藏未授权功能' if data['hide_unauthorized'] else '显示未授权入口')
-        return jsonify({'success': True})
+        return jsonify({'success': True, 'auto': True})
 
     @app.post('/api/auth/visibility')
     @ctx.login_required
@@ -288,7 +287,7 @@ def register(app, ctx):
             return jsonify({'error': 'hide_unauthorized 必须为布尔值'}), 400
         user = ctx.get_current_user()
         conn = db.get_conn()
-        conn.execute('UPDATE users SET hide_unauthorized=? WHERE id=?', (int(data['hide_unauthorized']),user['id']))
+        conn.execute('UPDATE users SET hide_unauthorized=? WHERE id=?', (int(data['hide_unauthorized']), user['id']))
         conn.commit()
         return jsonify({'success': True, 'hide_unauthorized': data['hide_unauthorized']})
 
