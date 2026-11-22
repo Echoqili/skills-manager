@@ -2942,8 +2942,31 @@
             .release-item { padding: 12px; }
             .release-item h4 { font-size: 0.9rem; }
         }
+        /* 文案型顶栏按钮：不能套用图标按钮的 40×40 固定尺寸，否则中文被挤成竖排 */
+        #permissionVisibilityBtn {
+            width: auto;
+            min-width: 40px;
+            padding: 0 14px;
+            white-space: nowrap;
+            font-size: 0.9rem;
+        }
         #permissionVisibilityBtn[hidden]{display:none}
         .permission-hidden{display:none!important}
+        #searchResults { scroll-margin-top: calc(var(--topbar-height) + 24px); }
+        .install-export-dialog { width: min(640px, calc(100% - 32px)); max-height: 85vh; padding: 24px; margin:auto;
+            color: var(--text); background: var(--bg-card); border: 1px solid var(--border);
+            border-radius: var(--radius-md); box-shadow: 0 24px 60px rgba(0,0,0,.3); }
+        .install-export-dialog::backdrop { background: rgba(0,0,0,.6); }
+        .install-export-head { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+        .install-export-head h2 { font-size:1.3rem; }
+        .install-export-dialog select { display:block; width:100%; padding:12px; margin:10px 0 20px;
+            background:var(--bg-card); color:var(--text); border:1px solid var(--border); border-radius:8px; }
+        .install-export-dialog ol { padding-left:24px; line-height:1.8; margin:16px 0; }
+        .install-export-dialog code { overflow-wrap:anywhere; }
+        .install-export-dialog pre { white-space:pre-wrap; padding:12px; background:var(--bg-secondary); border-radius:8px; }
+        .install-export-downloads { display:flex; flex-direction:column; gap:10px; margin:16px 0; }
+        .install-export-downloads button { text-align:left; white-space:normal; overflow-wrap:anywhere; }
+        #installExportStatus { margin-top:16px; line-height:1.6; }
         .permission-denied{opacity:.5;cursor:not-allowed}
     </style>
 </head>
@@ -2966,6 +2989,7 @@
                 <!-- 滑块验证码 -->
                 <div id="auth-captcha-box" class="auth-captcha-box">
                     <div class="captcha-img-wrap">
+                        <span class="captcha-image-label">安全验证 · 将方块对准深色框</span>
                         <canvas id="auth-captcha-canvas" width="320" height="160"></canvas>
                         <button type="button" class="captcha-refresh" id="auth-captcha-refresh" title="换一张">↻</button>
                     </div>
@@ -3015,6 +3039,9 @@
                     </a>
                 </div>
                 <nav class="sidebar-nav">
+                    <a class="workspace-link" href="/static/local-workspace-setup.html" data-permission="local_sync" style="text-decoration:none;display:flex;gap:10px;padding:12px 16px;color:inherit;border-radius:8px">
+                        <span class="nav-icon">⇄</span><span>本机同步与历史</span>
+                    </a>
                     <div class="sidebar-nav-section">
                         <div class="sidebar-nav-label">浏览</div>
                         <button class="nav-tab active" data-tab="search">
@@ -3070,7 +3097,7 @@
                     </div>
                     <button class="sidebar-cart-btn" id="cartToggleBtn" data-permission="skill_export" onclick="toggleCartSidebar()">
                         <span>📦</span>
-                        <span data-i18n="cart_btn">打包清单</span>
+                        <span data-i18n="cart_btn">清单</span>
                         <span class="count" id="cartCount">0</span>
                     </button>
                 </div>
@@ -3361,12 +3388,12 @@
                         <section id="cartSection" class="content-section">
                             <div class="section-header">
                                 <div class="section-title">
-                                    <h2 data-i18n="sec_cart">📦 打包清单</h2>
+                                    <h2 data-i18n="sec_cart">📦 技能清单</h2>
                                     <span class="tag" id="cartTag">已选择 0 个 Skills</span>
                                 </div>
                             </div>
                             <div class="cart-actions">
-                                <button class="btn btn-primary" data-permission="skill_export" data-package-action onclick="packageSelected()" data-i18n="btn_package">📦 打包下载选中项</button>
+                                <button class="btn btn-primary" data-permission="skill_export" onclick="openInstallExport()" data-i18n="btn_install_export">安装 / 导出</button>
                                 <button class="btn btn-secondary" data-permission="skill_export" data-package-action onclick="packageAll()" data-i18n="btn_package_all">📦 打包全部 Skills</button>
                                 <button class="btn btn-ghost" onclick="clearCart()" data-i18n="btn_clear_cart">🗑️ 清空清单</button>
                             </div>
@@ -3748,18 +3775,18 @@
     <div class="cart-overlay" id="cartOverlay" onclick="toggleCartSidebar()"></div>
     <div class="cart-sidebar" id="cartSidebar">
         <div class="cart-sidebar-header">
-            <h3 id="cartSidebarTitle"><span id="cartSidebarTitleText">📦 打包清单</span> <span id="cartSidebarCount">(0)</span></h3>
+            <h3 id="cartSidebarTitle"><span id="cartSidebarTitleText">📦 技能清单</span> <span id="cartSidebarCount">(0)</span></h3>
             <button class="cart-sidebar-close" onclick="toggleCartSidebar(); event.stopPropagation();" aria-label="关闭清单">✕</button>
         </div>
         <div class="cart-sidebar-body" id="cartSidebarBody">
             <div class="cart-empty">
                 <div class="cart-empty-icon">📦</div>
                 <h3 data-i18n="cart_empty_title">清单是空的</h3>
-                <p data-i18n="cart_empty_desc">浏览 Skills 并加入清单，即可打包下载</p>
+                <p data-i18n="cart_empty_desc">浏览 Skills 并加入清单，再选择目标软件安装或导出</p>
             </div>
         </div>
         <div class="cart-sidebar-footer">
-            <button class="btn btn-primary" data-permission="skill_export" data-package-action onclick="packageSelectedFromSidebar()" style="width:100%;margin-bottom:10px;" data-i18n="btn_package">📦 打包下载选中项</button>
+            <button class="btn btn-primary" data-permission="skill_export" onclick="openInstallExport()" style="width:100%;margin-bottom:10px;" data-i18n="btn_install_export">安装 / 导出</button>
             <div style="display:flex;gap:10px;">
                 <button class="btn btn-secondary" data-permission="skill_export" data-package-action onclick="packageAll()" style="flex:1;" data-i18n="btn_package_all">打包全部</button>
                 <button class="btn btn-ghost" onclick="clearCart()" style="flex:1;" data-i18n="btn_clear_cart">清空</button>
@@ -3787,6 +3814,18 @@
             <span data-i18n="tab_ai">智能设置</span>
         </button>
     </nav>
+
+    <dialog id="installExportDialog" class="install-export-dialog" aria-labelledby="installExportTitle">
+        <div class="install-export-head">
+            <h2 id="installExportTitle"></h2>
+            <button type="button" class="btn btn-ghost" id="installExportClose" onclick="closeInstallExport()"></button>
+        </div>
+        <p id="installExportSummary" class="install-hint"></p>
+        <label for="installExportTarget" id="installExportTargetLabel"></label>
+        <select id="installExportTarget" onchange="renderInstallExportGuide()"></select>
+        <div id="installExportGuide"></div>
+        <p id="installExportStatus" role="status" aria-live="polite"></p>
+    </dialog>
 
     <!-- Toast 容器 -->
     <div class="toast-container" id="toastContainer"></div>
@@ -3873,7 +3912,7 @@
                 tab_github: 'GitHub 仓库',
                 tab_scenarios: '场景推荐',
                 tab_categories: '分类浏览',
-                tab_cart: '打包清单',
+                tab_cart: '技能清单',
                 tab_discover: '发现新 Skills',
                 tab_releases: '版本发布',
                 tab_import: '导入 Skill',
@@ -3883,7 +3922,7 @@
                 cat_all: '全部分类',
                 cart_btn: '清单',
                 manage_btn: '管理',
-                cart_sidebar_title: '📦 打包清单',
+                cart_sidebar_title: '📦 技能清单',
                 msg_searching_github: '正在搜索 GitHub...',
                 // Auto-Update
                 sec_update: '🔄 自动更新管理',
@@ -4026,13 +4065,14 @@
                 'category_user-imports': '用户导入',
                 category_other: '其他',
                 // Cart
-                sec_cart: '📦 打包清单',
+                sec_cart: '📦 技能清单',
                 tag_cart: '已选择 {} 个 Skills',
                 btn_package: '📦 打包下载选中项',
+                btn_install_export: '安装 / 导出',
                 btn_package_all: '📦 打包全部 Skills',
                 btn_clear_cart: '🗑️ 清空清单',
                 cart_empty_title: '清单为空',
-                cart_empty_desc: '浏览 Skills 并添加感兴趣的到清单中',
+                cart_empty_desc: '浏览 Skills 并加入清单，再选择目标软件安装或导出',
                 // Discover
                 sec_discover: '🔍 发现新 Skills',
                 tag_discover: '从 GitHub 发现优质 Skills',
@@ -4333,7 +4373,7 @@
                 tab_github: 'GitHub Repos',
                 tab_scenarios: 'By Scenario',
                 tab_categories: 'By Category',
-                tab_cart: 'Package List',
+                tab_cart: 'Skill List',
                 tab_discover: 'Discover Skills',
                 tab_releases: 'Releases',
                 tab_import: 'Import Skill',
@@ -4343,7 +4383,7 @@
                 cat_all: 'All Categories',
                 cart_btn: 'Cart',
                 manage_btn: 'Manage',
-                cart_sidebar_title: '📦 Package List',
+                cart_sidebar_title: '📦 Skill List',
                 msg_searching_github: 'Searching GitHub...',
                 // Auto-Update
                 sec_update: '🔄 Auto Update Manager',
@@ -4486,13 +4526,14 @@
                 'category_user-imports': 'User Imports',
                 category_other: 'Other',
                 // Cart
-                sec_cart: '📦 Package List',
+                sec_cart: '📦 Skill List',
                 tag_cart: '{} Skills selected',
                 btn_package: '📦 Package Selected',
+                btn_install_export: 'Install / Export',
                 btn_package_all: '📦 Package All Skills',
                 btn_clear_cart: '🗑️ Clear List',
                 cart_empty_title: 'Package list is empty',
-                cart_empty_desc: 'Browse Skills and add interesting ones to the list',
+                cart_empty_desc: 'Add skills to your list, then choose a target app to install or export',
                 // Discover
                 sec_discover: '🔍 Discover New Skills',
                 tag_discover: 'Discover quality Skills from GitHub',
@@ -4940,8 +4981,8 @@
         let packageBusy = false;
         window.CURRENT_USER = null;
         const SECTION_PERMISSIONS = {
-            search:'skill_view', scenarios:'skill_view', categories:'skill_view', curated:'skill_view', registry:'skill_view', detail:'skill_view', releases:'skill_view',
-            import:'skill_import,ai_generate', discover:'discover', update:'discover', ai:'ai_generate', trash:'skill_manage', cart:'skill_export'
+            search:'skill_view', scenarios:'skill_view', categories:'skill_view', curated:'skill_view', registry:'skill_view', detail:'skill_view', releases:'release_view',
+            import:'skill_import,ai_generate', discover:'discover', update:'auto_update', ai:'ai_settings', trash:'skill_manage', cart:'skill_export'
         };
         function canUsePermission(keys) {
             const user = window.CURRENT_USER;
@@ -5419,7 +5460,7 @@
             currentCategoryFilter = key;
             renderCategoryFilterBar();
             setSearchSource('local', false);
-            return searchSkills();
+            return searchSkills({ scrollToResults: true });
         }
 
         // ========== 搜索来源切换 ==========
@@ -5585,8 +5626,18 @@
         }
 
         // ========== 搜索功能 ==========
-        async function searchSkills({ navigate = true, page = 1 } = {}) {
+        async function searchSkills({ navigate = true, page = 1, scrollToResults = false } = {}) {
             const request = beginBrowseRequest();
+            const displayResults = (skills, category, searched) => {
+                applyLocalResults(skills, category, page, searched);
+                if (scrollToResults) requestAnimationFrame(() => {
+                    if (!request.current() || currentView !== 'search') return;
+                    document.getElementById('searchResults').scrollIntoView({
+                        behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth',
+                        block: 'start'
+                    });
+                });
+            };
             const query = document.getElementById('searchInput').value.trim();
             const category = currentCategoryFilter;
             const heroInput = document.getElementById('heroSearchInput');
@@ -5596,7 +5647,7 @@
                 return searchGithub(query, request);
             }
             if (!query && libraryReady) {
-                applyLocalResults(allLoadedSkills, category, page, false);
+                displayResults(allLoadedSkills, category, false);
                 return;
             }
             showGridLoading('searchResults', 6);
@@ -5604,13 +5655,13 @@
             try {
                 if (!query) {
                     if (await loadInitialSkills({ render: false }) && request.current()) {
-                        applyLocalResults(allLoadedSkills, category, page, false);
+                        displayResults(allLoadedSkills, category, false);
                     } else if (request.current()) throw new Error(ft('failed'));
                     return;
                 }
                 const data = await fetchJSON(`/api/search?q=${encodeURIComponent(query)}&top_k=${Math.max(totalSkillsCount, allLoadedSkills.length, 100)}`, { signal: request.signal });
                 if (!request.current()) return;
-                applyLocalResults(data.results || [], category, page, true);
+                displayResults(data.results || [], category, true);
                 // AI 是补充信息，慢请求或失败均不阻塞本地结果。
                 if (!canUsePermission('ai_generate')) return;
                 fetchJSON(`/api/search/ai?q=${encodeURIComponent(query)}`, { signal: request.signal }, 60000)
@@ -6306,8 +6357,8 @@
                                 onclick="${inCart ? `removeFromCart('${escHtml(skillKey(skill))}');updateDetailBtn('${escHtml(skillKey(skill))}',false)` : `addToCart('${escHtml(skillKey(skill))}');updateDetailBtn('${escHtml(skillKey(skill))}',true)`}">
                                 ${inCart ? t('detail_in_cart') : t('detail_add_cart')}
                             </button>
-                            <button class="btn btn-secondary" data-permission="skill_export" data-package-action onclick="packageSingle('${escHtml(skillKey(skill))}')">
-                                ${t('detail_download')}
+                            <button class="btn btn-secondary" data-permission="skill_export" onclick="openInstallExport(['${escHtml(skillKey(skill))}'])">
+                                ${t('btn_install_export')}
                             </button>
                         </div>
                     </div>`;
@@ -6597,6 +6648,107 @@
                 </div>`).join('')}</div>`;
         }
 
+        // 安装 / 导出：保存本次选择，所有下载仍经过原有权限及打包检查。
+        let installExportSelection = [];
+        let installExportFocus = null;
+        const installExportTargets = {
+            'claude-code': { name: 'Claude Code', dir: '.claude/skills/', docs: 'https://code.claude.com/docs/en/skills' },
+            codex: { name: 'Codex', dir: '.agents/skills/', docs: 'https://developers.openai.com/codex/skills' },
+            cursor: { name: 'Cursor', dir: '.cursor/skills/', docs: 'https://cursor.com/docs/skills' },
+            trae: { name: 'Trae', dir: '.trae/skills/', docs: 'https://docs.trae.ai/ide/skills' },
+            'trae-cn': { name: 'Trae（国内版 / CN）', dir: '.trae/skills/', docs: 'https://docs.trae.cn/ide_skills' },
+            claude: { name: 'Claude（聊天端 / Chat）', cloud: true, docs: 'https://support.claude.com/en/articles/12512180-use-skills-in-claude' },
+            chatgpt: { name: 'ChatGPT', cloud: true, docs: 'https://help.openai.com/en/articles/20001066-skills-in-chatgpt' },
+            zip: { name: 'ZIP' }
+        };
+        function installExportText(zh, en) { return currentLang === 'en' ? en : zh; }
+
+        function openInstallExport(selection = cart) {
+            if (window.VIEWER_MODE) { window.openAuthModal?.('login'); return; }
+            if (!canUsePermission('skill_export')) { showToast(ft('forbidden'), 'warning'); return; }
+            if (!selection.length) { showToast(t('msg_please_select'), 'warning'); return; }
+            const dialog = document.getElementById('installExportDialog');
+            if (dialog.open || packageBusy) return;
+            installExportSelection = [...new Set(selection)];
+            installExportFocus = document.activeElement;
+            document.getElementById('installExportTitle').textContent = t('btn_install_export');
+            document.getElementById('installExportClose').textContent = installExportText('关闭', 'Close');
+            document.getElementById('installExportSummary').textContent = installExportText(
+                `已选择 ${installExportSelection.length} 个技能 · 选择软件 → 获取文件 → 按指引安装`,
+                `${installExportSelection.length} skills selected · Choose app → Get files → Follow installation steps`);
+            document.getElementById('installExportTargetLabel').textContent = installExportText('1. 选择目标软件', '1. Choose a target app');
+            const select = document.getElementById('installExportTarget');
+            select.innerHTML = `<option value="">${installExportText('请选择…', 'Choose an app…')}</option>` +
+                Object.entries(installExportTargets).map(([id, target]) => `<option value="${id}">${escHtml(target.name)}</option>`).join('');
+            select.value = '';
+            renderInstallExportGuide();
+            dialog.showModal();
+            select.focus();
+        }
+
+        function closeInstallExport() { document.getElementById('installExportDialog').close(); }
+        document.getElementById('installExportDialog').addEventListener('close', () => {
+            if (installExportFocus?.isConnected) installExportFocus.focus();
+        });
+
+        function renderInstallExportGuide() {
+            const targetId = document.getElementById('installExportTarget').value;
+            const target = installExportTargets[targetId];
+            const guide = document.getElementById('installExportGuide');
+            document.getElementById('installExportStatus').textContent = '';
+            if (!target) { guide.innerHTML = ''; return; }
+            const text = installExportText;
+            const download = `<button class="btn btn-primary" data-permission="skill_export" data-package-action onclick="downloadInstallExport()">${text('2. 下载所选技能 ZIP', '2. Download selected skills ZIP')}</button>`;
+            const docs = target.docs ? `<a href="${target.docs}" target="_blank" rel="noopener noreferrer">${text('查看官方安装说明', 'Official installation guide')} ↗</a>` : '';
+            let body;
+            if (target.cloud) {
+                const upload = targetId === 'claude'
+                    ? text('打开 Claude 的自定义 / 技能设置，选择上传技能，上传单个技能 ZIP。', 'Open Claude customization / skills settings, choose Upload skill, and upload one skill ZIP.')
+                    : text('打开 ChatGPT：Plugins → Skills → Create → Upload from your computer，上传单个技能文件包。', 'In ChatGPT, open Plugins → Skills → Create → Upload from your computer, then upload one skill package.');
+                const access = targetId === 'chatgpt'
+                    ? text('需符合条件的 Business、Enterprise、Healthcare 或 Edu 账号，且工作区允许技能上传；若没有入口，请核对账号和管理员设置。', 'Requires an eligible Business, Enterprise, Healthcare or Edu account with skill uploads enabled. If the entry is missing, check account eligibility and admin settings.')
+                    : text('需账号支持技能功能，且组织允许创建和上传技能；若没有入口，请检查账号与组织设置。', 'Your account must support skills, and your organization must allow skill creation and uploads.');
+                body = `<p>${text('2. 逐个下载并上传技能，每个 ZIP 对应一个技能。', '2. Download and upload each skill separately, one ZIP per skill.')}</p>
+                    <div class="install-export-downloads">${installExportSelection.map((id, index) =>
+                        `<button class="btn btn-primary" data-permission="skill_export" data-package-action onclick="downloadInstallExport(${index})">${text('下载', 'Download')} ${escHtml(id)}</button>`).join('')}</div>
+                    <h3>${text('3. 导入并确认可用', '3. Import and verify')}</h3>
+                    <ol><li>${upload}</li><li>${text('等待平台检查通过，在技能列表中启用。其余技能重复此操作。', 'Wait for platform validation, then enable the skill in the skills list. Repeat for the remaining skills.')}</li>
+                    <li>${text('新建对话，用一个符合技能用途的任务验证它是否被调用。', 'Start a new chat and try a task matching the skill to verify it is used.')}</li></ol><p class="install-hint">${access}</p>`;
+            } else if (target.dir) {
+                body = `${download}<h3 style="margin-top:20px">${text('3. 安装到项目并确认可用', '3. Install in your project and verify')}</h3>
+                    <ol><li>${text('在目标软件打开的项目根目录中，创建以下目录：', 'At the root of the project opened in your target app, create:')} <code>${target.dir}</code></li>
+                    <li>${text('解压 ZIP，将里面每个技能文件夹完整放入该目录，保留脚本和参考资料。不要再嵌套一层 ZIP 文件名目录。已有同名技能时先比较内容。', 'Extract the ZIP and place each complete skill folder inside that directory, keeping scripts and references. Do not add an extra archive-name folder. Compare existing skills before replacing them.')}</li>
+                    <li>${text('重新打开项目或新建 Agent 会话，在技能列表确认已识别，再用一个符合技能用途的任务验证。', 'Reopen the project or start a new Agent session, check that the skills are listed, then try a task matching a skill.')}</li></ol>
+                    <pre>${escHtml(target.dir)}skill-name/SKILL.md</pre>
+                    <p class="install-hint">${text('此方式仅在当前项目生效。全局安装目录依软件及版本而异，请参考官方说明。', 'This installs for the current project. Global directories vary by app and version; see the official guide.')}</p>`;
+            } else {
+                body = `${download}<ol><li>${text('将 ZIP 保存到本地，包含每个技能的 SKILL.md 及附带资源。', 'Save the ZIP locally. It includes each SKILL.md and supporting resources.')}</li>
+                    <li>${text('按目标工具的技能导入方式使用；也可切换上方软件查看对应指引。', 'Import it using your target tool’s instructions, or select an app above for specific guidance.')}</li></ol>`;
+            }
+            guide.innerHTML = body + `<p>${docs}</p><p class="install-hint">${text('下载后仍需按以上步骤导入或解压，完成后才能在目标软件中使用。', 'After downloading, complete the import or extraction steps above to use the skills in your target app.')}</p>`;
+        }
+
+        async function downloadInstallExport(index) {
+            const targetId = document.getElementById('installExportTarget').value;
+            const target = installExportTargets[targetId];
+            if (!target || packageBusy) return;
+            if (target.cloud && (!Number.isInteger(index) || index < 0 || index >= installExportSelection.length)) return;
+            const selection = target.cloud ? [installExportSelection[index]] : [...installExportSelection];
+            const status = document.getElementById('installExportStatus');
+            const select = document.getElementById('installExportTarget');
+            status.textContent = installExportText('正在准备下载…', 'Preparing download…');
+            select.disabled = true;
+            const data = await requestPackage('/api/package', selection);
+            select.disabled = false;
+            // 关闭后重新打开的对话框不显示旧请求结果。
+            if (document.getElementById('installExportDialog').open && targetId === select.value) {
+                status.textContent = data ? installExportText(
+                    `已发起下载：${selection.join('、')}。请保存文件并完成上方安装步骤。`,
+                    `Download requested: ${selection.join(', ')}. Save the file and complete the installation steps above.`)
+                    : installExportText('未能准备下载，请检查提示后重试。', 'Unable to prepare the download. Check the error and retry.');
+            }
+        }
+
         // ========== 打包功能 ==========
         async function packageSelected() {
             if (cart.length === 0) { showToast(t('msg_please_select'), 'warning'); return; }
@@ -6629,6 +6781,7 @@
                 if (!data.success || !data.filename || !data.files_packed) throw new Error(ft('failed'));
                 window.location.href = `/download/${encodeURIComponent(data.filename)}`;
                 showToast(t('msg_pack_success', data.count, formatSize(data.size)), 'success');
+                return data;
             } catch (e) { showToast(t('msg_pack_fail', escHtml(e.message)), 'error'); }
             finally {
                 packageBusy = false;
@@ -8194,6 +8347,8 @@
         .auth-captcha-box{margin-top:2px;text-align:left;}
         .captcha-img-wrap{position:relative;border-radius:10px;overflow:hidden;border:1px solid rgba(120,140,200,.3);}
         .captcha-img-wrap canvas{display:block;width:100%;height:auto;background:#182038;}
+        .captcha-image-label{position:absolute;left:8px;top:8px;padding:5px 8px;border-radius:6px;
+            background:rgba(15,23,42,.85);color:#fff;font-size:11px;pointer-events:none;z-index:2;}
         .captcha-refresh{position:absolute;top:8px;right:8px;width:30px;height:30px;border-radius:8px;
             border:1px solid rgba(120,140,200,.35);background:rgba(10,14,28,.75);color:#cdd6f4;
             font-size:15px;cursor:pointer;line-height:1;z-index:3;}
@@ -8385,9 +8540,6 @@
             }
             document.getElementById('auth-close').addEventListener('click', closeAuthModal);
             guestContinueBtn.addEventListener('click', closeAuthModal);
-            overlay.addEventListener('click', function(e){
-                if (e.target === overlay) closeAuthModal();
-            });
             document.addEventListener('keydown', function(e){
                 if (overlay.style.display === 'none') return;
                 if (e.key === 'Escape'){
@@ -8437,58 +8589,78 @@
             let captchaToken = '';       // 验证通过后的一次性 token（后端 consume）
             let captchaBg = null;        // 离屏背景
             let dragging = false;
+            let captchaGeneration = 0, captchaReady = false, captchaVerifying = false;
 
             function drawCaptchaPiece(px){
                 if (!captchaBg) return;
                 captchaCtx.clearRect(0, 0, captchaW, captchaH);
+                captchaCtx.filter = 'saturate(0.25)';
                 captchaCtx.drawImage(captchaBg, 0, 0, captchaW, captchaH);
-                captchaCtx.fillStyle = 'rgba(108,140,255,.55)';
+                captchaCtx.filter = 'none';
+                captchaCtx.fillStyle = 'rgba(67,115,240,.9)';
                 captchaCtx.fillRect(px, captchaGapY, captchaGapSize, captchaGapSize);
                 captchaCtx.strokeStyle = 'rgba(255,255,255,.9)';
-                captchaCtx.lineWidth = 2;
+                captchaCtx.lineWidth = 3;
                 captchaCtx.strokeRect(px, captchaGapY, captchaGapSize, captchaGapSize);
             }
 
             async function loadCaptcha(){
                 cancelCaptchaDrag();
-                captchaToken = '';
+                const generation = ++captchaGeneration;
+                captchaToken = ''; captchaId = ''; captchaBg = null;
+                captchaReady = false; captchaVerifying = false;
+                captchaHandle.style.display = '';
+                captchaTrack.setAttribute('aria-busy', 'true');
+                captchaCtx.clearRect(0, 0, captchaW, captchaH);
+                captchaHint.textContent = '正在加载验证图…';
                 captchaPassEl.style.display = 'none';
                 captchaHint.style.display = '';
                 captchaHandle.style.left = '0px';
                 captchaMsg.textContent = ''; captchaMsg.className = 'captcha-msg';
                 try{
-                    const r = await fetch('/api/captcha/new');
-                    const d = await r.json();
-                    if (!r.ok){ captchaMsg.textContent = d.error || '验证码加载失败'; captchaMsg.className='captcha-msg err'; return; }
+                    const d = await fetchJSON('/api/captcha/new');
+                    if (generation !== captchaGeneration) return;
                     captchaId = d.id; captchaGapY = d.gap_y; captchaGapSize = d.gap_size;
                     captchaW = d.width; captchaH = d.height;
                     captchaCanvas.width = captchaW; captchaCanvas.height = captchaH;
                     const url = URL.createObjectURL(new Blob([d.svg], {type:'image/svg+xml'}));
                     const img = new Image();
                     img.onload = function(){
+                        URL.revokeObjectURL(url);
+                        if (generation !== captchaGeneration) return;
+                        captchaReady = true;
+                        captchaTrack.setAttribute('aria-busy', 'false');
+                        captchaHint.textContent = '按住滑块，将蓝色方块对准深色框';
                         captchaBg = document.createElement('canvas');
                         captchaBg.width = captchaW; captchaBg.height = captchaH;
                         captchaBg.getContext('2d').drawImage(img, 0, 0, captchaW, captchaH);
                         URL.revokeObjectURL(url);
                         drawCaptchaPiece(0);
                     };
-                    img.onerror = function(){ URL.revokeObjectURL(url); captchaMsg.textContent='验证码加载失败'; captchaMsg.className='captcha-msg err'; };
+                    img.onerror = function(){ URL.revokeObjectURL(url); if (generation !== captchaGeneration) return; captchaTrack.setAttribute('aria-busy', 'false'); captchaMsg.textContent='验证图加载失败，请点击右上角刷新'; captchaMsg.className='captcha-msg err'; };
                     img.src = url;
-                }catch(e){ captchaMsg.textContent = '网络错误：' + e.message; captchaMsg.className='captcha-msg err'; }
+                }catch(e){ if (generation !== captchaGeneration) return; captchaTrack.setAttribute('aria-busy', 'false'); captchaMsg.textContent = '加载失败，请刷新重试：' + e.message; captchaMsg.className='captcha-msg err'; }
             }
 
             async function verifyCaptcha(){
+                if (!captchaReady || captchaVerifying || captchaToken) return;
+                const generation = captchaGeneration;
+                const challenge = captchaId;
+                captchaVerifying = true;
+                captchaHint.textContent = '正在验证，请稍候…';
                 const trackW = captchaTrack.clientWidth;
                 const handleW = captchaHandle.offsetWidth;
                 const left = Math.min(parseFloat(captchaHandle.style.left) || 0, trackW - handleW);
                 const ratio = (trackW - handleW) > 0 ? left / (trackW - handleW) : 0;
                 const x = Math.round(ratio * (captchaW - captchaGapSize));
                 try{
-                    const r = await fetch('/api/captcha/verify', {method:'POST',
-                        headers:{'Content-Type':'application/json'}, body: JSON.stringify({id: captchaId, x})});
-                    const d = await r.json().catch(()=>({}));
-                    if (r.ok && d.success){
-                        captchaToken = d.token || captchaId;
+                    const d = await fetchJSON('/api/captcha/verify', {method:'POST',
+                        headers:{'Content-Type':'application/json'}, body: JSON.stringify({id: challenge, x})});
+                    if (generation !== captchaGeneration) return;
+                    if (d.success && d.token){
+                        captchaToken = d.token;
+                        captchaHandle.style.display = 'none';
+                        errEl.textContent = '';
                         captchaHint.style.display = 'none';
                         captchaPassEl.style.display = '';
                         captchaMsg.textContent = ''; captchaMsg.className = 'captcha-msg';
@@ -8497,7 +8669,17 @@
                         if (/过期|次数过多/.test(d.error || '')){ loadCaptcha(); }
                         else { captchaHandle.style.left = '0px'; drawCaptchaPiece(0); }
                     }
-                }catch(e){ captchaMsg.textContent = '网络错误：' + e.message; captchaMsg.className='captcha-msg err'; }
+                }catch(e){
+                    if (generation !== captchaGeneration) return;
+                    captchaMsg.textContent = e.message; captchaMsg.className='captcha-msg err';
+                    captchaHandle.style.left = '0px'; drawCaptchaPiece(0);
+                    if (/过期|次数过多/.test(e.message)) loadCaptcha();
+                }finally{
+                    if (generation === captchaGeneration) {
+                        captchaVerifying = false;
+                        captchaHint.textContent = '按住滑块，将蓝色方块对准深色框';
+                    }
+                }
             }
 
             function cancelCaptchaDrag(){
@@ -8506,7 +8688,7 @@
             }
             window.addEventListener('pointercancel', cancelCaptchaDrag);
             window.addEventListener('blur', cancelCaptchaDrag);
-            captchaHandle.addEventListener('pointerdown', function(e){ if (captchaToken || e.button !== 0) return; e.preventDefault(); dragging = true; captchaHandle.classList.add('dragging'); });
+            captchaHandle.addEventListener('pointerdown', function(e){ if (!captchaReady || captchaVerifying || captchaToken || e.button !== 0) return; e.preventDefault(); dragging = true; captchaHandle.classList.add('dragging'); });
             window.addEventListener('pointermove', function(e){
                 if (!dragging) return;
                 const trackW = captchaTrack.clientWidth;
@@ -8536,7 +8718,7 @@
                 const email = emailEl.value.trim();
                 const code = document.getElementById('auth-code').value.trim();
                 if (!username || !password){ errEl.textContent = '请输入用户名和密码'; return; }
-                if (!captchaToken){ errEl.textContent = '请先完成滑块验证'; return; }
+                if (!captchaToken){ errEl.textContent = captchaVerifying ? '滑块正在验证，请稍候再试' : '请先完成滑块验证'; return; }
                 const url = authMode === 'login' ? '/api/auth/login' : '/api/auth/register';
                 const payload = {username, password, captcha_id: captchaToken};
                 if (authMode === 'register'){
@@ -8576,6 +8758,7 @@
                             return;
                         }
                         errEl.textContent = data.error || `请求失败（HTTP ${resp.status}）`;
+                        if (/滑块/.test(data.error || '')) loadCaptcha();
                         return;
                     }
                     if (authMode === 'register' && data.status === 'pending'){
@@ -8603,7 +8786,7 @@
             sendBtn.addEventListener('click', async function(){
                 const email = emailEl.value.trim();
                 if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){ errEl.textContent = '请输入正确的邮箱'; return; }
-                if (!captchaToken){ errEl.textContent = '请先完成滑块验证'; return; }
+                if (!captchaToken){ errEl.textContent = captchaVerifying ? '滑块正在验证，请稍候再试' : '请先完成滑块验证'; return; }
                 sendBtn.disabled = true;
                 errEl.textContent = '';
                 errEl.style.color = '';
@@ -8617,7 +8800,7 @@
                     if (r.ok){
                         sendOk = true;
                         errEl.style.color = 'var(--green, #16a34a)';
-                        errEl.textContent = d.message || '验证码已发送';
+                        errEl.textContent = '邮箱验证码已发送。填写验证码后，请再次完成下方滑块验证，再提交注册。';
                         loadCaptcha();
                     } else {
                         errEl.textContent = (d && d.error) || `发送失败（HTTP ${r.status}）`;

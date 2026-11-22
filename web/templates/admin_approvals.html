@@ -22,6 +22,7 @@
   label{display:block;font-size:13px;color:var(--muted);margin-bottom:6px}
   input[type=text],input[type=password]{width:100%;padding:10px 12px;border:1px solid var(--border);
     border-radius:8px;font-size:14px;margin-bottom:12px}
+  select{padding:9px 12px;border:1px solid var(--border);border-radius:8px;background:white;color:var(--text)}
   input:focus{outline:none;border-color:var(--primary)}
   button{cursor:pointer;border:none;border-radius:8px;padding:9px 16px;font-size:14px;font-weight:600}
   .btn-primary{background:var(--primary);color:#fff}
@@ -114,8 +115,9 @@
     <!-- 用户与权限 -->
     <div id="tab-perms" class="hidden">
       <div class="h2">用户与权限</div>
-      <div class="tip" style="margin-bottom:12px">为每个用户分配权限，按账号分配功能权限。管理员遵守分配结果；超级管理员拥有全部权限。</div>
-      <div id="usersWrap"><div class="msg">加载中…</div></div>
+      <div class="tip" style="margin-bottom:12px">管理账号权限与生命周期。停用立即禁止访问；删除可恢复，私有技能与配置保留。管理员遵守分配权限；超级管理员拥有全部权限。</div>
+      <div class="row" style="margin-bottom:12px"><input id="userSearch" type="text" placeholder="搜索用户名或邮箱" aria-label="搜索用户" style="width:240px;margin:0"><select id="userStatus" aria-label="用户状态"><option value="active">未删除用户</option><option value="approved">已批准</option><option value="disabled">已停用</option><option value="pending">待审批</option><option value="rejected">已拒绝</option><option value="deleted">已删除（可恢复）</option></select><span id="userCount" class="tip"></span></div><p id="userActionMessage" role="status"></p>
+      <div id="usersWrap" style="overflow-x:auto"><div class="msg">加载中…</div></div>
     </div>
   </div>
 
@@ -180,7 +182,7 @@
   </div>
 </div>
 
-<script src="/static/js/admin-session.js"></script>
+<script src="/static/js/admin-session.js?v=user-lifecycle-20261018"></script>
 <script>
 const PROXY_AUTH = document.documentElement.dataset.adminProxy === 'true';
 let ADMIN_KEY = '';
@@ -190,8 +192,8 @@ try {
 } catch (e) {}
 let PERM_DEFS = [];           // 权限点定义
 const ACTION_LABEL = {approve:['批准','b-approved'], reject:['拒绝','b-rejected'],
-                      create:['创建账号','b-admin'], update_permission:['权限变更','b-perm']};
-const STATUS_LABEL = {approved:['已批准','b-approved'], pending:['待审批','b-pending'], rejected:['已拒绝','b-rejected']};
+                      delete_user:['删除用户','b-rejected'], restore_user:['恢复用户','b-approved'], change_status:['启用/停用','b-pending'], create:['创建账号','b-admin'], update_permission:['权限变更','b-perm']};
+const STATUS_LABEL = {deleted:['已删除','b-rejected'], disabled:['已停用','b-pending'], approved:['已批准','b-approved'], pending:['待审批','b-pending'], rejected:['已拒绝','b-rejected']};
 let permEditing = null;       // 正在编辑权限的用户名
 
 function authHeaders(){ return {'Content-Type':'application/json', ...(PROXY_AUTH ? {'X-Admin-Request':'1'} : {'X-Admin-Key': ADMIN_KEY})}; }
@@ -288,6 +290,7 @@ async function loadHistory(){
 }
 
 // ---------- 用户与权限 ----------
+let userRows = [];
 async function loadUsers(){
   const wrap = document.getElementById('usersWrap');
   wrap.innerHTML = '<div class="msg">加载中…</div>';
@@ -295,7 +298,16 @@ async function loadUsers(){
     const r = await fetch('/api/admin/users', {headers: authHeaders()});
     const d = await r.json();
     if(!r.ok){ wrap.innerHTML = '<div class="msg err">'+(d.error||'加载失败')+'</div>'; return; }
-    if(!d.users.length){ wrap.innerHTML = '<div class="msg">暂无用户</div>'; return; }
+    userRows = d.users; renderUsers();
+  }catch(e){ wrap.textContent = '加载失败：' + e.message; }
+}
+function renderUsers(){
+    const wrap = document.getElementById('usersWrap');
+    const query = document.getElementById('userSearch').value.trim().toLowerCase();
+    const status = document.getElementById('userStatus').value;
+    const d = {users: userRows.filter(u => (status === 'active' ? u.status !== 'deleted' : u.status === status) && (u.username + ' ' + (u.email || '')).toLowerCase().includes(query))};
+    document.getElementById('userCount').textContent = '共 ' + d.users.length + ' 个用户';
+    if(!d.users.length){ wrap.innerHTML = '<div class="msg">没有符合条件的用户</div>'; return; }
     let html = '<table><thead><tr><th>用户名</th><th>状态</th><th>角色</th><th>权限</th><th>审批时间</th><th>操作</th></tr></thead><tbody>';
     for(const u of d.users){
       const st = STATUS_LABEL[u.status] || [u.status, 'b-pending'];
@@ -306,21 +318,27 @@ async function loadUsers(){
       else if(perms.length){ permHtml = perms.map(p=>`<span class="perm-tag">${esc(p)}</span>`).join(''); }
       else { permHtml = '<span class="perm-tag">无功能权限</span>'; }
       html += `<tr>
-        <td>${esc(u.username)}</td>
+        <td>${esc(u.username)}<div class="tip">${esc(u.email || '未填写邮箱')}</div>${u.status === 'deleted' ? `<div class="tip">${esc(fmtTime(u.deleted_at))} · ${esc(u.deleted_by || '')}</div>` : ''}</td>
         <td><span class="badge ${st[1]}">${st[0]}</span></td>
         <td>${role}</td>
         <td>${permHtml}</td>
         <td>${esc(fmtTime(u.approved_at || u.created_at))}</td>
-        <td><button class="btn-ghost btn-sm" data-perm="${esc(u.username)}">分配权限</button> <button class="btn-ghost btn-sm" data-hide="${esc(u.username)}" data-value="${u.hide_unauthorized ? 'false' : 'true'}">${u.hide_unauthorized ? '显示无权限入口' : '一键隐藏无权限功能'}</button></td></tr>`;
+        <td>${u.status === 'deleted' ? `<button class="btn-ghost btn-sm" data-lifecycle="restore" data-uid="${u.id}">恢复用户</button>` : `<button class="btn-ghost btn-sm" data-perm="${esc(u.username)}">分配权限</button> <button class="btn-ghost btn-sm" data-hide="${esc(u.username)}" data-value="${u.hide_unauthorized ? 'false' : 'true'}">${u.hide_unauthorized ? '显示无权限入口' : '一键隐藏无权限功能'}</button> ${['approved','disabled'].includes(u.status) ? `<button class="btn-ghost btn-sm" data-lifecycle="status" data-uid="${u.id}">${u.status === 'approved' ? '停用' : '启用'}</button>` : ''} <button class="btn-no btn-sm" data-lifecycle="delete" data-uid="${u.id}">删除</button>`}</td></tr>`;
     }
     html += '</tbody></table>';
     wrap.innerHTML = html;
+    wrap.querySelectorAll('[data-lifecycle]').forEach(button => button.onclick = async () => {
+      button.disabled = true;
+      try { if (await AdminSession.manageUser(userRows.find(u => u.id === Number(button.dataset.uid)), button.dataset.lifecycle, authHeaders())) { document.getElementById('userActionMessage').textContent = '操作成功'; await loadUsers(); } }
+      catch(error) { document.getElementById('userActionMessage').textContent = error.message; }
+      finally { button.disabled = false; }
+    });
     wrap.querySelectorAll('button[data-hide]').forEach(b=>b.addEventListener('click',async()=>{ b.disabled=true;try{await AdminSession.api('/api/admin/visibility',{method:'POST',body:JSON.stringify({username:b.dataset.hide,hide_unauthorized:b.dataset.value==='true'})});loadUsers();}catch(e){alert(e.message);}finally{b.disabled=false;} }));
     wrap.querySelectorAll('button[data-perm]').forEach(b=>{
       b.addEventListener('click', ()=>openPermModal(b.dataset.perm, d.users.find(x=>x.username===b.dataset.perm)));
     });
-  }catch(e){ wrap.innerHTML = '<div class="msg err">网络错误：'+e.message+'</div>'; }
 }
+
 
 async function loadPermDefs(){
   try{
@@ -436,6 +454,8 @@ async function createUser(){
 // ---------- 事件绑定 ----------
 document.getElementById('enterBtn').addEventListener('click', enter);
 document.getElementById('key')?.addEventListener('keydown', e=>{ if(e.key==='Enter') enter(); });
+document.getElementById('userSearch').addEventListener('input', renderUsers);
+document.getElementById('userStatus').addEventListener('change', renderUsers);
 document.getElementById('createBtn').addEventListener('click', createUser);
 document.getElementById('setKeyBtn').addEventListener('click', setKey);
 document.getElementById('mailTestBtn').addEventListener('click', runMailTest);

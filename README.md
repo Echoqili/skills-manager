@@ -43,7 +43,17 @@ python app.py
 # 访问 http://127.0.0.1:5555
 ```
 
-### 桌面端
+### 网页连接本机工具
+
+也提供 [Windows 桌面 App](http://81.70.101.100:18083/static/downloads/SkillsManager-Desktop-Setup-1.1.0.exe)：安装后从桌面打开，在线技能库、本机同步与部署备份历史位于同一窗口，无需 Python 或另行启动连接程序。本机工作区断网可用。构建和测试见 [desktop/README.md](desktop/README.md)。
+
+网页左侧的「本机同步与历史」提供 Windows 安装包。下载 `SkillsManagerConnector-Setup.exe`，
+双击后点击「安装并打开」，无需安装 Python，也无需管理员权限。之后可从网页一键唤起。
+macOS/Linux 或需要源码的用户可下载 ZIP（Python 3.11+），运行对应启动脚本。
+支持扫描全局技能、跨工具同步预览、冲突确认、完整资源复制和部署备份恢复；技能不上传服务器。
+源码启动方式：`python cli/local_workspace.py --open`。连接程序只监听 `127.0.0.1:18184`，在本机网页点击「关闭本机连接」即可退出。
+
+### 桌面端启动
 
 ```bash
 cd desktop
@@ -63,6 +73,8 @@ npm run build    # 构建应用
 ./sm install figma-to-code       # 安装到 ~/.workbuddy/skills
 ./sm list                        # 列出已安装及状态（最新 / 可更新 / 缺失）
 ./sm update --all                # 按内容哈希检测变更并更新
+./sm backups                     # 查看更新前备份
+./sm restore <技能名> <备份ID>     # 恢复备份，恢复前保留当前目录
 ./sm uninstall figma-to-code     # 卸载
 ./sm curated                     # 中文精选专题（不知道搜什么时从这里开始）
 ./sm registry                    # 私有 registry 端点与索引
@@ -80,6 +92,12 @@ npm run build    # 构建应用
 
 安装记录写入目标目录的 `.skills-manager/installed.json`，记录来源路径、内容哈希、
 信任分与安装时间，`sm update` 依据内容哈希判断是否有变更。
+
+更新会同时检查安装源和本地目录：本地有修改时保留原文件并返回冲突；明确使用
+`sm update <技能名> --force` 才会先备份再替换。普通更新也保留旧版本，可用
+`sm backups -t <安装目录>` 查询，再用 `sm restore <技能名> <备份ID> -t <安装目录>` 恢复。
+备份保存在目标目录的 `.skills-manager/backups/`，完整保留旧目录，不自动删除。
+复制、切换或清单保存失败时恢复旧目录；同一目标的并发写入会被拒绝。
 
 ### CLI 工具
 

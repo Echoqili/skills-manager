@@ -128,7 +128,7 @@ def register(app, ctx):
     def super_users():
         rows = db.get_conn().execute(
             'SELECT id,username,email,is_admin,is_super_admin,status,permissions,hide_unauthorized,'
-            'must_change_password,created_at FROM users ORDER BY id DESC').fetchall()
+            'must_change_password,created_at,deleted_at,deleted_by FROM users ORDER BY id DESC').fetchall()
         users = []
         for row in rows:
             user = dict(row)
@@ -146,7 +146,71 @@ def register(app, ctx):
             return data, None, (jsonify({'error': '账户不存在'}), 404)
         if row['is_super_admin']:
             return data, None, (jsonify({'error': '超级管理员账号受保护，不能降级、禁用或由此重置密码'}), 409)
+        if row['status'] == 'deleted':
+            return data, None, (jsonify({'error': '账号已删除，请先恢复'}), 409)
         return data, dict(row), None
+
+    @app.post('/api/admin/users/<action>')
+    @app.post('/api/super-admin/users/<action>')
+    @ctx.admin_only
+    def user_lifecycle(action):
+        if action not in ('delete', 'restore', 'status'):
+            return jsonify({'error': '操作不存在'}), 404
+        data = request.get_json(silent=True)
+        if not isinstance(data, dict) or type(data.get('user_id')) is not int:
+            return jsonify({'error': '需要有效的用户 ID'}), 400
+        actor = ctx.get_admin_actor() or {}
+        if request.path.startswith('/api/super-admin/') and not actor.get('is_super_admin'):
+            return jsonify({'error': '仅超级管理员可访问'}), 403
+        conn = db.get_conn()
+        user = conn.execute('SELECT * FROM users WHERE id=?', (data['user_id'],)).fetchone()
+        if not user:
+            return jsonify({'error': '账号不存在'}), 404
+        if user['is_super_admin'] or user['id'] == actor.get('id'):
+            return jsonify({'error': '不能操作自己或受保护的超级管理员'}), 409
+        if user['is_admin'] and not actor.get('is_super_admin'):
+            return jsonify({'error': '仅超级管理员可以管理管理员账号'}), 403
+        old_status = user['status']
+        now = datetime.now(timezone.utc).isoformat()
+        if action == 'delete':
+            if data.get('confirm_username') != user['username']:
+                return jsonify({'error': '请输入完整用户名确认删除'}), 400
+            if old_status == 'deleted':
+                return jsonify({'error': '账号已在已删除列表'}), 409
+            status, label = 'deleted', '删除账号（数据保留，可恢复）'
+        elif action == 'restore':
+            if old_status != 'deleted':
+                return jsonify({'error': '只有已删除账号可以恢复'}), 409
+            status = user['deleted_status']
+            if status not in ('pending', 'rejected'):
+                status = 'disabled'
+            label = '恢复账号，状态：' + status
+        else:
+            if old_status not in ('approved', 'disabled') or type(data.get('enabled')) is not bool:
+                return jsonify({'error': '仅已批准或停用账号支持启用/停用；已删除账号请先恢复'}), 409
+            status = 'approved' if data['enabled'] else 'disabled'
+            if status == old_status:
+                return jsonify({'success': True, 'status': status})
+            label = '启用账号' if data['enabled'] else '停用账号'
+        try:
+            updated = conn.execute(
+                'UPDATE users SET status=?,auth_version=auth_version+1,deleted_at=?,deleted_by=?,deleted_status=? '
+                'WHERE id=? AND status=? AND auth_version=? AND is_admin=? AND is_super_admin=?',
+                (status, now if action == 'delete' else None,
+                 actor.get('username', 'admin') if action == 'delete' else None,
+                 old_status if action == 'delete' else None, user['id'], old_status,
+                 user['auth_version'], user['is_admin'], user['is_super_admin']))
+            if updated.rowcount != 1:
+                conn.rollback()
+                return jsonify({'error': '账号状态已变化，请刷新重试'}), 409
+            conn.execute('INSERT INTO approval_logs(username,action,detail,actor,created_at) VALUES(?,?,?,?,?)',
+                         (user['username'], action + '_user' if action != 'status' else 'change_status',
+                          label, actor.get('username', 'admin'), now))
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+        return jsonify({'success': True, 'status': status, 'message': label})
 
     @app.post('/api/super-admin/role')
     @super_only
@@ -176,7 +240,7 @@ def register(app, ctx):
             return jsonify({'error': '仅管理员账号支持启用或禁用'}), 400
         status = 'approved' if data['enabled'] else 'disabled'
         conn = db.get_conn()
-        conn.execute('UPDATE users SET status=? WHERE id=?', (status,user['id']))
+        conn.execute('UPDATE users SET status=?,auth_version=auth_version+1 WHERE id=?', (status,user['id']))
         conn.commit()
         ctx._log_approval(user['username'], 'change_status', '启用管理员' if data['enabled'] else '禁用管理员')
         return jsonify({'success': True})

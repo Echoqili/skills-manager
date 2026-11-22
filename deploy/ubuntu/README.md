@@ -2,9 +2,9 @@
 
 运行目录 `/opt/skills-manager/current` 指向当前发布；源代码位于 `releases/`，持久化数据库、用户技能与配置位于 `shared/data/`，打包结果位于 `shared/packages/`。虚拟环境位于 `/opt/skills-manager/venv`。
 
-`skills-manager.service` 使用单 Gunicorn 进程和 8 个线程，保持进程内任务状态一致。Nginx 使用 80 端口反向代理，Gunicorn 只监听回环地址。
+`skills-manager.service` 使用单 Gunicorn 进程和 8 个线程，保持进程内任务状态一致。Nginx 使用 18083 端口反向代理，Gunicorn 只监听回环地址。公网访问地址为 `http://81.70.101.100:18083/`。
 
-云安全组与云防火墙需要允许入站 TCP 80。若服务器本机 `curl http://127.0.0.1/api/stats` 正常，而公网请求没有进入 Nginx 访问日志，应先检查云端入站规则。
+云安全组与云防火墙需要允许入站 TCP 18083。若服务器本机 `curl http://127.0.0.1:18083/api/stats` 正常，而公网请求没有进入 Nginx 访问日志，应先检查云端入站规则。
 
 Gunicorn 26 的控制目录 `/opt/skills-manager/.gunicorn` 需要服务用户可写，首次部署使用 `sudo install -d -m 0700 -o skills-manager -g skills-manager /opt/skills-manager/.gunicorn` 创建。
 
@@ -18,7 +18,7 @@ Gunicorn 26 的控制目录 `/opt/skills-manager/.gunicorn` 需要服务用户�
 sudo systemctl status skills-manager nginx
 sudo journalctl -u skills-manager -n 100 --no-pager
 sudo systemctl restart skills-manager
-curl -fsS http://127.0.0.1/api/stats
+curl -fsS http://127.0.0.1:18083/api/stats
 ```
 
 首次部署创建网站管理员，服务器 SSH 密码不会存入部署文件。网站 AI 服务在登录后的「智能设置」中配置；SMTP 未配置时关闭邮件验证码，注册账号仍需管理员审批。

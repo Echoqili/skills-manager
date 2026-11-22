@@ -1,35 +1,73 @@
 {
   "name": "skills-manager-desktop",
-  "version": "1.0.0",
-  "description": "Skills Manager Desktop Application",
+  "version": "1.1.0",
+  "description": "Skills library, local synchronization and backup history for Windows",
   "main": "src/main.js",
   "scripts": {
     "start": "electron .",
     "dev": "electron . --dev",
     "build": "electron-builder",
-    "build:win": "electron-builder --win"
+    "build:win": "electron-builder --win",
+    "test": "node --test ../tests/desktop_security.test.js ../tests/desktop_connector.test.js"
   },
-  "keywords": ["skills", "manager", "electron"],
-  "author": "",
+  "keywords": [
+    "skills",
+    "manager",
+    "electron"
+  ],
+  "author": "Skills Manager",
   "license": "MIT",
   "devDependencies": {
-    "electron": "^33.0.0",
-    "electron-builder": "^25.1.8"
+    "electron": "45.2.1",
+    "electron-builder": "26.18.0",
+    "playwright": "1.64.1"
   },
   "build": {
+    "appId": "com.skillsmanager.desktop",
+    "productName": "Skills Manager",
+    "asar": true,
+    "files": [
+      "src/**/*",
+      "assets/app.ico",
+      "package.json"
+    ],
     "extraResources": [
       {
-        "from": "../web",
-        "to": "web"
-      },
-      {
-        "from": "../cli",
-        "to": "cli"
-      },
-      {
-        "from": "../data",
-        "to": "data"
+        "from": "../.uploads/installer-build/dist/SkillsManagerConnector.exe",
+        "to": "connector/SkillsManagerConnector.exe"
       }
-    ]
+    ],
+    "directories": {
+      "output": "../.uploads/desktop-build/release"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "assets/app.ico",
+      "artifactName": "SkillsManager-Desktop-Setup-${version}.${ext}",
+      "signExecutable": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowElevation": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": "always",
+      "createStartMenuShortcut": true,
+      "shortcutName": "Skills Manager",
+      "deleteAppDataOnUninstall": false,
+      "runAfterFinish": true,
+      "installerLanguages": [
+        "zh_CN",
+        "en_US"
+      ],
+      "language": "2052"
+    }
   }
 }

@@ -16,6 +16,8 @@ on:
       - 'web/registry.py'
       - 'web/search_index.py'
       - 'web/app.py'
+      - 'web/roles.py'
+      - 'desktop/**'
       - 'web/templates/**'
       - '.github/workflows/skills-validation.yml'
   pull_request:
@@ -32,10 +34,35 @@ on:
       - 'web/registry.py'
       - 'web/search_index.py'
       - 'web/app.py'
+      - 'web/roles.py'
+      - 'desktop/**'
       - 'web/templates/**'
       - '.github/workflows/skills-validation.yml'
 
 jobs:
+  safe-deployment:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Safe updates and release integrity
+        run: |
+          python -X utf8 -m unittest discover -s tests -p "test_sm_deployment.py"
+          python -X utf8 -m unittest discover -s tests -p "test_release_manifest.py"
+          python -X utf8 -m unittest discover -s tests -p "test_local_workspace.py"
+          python -X utf8 -m unittest discover -s tests -p "test_workspace_launch.py"
+          python -X utf8 -m unittest discover -s tests -p "test_connector_setup.py"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Desktop isolation and connector lifecycle
+        run: node --test tests/desktop_security.test.js tests/desktop_connector.test.js
+
   validate:
     runs-on: ubuntu-latest
     steps:

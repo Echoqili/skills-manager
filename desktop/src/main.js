@@ -1,248 +1,129 @@
-const { app, BrowserWindow, ipcMain, shell } = require('electron');
-const path = require('path');
-const fs = require('fs');
-const { spawn } = require('child_process');
-const http = require('http');
+'use strict';
+const { app, BrowserWindow, WebContentsView, ipcMain, shell, dialog, session, Menu } = require('electron');
+const path = require('node:path');
+const { pathToFileURL } = require('node:url');
+const { Connector } = require('./connector');
+const policy = require('./security');
+const ONLINE = 'http://81.70.101.100:18083';
+const SHELL_FILE = path.join(__dirname, 'shell.html');
+const SHELL_URL = pathToFileURL(SHELL_FILE).href;
+let window, connector, quitting = false, allowQuit = false, onlineView, localView;
+let selected = 'online', localOrigin = null;
+let state = { selected, online: 'idle', local: 'idle', version: app.getVersion(), errors: { online: '', local: '' } };
 
-let mainWindow;
-let backendProcess = null;
-
-const BACKEND_PORT = process.env.SKILLS_MANAGER_PORT || '5555';
-
-function getProjectRoot() {
-  if (app.isPackaged) {
-    return process.resourcesPath;
-  }
-  return path.resolve(__dirname, '..', '..');
+if (process.env.SKILLS_MANAGER_USER_DATA && path.isAbsolute(process.env.SKILLS_MANAGER_USER_DATA)) app.setPath('userData', process.env.SKILLS_MANAGER_USER_DATA);
+if (!app.requestSingleInstanceLock()) app.quit();
+else {
+  app.on('second-instance', () => { if (window) { if (window.isMinimized()) window.restore(); window.focus(); } });
+  app.whenReady().then(createWindow).catch(error => { console.error('Desktop startup failed:', error); dialog.showErrorBox('Skills Manager 启动失败', error.message); app.quit(); });
 }
-
-const PROJECT_ROOT = getProjectRoot();
-const WEB_DIR = path.join(PROJECT_ROOT, 'web');
-const DATA_DIR = path.join(PROJECT_ROOT, 'data');
-const SKILLS_ROOT = path.join(DATA_DIR, 'all-skills');
-const WEB_APP = path.join(WEB_DIR, 'app.py');
-
-function waitForBackend(retries = 60) {
-  return new Promise((resolve, reject) => {
-    const check = (remaining) => {
-      const req = http.get({
-        hostname: '127.0.0.1',
-        port: BACKEND_PORT,
-        path: '/api/stats',
-        timeout: 1000
-      }, (res) => {
-        res.resume();
-        if (res.statusCode && res.statusCode < 500) {
-          resolve();
-        } else if (remaining > 0) {
-          setTimeout(() => check(remaining - 1), 300);
-        } else {
-          reject(new Error(`Backend responded with ${res.statusCode}`));
-        }
-      });
-
-      req.on('timeout', () => req.destroy());
-      req.on('error', () => {
-        if (remaining > 0) {
-          setTimeout(() => check(remaining - 1), 300);
-        } else {
-          reject(new Error('Backend did not start'));
-        }
-      });
-    };
-
-    check(retries);
+function update(patch = {}) {
+  state = { ...state, ...patch, selected };
+  if (window && !window.isDestroyed()) window.webContents.send('desktop:state', state);
+}
+function failed(kind, message) {
+  update({ [kind]: 'error', errors: { ...state.errors, [kind]: message } });
+  layout();
+}
+function layout() {
+  if (!window || window.isDestroyed()) return;
+  const [width, height] = window.getContentSize();
+  for (const [name, view] of [['online', onlineView], ['local', localView]]) {
+    if (!view) continue;
+    view.setVisible(selected === name && state[name] === 'ready');
+    view.setBounds({ x: 208, y: 76, width: Math.max(0, width - 208), height: Math.max(0, height - 76) });
+  }
+}
+async function external(url) { if (policy.externalAllowed(url)) await shell.openExternal(url); }
+function secureView(view, origin) {
+  const contents = view.webContents;
+  contents.setWindowOpenHandler(({ url }) => { external(url).catch(() => {}); return { action: 'deny' }; });
+  contents.on('will-navigate', (event, url) => {
+    if (!policy.sameOrigin(url, origin())) { event.preventDefault(); external(url).catch(() => {}); }
   });
+  contents.on('will-redirect', (event, url) => { if (!policy.sameOrigin(url, origin())) event.preventDefault(); });
+  contents.on('will-attach-webview', event => event.preventDefault());
 }
-
-function startBackend() {
-  if (backendProcess) {
-    return;
-  }
-
-  if (!fs.existsSync(WEB_APP)) {
-    throw new Error(`Web app not found: ${WEB_APP}`);
-  }
-
-  const python = process.env.PYTHON || 'python';
-  backendProcess = spawn(python, [WEB_APP], {
-    cwd: PROJECT_ROOT,
-    env: {
-      ...process.env,
-      HOST: '127.0.0.1',
-      PORT: BACKEND_PORT,
-      FLASK_DEBUG: '0',
-      PYTHONIOENCODING: 'utf-8'
-    },
-    windowsHide: true
+function configureSession(name, allowed) {
+  const ses = session.fromPartition(name);
+  ses.setPermissionRequestHandler((_contents, _permission, callback) => callback(false));
+  ses.setPermissionCheckHandler(() => false);
+  ses.webRequest.onBeforeRequest((details, callback) => callback({ cancel: !allowed(details.url) }));
+  ses.on('will-download', (event, item, contents) => {
+    if (!contents || contents !== onlineView?.webContents || !policy.sameOrigin(item.getURL(), ONLINE)) event.preventDefault();
   });
-
-  if (process.argv.includes('--dev')) {
-    backendProcess.stdout.on('data', (data) => console.log(`[web] ${data}`));
-    backendProcess.stderr.on('data', (data) => console.error(`[web] ${data}`));
-  }
-
-  backendProcess.on('exit', () => {
-    backendProcess = null;
-  });
+  return ses;
 }
-
-async function loadWebApp(window) {
+async function show(kind, force = false) {
+  if (quitting) return;
+  if (!['online', 'local'].includes(kind)) throw new Error('未知页面');
+  selected = kind; update(); layout();
+  if (state[kind] === 'ready' && !force) return;
+  if (state[kind] === 'loading') return;
+  update({ [kind]: 'loading', errors: { ...state.errors, [kind]: '' } }); layout();
   try {
-    await waitForBackend(3);
-  } catch {
-    startBackend();
-    await waitForBackend();
-  }
-
-  await window.loadURL(`http://127.0.0.1:${BACKEND_PORT}`);
-}
-
-async function createWindow() {
-  mainWindow = new BrowserWindow({
-    width: 1400,
-    height: 900,
-    minWidth: 1000,
-    minHeight: 700,
-    webPreferences: {
-      nodeIntegration: false,
-      contextIsolation: true,
-      preload: path.join(__dirname, 'preload.js')
-    },
-    title: 'Skills Manager',
-    backgroundColor: '#0f172a'
-  });
-
-  // 加载本地网页
-  try {
-    await loadWebApp(mainWindow);
-  } catch (error) {
-    console.error('Failed to load web app:', error);
-    const indexPath = path.join(WEB_DIR, 'templates', 'index.html');
-    mainWindow.loadFile(indexPath);
-  }
-
-  // 开发模式打开开发者工具
-  if (process.argv.includes('--dev')) {
-    mainWindow.webContents.openDevTools();
-  }
-
-  mainWindow.on('closed', () => {
-    mainWindow = null;
-  });
-}
-
-app.whenReady().then(createWindow);
-
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit();
-  }
-});
-
-app.on('before-quit', () => {
-  if (backendProcess && !backendProcess.killed) {
-    backendProcess.kill();
-  }
-});
-
-app.on('activate', () => {
-  if (mainWindow === null) {
-    createWindow();
-  }
-});
-
-// IPC 处理器：读取 Skills 索引
-ipcMain.handle('read-skills-index', async () => {
-  const indexPath = path.join(DATA_DIR, 'skills-index.json');
-  try {
-    const data = fs.readFileSync(indexPath, 'utf-8');
-    return JSON.parse(data);
-  } catch (error) {
-    console.error('Error reading skills index:', error);
-    return null;
-  }
-});
-
-// IPC 处理器：读取 Skills 文件
-ipcMain.handle('read-skill-file', async (event, skillPath) => {
-  const fullPath = resolveSkillFile(skillPath);
-  try {
-    return fs.readFileSync(fullPath, 'utf-8');
-  } catch (error) {
-    console.error('Error reading skill file:', error);
-    return null;
-  }
-});
-
-// IPC 处理器：安装 Skills 到 IDE
-function resolveSkillFile(skillPath) {
-  if (!skillPath) {
-    return null;
-  }
-
-  const normalizedPath = path.normalize(skillPath);
-  if (path.isAbsolute(normalizedPath)) {
-    return normalizedPath;
-  }
-
-  const dataPrefix = `data${path.sep}all-skills${path.sep}`;
-  const allSkillsPrefix = `all-skills${path.sep}`;
-
-  if (normalizedPath.startsWith(dataPrefix)) {
-    return path.join(PROJECT_ROOT, normalizedPath);
-  }
-  if (normalizedPath.startsWith(allSkillsPrefix)) {
-    return path.join(DATA_DIR, normalizedPath);
-  }
-  return path.join(SKILLS_ROOT, normalizedPath);
-}
-
-ipcMain.handle('install-skills', async (event, { ide, skillsPath }) => {
-  const targetDirs = {
-    claude: path.join(app.getPath('home'), '.claude', 'skills'),
-    cursor: path.join(app.getPath('home'), '.cursor', 'skills'),
-    windsurf: path.join(app.getPath('home'), '.windsurf', 'skills'),
-    kiro: path.join(app.getPath('home'), '.kiro', 'skills'),
-    opencode: path.join(app.getPath('home'), '.config', 'opencode', 'skills'),
-    codex: path.join(app.getPath('home'), '.codex', 'skills'),
-    continue: path.join(app.getPath('home'), '.continue', 'skills')
-  };
-
-  const targetDir = targetDirs[ide];
-  if (!targetDir) {
-    return { success: false, error: 'Unknown IDE' };
-  }
-
-  try {
-    // 确保目标目录存在
-    if (!fs.existsSync(targetDir)) {
-      fs.mkdirSync(targetDir, { recursive: true });
+    if (kind === 'online') await onlineView.webContents.loadURL(ONLINE);
+    else {
+      const info = await connector.start();
+      if (quitting) { await connector.stop(); return; }
+      localOrigin = 'http://127.0.0.1:' + info.port;
+      await localView.webContents.loadURL(localOrigin + '/#' + info.token);
     }
-
-    // 复制 Skills 文件
-    const sourceDir = SKILLS_ROOT;
-    fs.cpSync(sourceDir, targetDir, { recursive: true });
-
-    return { success: true, path: targetDir };
-  } catch (error) {
-    console.error('Error installing skills:', error);
-    return { success: false, error: error.message };
+    update({ [kind]: 'ready' });
+  } catch {
+    failed(kind, kind === 'online' ? '在线技能库暂时无法连接。可重试，或进入本机工作区。' : '本机连接未能启动。请重试；关闭应用后重新打开也可恢复连接。');
   }
-});
-
-// IPC 处理器：打开外部链接
-ipcMain.handle('open-external', async (event, url) => {
-  await shell.openExternal(url);
-});
-
-// IPC 处理器：显示文件夹
-ipcMain.handle('show-in-folder', async (event, filePath) => {
-  const fullPath = path.join(DATA_DIR, filePath);
-  shell.showItemInFolder(fullPath);
-});
-
-// IPC 处理器：获取版本
-ipcMain.handle('get-version', () => {
-  return app.getVersion();
+  layout();
+}
+async function createWindow() {
+  Menu.setApplicationMenu(null);
+  window = new BrowserWindow({
+    width: 1440, height: 960, minWidth: 1000, minHeight: 700, title: 'Skills Manager 桌面版', backgroundColor: '#111827', show: false,
+    webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: true, webviewTag: false },
+  });
+  const onlineSession = configureSession('persist:skills-library-v2', url => policy.onlineRequestAllowed(url, ONLINE));
+  const localSession = configureSession('skills-local-v2', url => policy.sameOrigin(url, localOrigin));
+  const preferences = { contextIsolation: true, nodeIntegration: false, sandbox: true, webviewTag: false, webSecurity: true, allowRunningInsecureContent: false };
+  onlineView = new WebContentsView({ webPreferences: { ...preferences, session: onlineSession } });
+  localView = new WebContentsView({ webPreferences: { ...preferences, session: localSession } });
+  onlineView.setVisible(false); localView.setVisible(false);
+  window.contentView.addChildView(onlineView); window.contentView.addChildView(localView);
+  secureView(onlineView, () => ONLINE); secureView(localView, () => localOrigin);
+  const command = app.isPackaged
+    ? [path.join(process.resourcesPath, 'connector', 'SkillsManagerConnector.exe')]
+    : [path.resolve(__dirname, '../../.uploads/installer-build/dist/SkillsManagerConnector.exe')];
+  connector = new Connector({ command, sessionFile: path.join(app.getPath('userData'), 'connector', 'session.json'), onExit: () => {
+    localOrigin = null; failed('local', '本机连接已关闭，点击重试可重新启动。');
+  } });
+  window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  window.webContents.on('will-navigate', (event, url) => { if (url !== SHELL_URL) event.preventDefault(); });
+  window.webContents.on('will-redirect', event => event.preventDefault());
+  window.on('resize', layout); window.on('closed', () => { window = null; });
+  window.on('close', event => {
+    if (!allowQuit) { event.preventDefault(); app.quit(); }
+  });
+  for (const view of [onlineView, localView]) view.webContents.on('render-process-gone', () => {
+    const kind = view === onlineView ? 'online' : 'local';
+    failed(kind, '页面意外退出，点击重试可重新加载。');
+  });
+  await window.loadFile(SHELL_FILE); layout(); window.show();
+  void show('online');
+}
+function requireShell(event) {
+  if (!policy.trustedSender(event, window?.webContents) || event.senderFrame.url !== SHELL_URL) throw new Error('不允许此页面调用桌面接口');
+}
+ipcMain.handle('desktop:get-state', event => { requireShell(event); return state; });
+ipcMain.handle('desktop:select', async (event, kind) => { requireShell(event); await show(kind); return state; });
+ipcMain.handle('desktop:reload', async event => { requireShell(event); await show(selected, true); return state; });
+app.on('window-all-closed', () => app.quit());
+app.on('before-quit', event => {
+  if (allowQuit) return;
+  event.preventDefault();
+  if (quitting) return;
+  quitting = true;
+  Promise.resolve(connector?.stop()).finally(() => {
+    allowQuit = true;
+    for (const view of [onlineView, localView]) if (view && !view.webContents.isDestroyed()) view.webContents.close();
+    app.quit();
+  });
 });

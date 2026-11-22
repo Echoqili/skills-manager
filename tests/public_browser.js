@@ -53,9 +53,16 @@ async function main() {
         const category = page.locator('#browseCategoryGrid .category-card').first();
         await category.click();
         await page.waitForFunction(() => currentCategoryFilter !== null && document.querySelector('#searchResults .skill-card'));
+        await page.waitForFunction(() => {
+            const first = document.querySelector('#searchResults .skill-card');
+            const topbar = document.querySelector('.topbar');
+            const top = first?.getBoundingClientRect().top;
+            const headerBottom = topbar?.getBoundingClientRect().bottom || 0;
+            return top >= headerBottom && top < headerBottom + 80;
+        });
         await page.locator('#sortOrder').selectOption({ index: 1 });
         assert.ok(await page.locator('#searchResults .skill-card').count() > 0);
-    });
+    }, { width: 1100, height: 650 });
     await test('详情、参考资料预览和返回', async page => {
         await search(page, 'design-system');
         await firstCard(page).getByRole('button', { name: /查看详情|详情/ }).click();
@@ -77,7 +84,7 @@ async function main() {
     });
     await test('游客下载明确引导登录并可返回', async page => {
         await firstCard(page).getByRole('button', { name: /查看详情|详情/ }).click();
-        const button = page.locator('#skillDetail').getByRole('button', { name: /单独下载/ });
+        const button = page.locator('#skillDetail').getByRole('button', { name: '安装 / 导出', exact: true });
         await button.waitFor({ state: 'visible' });
         await button.click();
         await page.locator('#auth-overlay').waitFor({ state: 'visible' });
@@ -112,7 +119,7 @@ async function main() {
         await page.locator('#langMenu [data-lang="en"]').click();
         assert.equal(await page.locator('#langLabel').textContent(), 'EN');
         await page.reload({ waitUntil: 'domcontentloaded' });
-        await page.waitForFunction(() => currentLang === 'en');
+        await page.waitForFunction(() => currentLang === 'en' && document.getElementById('langLabel').textContent === 'EN');
         assert.equal(await page.locator('#langLabel').textContent(), 'EN');
     });
     await browser.close();

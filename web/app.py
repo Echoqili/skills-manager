@@ -45,6 +45,11 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.exceptions import HTTPException
 
 
+# 新账号默认权限（基础集合，不含系统级管理功能）。放在建表函数前，供 DEFAULT 使用。
+# 与下方 DEFAULT_USER_PERMISSIONS 保持一致；此处需为字面量，因为常量在权限模型段才定义。
+_DEFAULT_USER_PERMISSIONS_SQL = '["skill_view","skill_import","skill_export","skill_manage","discover","ai_generate"]'
+
+
 def init_users_table():
     """建 users 表；首次运行可用环境变量 ADMIN_USER/ADMIN_PASS 播种管理员
 
@@ -64,7 +69,7 @@ def init_users_table():
             status TEXT DEFAULT 'approved',
             approved_at TEXT,
             approved_by TEXT,
-            permissions TEXT DEFAULT '["*"]',
+            permissions TEXT DEFAULT '["skill_view","skill_import","skill_export","skill_manage","discover","ai_generate"]',
             created_at TEXT DEFAULT CURRENT_TIMESTAMP
         )
         """
@@ -80,10 +85,15 @@ def init_users_table():
     if "approved_by" not in cols:
         conn.execute("ALTER TABLE users ADD COLUMN approved_by TEXT")
     if "permissions" not in cols:
-        conn.execute("ALTER TABLE users ADD COLUMN permissions TEXT DEFAULT '[\"*\"]'")
+        conn.execute(f"ALTER TABLE users ADD COLUMN permissions TEXT DEFAULT '{_DEFAULT_USER_PERMISSIONS_SQL}'")
     for field in ('is_super_admin', 'must_change_password', 'hide_unauthorized'):
         if field not in cols:
             conn.execute(f"ALTER TABLE users ADD COLUMN {field} INTEGER NOT NULL DEFAULT 0")
+    for field in ('deleted_at', 'deleted_by', 'deleted_status'):
+        if field not in cols:
+            conn.execute(f"ALTER TABLE users ADD COLUMN {field} TEXT")
+    if 'auth_version' not in cols:
+        conn.execute('ALTER TABLE users ADD COLUMN auth_version INTEGER NOT NULL DEFAULT 0')
     # 审批日志表：完整追溯每次审批/权限变更动作
     conn.execute(
         """
@@ -106,9 +116,9 @@ def get_current_user():
     if not uid:
         return None
     row = skills_db.get_conn().execute(
-        "SELECT id, username, is_admin, is_super_admin, must_change_password, hide_unauthorized, status, permissions FROM users WHERE id=?", (uid,)
+        "SELECT id, username, is_admin, is_super_admin, must_change_password, hide_unauthorized, status, permissions, auth_version FROM users WHERE id=?", (uid,)
     ).fetchone()
-    return dict(row) if row and row['status'] == 'approved' else None
+    return dict(row) if row and row['status'] == 'approved' and session.get('auth_version', 0) == row['auth_version'] else None
 
 
 def login_required(f):
@@ -286,7 +296,17 @@ def admin_only(f):
 
 # ========== 权限模型 ==========
 # 权限点定义；"*"（全权限）等价于拥有全部权限点。
-# 新注册/创建的账号默认 permissions='["*"]'，即默认全权限。
+ALL_PERMISSIONS = "*"
+
+# 新注册/创建账号默认拿到的基础权限：只含日常浏览与自有技能管理，
+# 不含系统级管理功能（自动更新 / 版本发布 / 智能设置 / 本机同步）。
+# 这四项各自有独立权限点，可由超级管理员按需分配给特定用户。
+DEFAULT_USER_PERMISSIONS = [
+    "skill_view", "skill_import", "skill_export", "skill_manage",
+    "discover", "ai_generate",
+]
+DEFAULT_PERMISSIONS_JSON = json.dumps(DEFAULT_USER_PERMISSIONS, ensure_ascii=False)
+
 PERMISSIONS = [
     {"key": "skill_view", "name": "查看与搜索 Skills", "desc": "浏览、搜索、查看 Skill 详情"},
     {"key": "skill_import", "name": "导入 Skill", "desc": "文件 / GitHub / API 方式导入 Skill"},
@@ -294,8 +314,12 @@ PERMISSIONS = [
     {"key": "skill_manage", "name": "管理自有 Skill", "desc": "删除、恢复、清空回收站"},
     {"key": "ai_generate", "name": "AI 生成 Skill", "desc": "使用 AI 根据需求生成 Skill 草稿"},
     {"key": "discover", "name": "GitHub 发现", "desc": "运行发现任务、审批候选仓库"},
+    {"key": "auto_update", "name": "自动更新管理", "desc": "运行更新流水线、重建索引（系统级）"},
+    {"key": "release_view", "name": "版本发布", "desc": "查看版本发布历史（系统级）"},
+    {"key": "ai_settings", "name": "智能设置", "desc": "配置 AI 提供商与 API Key（系统级）"},
+    {"key": "local_sync", "name": "本机同步与历史", "desc": "本地工作区安装、同步与历史（系统级）"},
 ]
-ALL_PERMISSIONS = "*"
+SYSTEM_PERMISSION_KEYS = ("auto_update", "release_view", "ai_settings", "local_sync")
 
 
 def _parse_permissions(raw) -> list:
@@ -445,7 +469,15 @@ def _require_auth():
         if p.startswith('/api/super-admin/') or p == '/api/internal/admin-auth':
             return None
         current = get_current_user()
-        gated = [('/api/ai/', 'ai_generate'), ('/api/discover/', 'discover'), ('/api/auto-update/', 'discover'), ('/api/index/', 'discover')]
+        # 系统级功能的权限闸门：与前端 SECTION_PERMISSIONS 的权限点一一对应。
+        # AI 配置/测试/提供商 → ai_settings；AI 生成草稿(/api/import/generate) 仍走 ai_generate。
+        gated = [
+            ('/api/ai/', 'ai_settings'),
+            ('/api/discover/', 'discover'),
+            ('/api/auto-update/', 'auto_update'),
+            ('/api/index/', 'auto_update'),
+            ('/api/releases', 'release_view'),
+        ]
         for prefix, permission in gated:
             if current and p.startswith(prefix) and not has_permission(current, permission):
                 return jsonify({'error': '当前账号没有此功能权限', 'code': 'forbidden'}), 403
@@ -1428,8 +1460,9 @@ def api_auth_register():
     if existing and existing["status"] == "rejected":
         # 被拒用户重新申请：重置为待审批
         conn.execute(
-            "UPDATE users SET password_hash=?, email=?, status='pending', approved_at=NULL, approved_by=NULL, created_at=? WHERE id=?",
-            (generate_password_hash(password), email, now, existing["id"]),
+            "UPDATE users SET password_hash=?, email=?, status='pending', approved_at=NULL, approved_by=NULL, "
+            "permissions=?, created_at=? WHERE id=?",
+            (generate_password_hash(password), email, DEFAULT_PERMISSIONS_JSON, now, existing["id"]),
         )
         conn.commit()
         _consume_captcha(data)
@@ -1459,11 +1492,13 @@ def api_auth_login():
     if not _rate_limit(bucket, 10, 900):
         return jsonify({"error": "失败次数过多，请 15 分钟后再试", "code": "rate_limited"}), 429
     row = skills_db.get_conn().execute(
-        "SELECT id, username, password_hash, is_admin, is_super_admin, hide_unauthorized, must_change_password, status, permissions FROM users WHERE username=?", (username,)
+        "SELECT id, username, password_hash, is_admin, is_super_admin, hide_unauthorized, must_change_password, status, permissions, auth_version FROM users WHERE username=?", (username,)
     ).fetchone()
     if not row or not check_password_hash(row["password_hash"], password):
         return jsonify({"error": "用户名或密码错误"}), 401
     if row["status"] != "approved":
+        if row["status"] == "deleted":
+            return jsonify({"error": "账号已删除，请联系管理员恢复", "code": "deleted"}), 403
         if row["status"] == "disabled":
             return jsonify({"error": "账号已停用，请联系超级管理员", "code": "disabled"}), 403
         if row["status"] == "rejected":
@@ -1473,6 +1508,7 @@ def api_auth_login():
         return jsonify({"error": "请先在管理员后台修改初始密码", "code": "password_change_required"}), 403
     _rate_clear(bucket)
     session['user_id'] = row["id"]
+    session['auth_version'] = row['auth_version']
     _consume_captcha(data)  # 登录成功即消耗滑块验证（一次性）
     return jsonify({"success": True, "user": {
         "id": row["id"], "username": row["username"], "is_admin": bool(row["is_admin"]),
@@ -1522,6 +1558,8 @@ def api_admin_approve():
     row = conn.execute("SELECT id, status, is_admin, is_super_admin FROM users WHERE username=?", (username,)).fetchone()
     if not row:
         return jsonify({"error": "用户不存在"}), 404
+    if row["status"] == "deleted":
+        return jsonify({"error": "账号已删除，请先在已删除列表恢复"}), 409
     if row["is_super_admin"] or (row["is_admin"] and not (get_admin_actor() or {}).get("is_super_admin")):
         return jsonify({"error": "管理员账号只能由超级管理员管理"}), 403
     if row["status"] == "approved":
@@ -1546,6 +1584,8 @@ def api_admin_reject():
     row = conn.execute("SELECT id, status, is_admin, is_super_admin FROM users WHERE username=?", (username,)).fetchone()
     if not row:
         return jsonify({"error": "用户不存在"}), 404
+    if row["status"] == "deleted":
+        return jsonify({"error": "账号已删除，请先在已删除列表恢复"}), 409
     if row["is_super_admin"] or (row["is_admin"] and not (get_admin_actor() or {}).get("is_super_admin")):
         return jsonify({"error": "管理员账号只能由超级管理员管理"}), 403
     conn.execute(
@@ -1584,11 +1624,14 @@ def api_admin_create():
     conn = skills_db.get_conn()
     if conn.execute("SELECT id FROM users WHERE username=?", (username,)).fetchone():
         return jsonify({"error": "用户名已存在"}), 409
+    # 普通账号拿基础权限；管理员账号保留全权限（管理员业务功能遵守分配权限，但系统功能默认可用）
+    # 注意全权限须存为 JSON 数组 ["*"]，裸 "*" 会被 _parse_permissions 解析成空权限
+    new_perms = json.dumps([ALL_PERMISSIONS]) if make_admin else DEFAULT_PERMISSIONS_JSON
     conn.execute(
-        "INSERT INTO users (username, password_hash, email, is_admin, must_change_password, status, approved_at, approved_by, created_at) "
-        "VALUES (?,?,?,?,?,'approved',?,?,?)",
+        "INSERT INTO users (username, password_hash, email, is_admin, must_change_password, status, permissions, approved_at, approved_by, created_at) "
+        "VALUES (?,?,?,?,?,'approved',?,?,?,?)",
         (username, generate_password_hash(password), email, 1 if make_admin else 0, 1 if make_admin else 0,
-         datetime.now(timezone.utc).isoformat(), "admin",
+         new_perms, datetime.now(timezone.utc).isoformat(), "admin",
          datetime.now(timezone.utc).isoformat()),
     )
     conn.commit()
@@ -1658,7 +1701,7 @@ def api_admin_history():
 def api_admin_users():
     """列出全部用户（含状态、权限、审批信息），供权限分配"""
     rows = skills_db.get_conn().execute(
-        "SELECT id, username, email, is_admin, is_super_admin, must_change_password, hide_unauthorized, status, approved_at, approved_by, permissions, created_at "
+        "SELECT id, username, email, is_admin, is_super_admin, must_change_password, hide_unauthorized, status, approved_at, approved_by, permissions, created_at, deleted_at, deleted_by "
         "FROM users WHERE is_admin=0 AND is_super_admin=0 ORDER BY id DESC"
     ).fetchall()
     out = []

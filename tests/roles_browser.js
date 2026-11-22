@@ -28,8 +28,10 @@ async function main(){
    let data={};
    if(request.method()==='POST'){
     const body=request.postDataJSON();state.posts.push({path:p,body});
-    const user=state.accounts.find(a=>a.username===body.username);
-    if(p.endsWith('/role')){user.is_admin=body.role==='admin';user.must_change_password=user.is_admin;}
+    const user=state.accounts.find(a=>a.username===body.username||a.id===body.user_id);
+    if(p.endsWith('/users/delete')){user.status='deleted';user.deleted_at='2026-10-18T10:00:00Z';user.deleted_by='superAdmin';}
+    else if(p.endsWith('/users/restore'))user.status='disabled';
+    else if(p.endsWith('/role')){user.is_admin=body.role==='admin';user.must_change_password=user.is_admin;}
     else if(p.endsWith('/status'))user.status=body.enabled?'approved':'disabled';
     else if(p.endsWith('/permissions')){user.permissions=body.permissions;user.hide_unauthorized=body.hide_unauthorized;}
     else if(p==='/api/auth/visibility'){state.member.hide_unauthorized=body.hide_unauthorized;}
@@ -49,7 +51,7 @@ async function main(){
    return route.fulfill({json:data});
   });
   try{await page.goto('http://roles.test'+url);await run(page,state);assert.deepEqual(state.errors,[]);console.log('[PASS] '+name);}
-  catch(e){failed++;console.error('[FAIL] '+name+': '+e.stack);}
+  catch(e){failed++;console.error('[FAIL] '+name+': '+e.stack);console.error(JSON.stringify({posts:state.posts,accounts:state.accounts,select:await page.locator('#adminStatus').inputValue().catch(()=>null),text:await page.locator('#accounts').innerText().catch(()=>null),errors:state.errors}));}
   finally{await context.close();}
  }
  await test('超级管理员独立管理管理员并支持空权限与隐藏', '/super-admin',async(page,state)=>{
@@ -102,6 +104,41 @@ async function main(){
   await page.locator('[data-hide="member"]').click();
   await page.waitForFunction(()=>document.querySelector('[data-hide="member"]')?.textContent.includes('一键隐藏'));
   assert.equal(state.accounts.find(u=>u.username==='member').hide_unauthorized,false);
+ });
+ await test('用户搜索、删除确认取消、删除和恢复闭环','/admin',async(page,state)=>{
+  await page.locator('[data-tab="perms"]').click();
+  await page.locator('#usersWrap [data-lifecycle="delete"]').waitFor();
+  await page.locator('#userSearch').fill('missing');
+  assert.match(await page.locator('#usersWrap').innerText(),/没有符合/);
+  await page.locator('#userSearch').fill('member');
+  await page.locator('#usersWrap [data-lifecycle="delete"]').click();
+  await page.locator('#userLifecycleCancel').click();
+  assert.equal(state.posts.filter(p=>p.path==='/api/admin/users/delete').length,0);
+  await page.locator('#usersWrap [data-lifecycle="delete"]').click();
+  await page.locator('#userLifecycleConfirm').fill('wrong');
+  await page.locator('#userLifecycleSubmit').click();
+  assert.match(await page.locator('#userLifecycleError').innerText(),/不一致/);
+  await page.locator('#userLifecycleConfirm').fill('member');
+  await page.locator('#userLifecycleSubmit').click();
+  await page.locator('#userLifecycleDialog').waitFor({state:'detached'});
+  await page.selectOption('#userStatus','deleted');
+  await page.locator('#usersWrap [data-lifecycle="restore"]').click();
+  await page.locator('#userLifecycleSubmit').click();
+  await page.locator('#userLifecycleDialog').waitFor({state:'detached'});
+  await page.selectOption('#userStatus','disabled');
+  await page.locator('#usersWrap [data-lifecycle="status"]').waitFor();
+  assert.equal(state.accounts.find(u=>u.username==='member').status,'disabled');
+ });
+ await test('超级管理员可删除和恢复管理员','/super-admin',async(page,state)=>{
+  await page.locator('[data-action="delete"][data-user="manager"]').click();
+  await page.locator('#userLifecycleConfirm').fill('manager');
+  await page.locator('#userLifecycleSubmit').click();
+  await page.locator('#userLifecycleDialog').waitFor({state:'detached'});
+  await page.selectOption('#adminStatus','deleted');
+  await page.locator('[data-action="restore"][data-user="manager"]').click();
+  await page.locator('#userLifecycleSubmit').click();
+  await page.locator('#userLifecycleDialog').waitFor({state:'detached'});
+  assert.equal(state.accounts.find(u=>u.username==='manager').status,'disabled');
  });
  await browser.close();process.exitCode=failed?1:0;
 }

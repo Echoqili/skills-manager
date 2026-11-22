@@ -23,6 +23,74 @@ async function main() {
         try { await fn(); console.log(`[PASS] ${name}`); }
         catch (e) { failures++; console.error(`[FAIL] ${name}: ${e.message}`); }
     }
+    function installPage() {
+        const p = page();
+        p.sandbox.CURRENT_USER = { permissions: ['skill_export'] };
+        p.sandbox.VIEWER_MODE = false;
+        p.el('installExportDialog').open = false;
+        p.el('installExportDialog').showModal = () => { p.el('installExportDialog').open = true; };
+        p.run("showToast = msg => { window.lastToast = msg; }");
+        return p;
+    }
+    await test('安装导出空清单及未授权不会打开对话框', () => {
+        const p = installPage(); p.run('openInstallExport()');
+        assert.equal(p.el('installExportDialog').open, false);
+        p.sandbox.CURRENT_USER = { permissions: [] };
+        p.run("openInstallExport(['design/guide'])");
+        assert.equal(p.el('installExportDialog').open, false);
+        assert.match(p.sandbox.lastToast, /权限/);
+        let auth = false; p.sandbox.openAuthModal = () => { auth = true; };
+        p.sandbox.VIEWER_MODE = true; p.run("openInstallExport(['design/guide'])");
+        assert.equal(auth, true);
+    });
+    await test('选择目标前不请求下载且清单使用快照', () => {
+        const p = installPage(); let calls = 0; p.sandbox.fetch = () => { calls++; };
+        p.run("cart = ['design/guide']; openInstallExport(); cart.push('qa/test')");
+        assert.equal(p.run('installExportSelection.length'), 1);
+        assert.equal(p.el('installExportTarget').value, '');
+        assert.equal(calls, 0);
+        assert.match(p.el('installExportSummary').textContent, /1 个/);
+    });
+    await test('本地软件显示实际项目目录与完整资源说明', () => {
+        const p = installPage(); p.run("openInstallExport(['design/guide'])");
+        for (const [target, dir] of Object.entries({ 'claude-code': '.claude/skills/', codex: '.agents/skills/', cursor: '.cursor/skills/', trae: '.trae/skills/', 'trae-cn': '.trae/skills/' })) {
+            p.el('installExportTarget').value = target; p.run('renderInstallExportGuide()');
+            const guide = String(p.el('installExportGuide').innerHTML);
+            assert.ok(guide.includes(dir)); assert.match(guide, /保留脚本和参考资料/);
+            assert.match(guide, /确认已识别/);
+        }
+    });
+    await test('聊天端按命名空间仅导出所选单项且保留上传指引', async () => {
+        const p = installPage(); let body;
+        p.run("openInstallExport(['design/guide', 'qa/guide'])");
+        p.el('installExportTarget').value = 'claude'; p.run('renderInstallExportGuide()');
+        assert.match(String(p.el('installExportGuide').innerHTML), /downloadInstallExport\(1\)/);
+        p.sandbox.fetch = async (url, opts) => { body = JSON.parse(opts.body); return response({ success: true, filename: 'skill.zip', count: 1, size: 500, files_packed: 2 }); };
+        await p.run('downloadInstallExport()'); assert.equal(body, undefined);
+        await p.run('downloadInstallExport(1)');
+        assert.deepEqual(body.skills, ['qa/guide']);
+        assert.match(p.sandbox.location.href, /\/download\/skill.zip/);
+        assert.match(p.el('installExportStatus').textContent, /已发起下载/);
+        assert.doesNotMatch(p.el('installExportStatus').textContent, /安装成功/);
+        assert.equal(p.run('installExportSelection.length'), 2);
+        p.el('installExportTarget').value = 'chatgpt'; p.run('renderInstallExportGuide()');
+        assert.match(String(p.el('installExportGuide').innerHTML), /Business/);
+        assert.match(String(p.el('installExportGuide').innerHTML), /Upload from your computer/);
+    });
+    await test('下载失败可重试，英文 ZIP 指引和批量导出保留全部选择', async () => {
+        const p = installPage(); p.run("currentLang = 'en'; openInstallExport(['design/guide', 'qa/test'])");
+        p.el('installExportTarget').value = 'zip'; p.run('renderInstallExportGuide()');
+        assert.match(String(p.el('installExportGuide').innerHTML), /supporting resources/);
+        p.sandbox.fetch = async () => response({ error: 'Missing files' }, 409);
+        await p.run('downloadInstallExport()');
+        assert.match(p.el('installExportStatus').textContent, /retry/);
+        assert.equal(p.el('installExportTarget').disabled, false);
+        let selected;
+        p.sandbox.fetch = async (url, opts) => { selected = JSON.parse(opts.body).skills; return response({ success: true, filename: 'both.zip', count: 2, size: 500, files_packed: 4 }); };
+        await p.run('downloadInstallExport()');
+        assert.deepEqual(selected, ['design/guide', 'qa/test']);
+        assert.match(p.el('installExportStatus').textContent, /Download requested/);
+    });
     await test('本地结果不等待慢 AI', async () => {
         const p = page(), ai = deferred();
         p.el('searchInput').value = 'guide';

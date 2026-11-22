@@ -1,9 +1,8 @@
+'use strict';
 const { contextBridge, ipcRenderer } = require('electron');
-
-contextBridge.exposeInMainWorld('electronAPI', {
-  readSkillsIndex: () => ipcRenderer.invoke('read-skills-index'),
-  installSkills: (options) => ipcRenderer.invoke('install-skills', options),
-  openExternal: (url) => ipcRenderer.invoke('open-external', url),
-  showInFolder: (filePath) => ipcRenderer.invoke('show-in-folder', filePath),
-  getVersion: () => ipcRenderer.invoke('get-version')
+contextBridge.exposeInMainWorld('desktop', {
+  state: () => ipcRenderer.invoke('desktop:get-state'),
+  select: kind => ipcRenderer.invoke('desktop:select', kind),
+  reload: () => ipcRenderer.invoke('desktop:reload'),
+  onState: callback => { ipcRenderer.on('desktop:state', (_event, state) => callback(state)); },
 });

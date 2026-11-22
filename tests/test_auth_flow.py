@@ -77,7 +77,7 @@ class AuthFlowTests(unittest.TestCase):
         self.assertEqual(self.login(cid).status_code, 200)
 
     def test_pending_and_rejected_accounts_do_not_create_session(self):
-        for status in ('pending', 'rejected'):
+        for status in ('pending', 'rejected', 'disabled', 'deleted'):
             with self.subTest(status=status):
                 self.conn.execute('UPDATE users SET status=?', (status,))
                 self.conn.commit()
@@ -102,6 +102,26 @@ class AuthFlowTests(unittest.TestCase):
         self.assertEqual(result.get_json()['status'], 'pending')
         self.assertTrue(web._CAPTCHAS[cid]['used'])
         self.assertIsNone(self.client.get('/api/auth/me').get_json()['user'])
+
+    def test_email_registration_requires_fresh_captcha_after_sending_code(self):
+        with patch.dict(os.environ, {'EMAIL_VERIFY': '1'}), \
+             patch.object(web, '_EMAIL_CODES', {}), \
+             patch.object(web, '_send_verification_email') as send:
+            first = self.challenge()
+            result = self.client.post('/api/auth/send-code', json={
+                'email': 'registration@example.com', 'captcha_id': first})
+            self.assertEqual(result.status_code, 200, result.get_json())
+            send.assert_called_once()
+            payload = {'username': 'email_new_user', 'password': 'Test#123456',
+                       'email': 'registration@example.com',
+                       'code': web._EMAIL_CODES['registration@example.com']['code'],
+                       'captcha_id': first}
+            self.assertEqual(self.client.post('/api/auth/register', json=payload).status_code, 400)
+            payload['captcha_id'] = self.challenge()
+            result = self.client.post('/api/auth/register', json=payload)
+            self.assertEqual(result.status_code, 200, result.get_json())
+            self.assertEqual(result.get_json()['status'], 'pending')
+            self.assertIsNone(self.client.get('/api/auth/me').get_json()['user'])
 
 
 if __name__ == '__main__':

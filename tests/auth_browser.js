@@ -23,7 +23,7 @@ async function main() {
         const context = await browser.newContext(options);
         const page = await context.newPage();
         page.setDefaultTimeout(4000);
-        const state = { user: null, verified: false, loginCalls: 0, errors: [], loginResponse: null, failCaptcha: false };
+        const state = { user: null, verified: false, loginCalls: 0, errors: [], loginResponse: null, failCaptcha: false, emailRequired: false, registerCalls: 0 };
         page.on('pageerror', error => state.errors.push(error.message));
         await page.route('**/*', async route => {
             const url = new URL(route.request().url());
@@ -31,7 +31,7 @@ async function main() {
             if (!url.pathname.startsWith('/api/')) return route.abort();
             let data = {};
             switch (url.pathname) {
-                case '/api/config': data = { email_verify_required: false }; break;
+                case '/api/config': data = { email_verify_required: state.emailRequired }; break;
                 case '/api/auth/me': data = { user: state.user }; break;
                 case '/api/captcha/new':
                     if (state.failCaptcha) return route.fulfill({ status: 503, json: { error: '验证码服务暂不可用' } });
@@ -51,6 +51,15 @@ async function main() {
                     if (state.loginResponse) return route.fulfill(state.loginResponse);
                     state.user = { username: 'browser_test', is_admin: false };
                     data = { success: true, user: state.user }; break;
+                case '/api/auth/send-code':
+                    assert.ok(state.verified, 'sending code requires slider verification');
+                    state.verified = false;
+                    data = { success: true }; break;
+                case '/api/auth/register':
+                    state.registerCalls++;
+                    assert.ok(state.verified, 'registration requires a fresh verified slider');
+                    assert.equal(route.request().postDataJSON().code, '123456');
+                    data = { success: true, status: 'pending', message: '注册成功，请等待管理员审批' }; break;
                 case '/api/skills/all': data = { results: [], skills: [], total: 0 }; break;
                 case '/api/categories': data = { categories: [] }; break;
                 case '/api/stats': data = { total: 0, categories: {}, sources: {} }; break;
@@ -80,11 +89,36 @@ async function main() {
     await test('Esc 返回游客页面', async page => {
         await page.keyboard.press('Escape'); await hidden(page);
     });
-    await test('点击卡片保持弹窗，点击遮罩关闭', async page => {
+    await test('点击卡片和阴影均保持弹窗，只有明确关闭才退出', async page => {
         await page.locator('#auth-title').click();
         assert.equal(await page.locator('#auth-overlay').isVisible(), true);
         await page.locator('#auth-overlay').click({ position: { x: 5, y: 5 } });
+        assert.equal(await page.locator('#auth-overlay').isVisible(), true);
+        await page.locator('#auth-close').click();
         await hidden(page);
+    });
+    await test('发码消耗滑块后明确提示重新验证，完成后可提交注册', async (page, state) => {
+        await page.evaluate(() => { window.EMAIL_VERIFY_REQUIRED = true; window.openAuthModal('register'); });
+        await page.locator('#auth-username').fill('registration_test');
+        await page.locator('#auth-password').fill('Test#123456');
+        await page.locator('#auth-email').fill('test@example.com');
+        await page.waitForFunction(() => document.getElementById('auth-captcha-track').getAttribute('aria-busy') === 'false');
+        await dragCaptcha(page, 140);
+        await page.locator('#auth-captcha-pass').waitFor({ state: 'visible' });
+        await page.locator('#auth-send-code').click();
+        await page.waitForFunction(() => document.getElementById('auth-error').textContent.includes('再次完成'));
+        await page.locator('#auth-captcha-pass').waitFor({ state: 'hidden' });
+        await page.locator('#auth-code').fill('123456');
+        await page.locator('#auth-submit').click();
+        assert.equal(state.registerCalls, 0);
+        await page.waitForFunction(() => document.getElementById('auth-captcha-track').getAttribute('aria-busy') === 'false');
+        await dragCaptcha(page, 140);
+        await page.locator('#auth-captcha-pass').waitFor({ state: 'visible' });
+        assert.equal(await page.locator('#auth-captcha-handle').isVisible(), false);
+        assert.equal(await page.locator('#auth-error').textContent(), '');
+        await page.locator('#auth-submit').click();
+        await page.waitForFunction(() => document.getElementById('auth-error').textContent.includes('注册成功'));
+        assert.equal(state.registerCalls, 1);
     });
     await test('游客入口和注册切换可以返回', async page => {
         await page.locator('#auth-switch-link').click();
@@ -92,6 +126,27 @@ async function main() {
         await page.getByRole('button', { name: '以游客身份继续浏览', exact: true }).click();
         await hidden(page);
         assert.equal(await page.evaluate(() => window.VIEWER_MODE), true);
+    });
+    await test('刷新后旧验证响应不能显示通过或恢复旧凭证', async page => {
+        let release, started;
+        const pending = new Promise(resolve => { release = resolve; });
+        const verifying = new Promise(resolve => { started = resolve; });
+        await page.route('**/api/captcha/verify', async route => {
+            started(); await pending;
+            await route.fulfill({ json: { success: true, token: 'obsolete-token' } });
+        });
+        await page.waitForFunction(() => document.getElementById('auth-captcha-track').getAttribute('aria-busy') === 'false');
+        await dragCaptcha(page, 140);
+        await verifying;
+        await page.locator('#auth-captcha-refresh').click();
+        await page.waitForFunction(() => document.getElementById('auth-captcha-track').getAttribute('aria-busy') === 'false');
+        release();
+        await page.waitForResponse(response => response.url().endsWith('/api/captcha/verify'));
+        await page.locator('#auth-username').fill('browser_test');
+        await page.locator('#auth-password').fill('Test#123456');
+        await page.locator('#auth-submit').click();
+        assert.equal(await page.locator('#auth-captcha-pass').isVisible(), false);
+        assert.match(await page.locator('#auth-error').textContent(), /请先完成滑块验证/);
     });
     await test('未验证不能提交登录，验证码加载失败仍可关闭', async (page, state) => {
         await page.locator('#auth-username').fill('browser_test');

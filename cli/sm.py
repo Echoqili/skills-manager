@@ -13,6 +13,8 @@ Agent 的 skills 目录，并用内容哈希做变更检测。
     sm list                     列出已安装技能及其状态
     sm update [<技能名>|--all]    更新已安装技能
     sm uninstall <技能名>        卸载
+    sm backups [<技能名>]        查看更新前备份
+    sm restore <技能名> <备份ID>  恢复已保存的版本
     sm curated [<专题id>]       中文精选专题（解决「不知道该搜什么」）
     sm registry                 私有 registry 端点与索引导出
     sm stats                    库统计
@@ -28,12 +30,14 @@ import os
 import shutil
 import sys
 import time
+from functools import wraps
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT / "web"))
 
 import db  # noqa: E402
+import skill_deployment as deployment  # noqa: E402
 
 
 # ========== 配置 ==========
@@ -61,18 +65,36 @@ def manifest_path(target: Path) -> Path:
 
 def load_manifest(target: Path) -> dict:
     p = manifest_path(target)
+    if deployment.linked(target / MANIFEST_DIRNAME) or deployment.linked(p):
+        raise ValueError('安装清单路径不能是链接')
     if not p.exists():
         return {"version": 1, "skills": {}}
     try:
-        return json.loads(p.read_text(encoding="utf-8"))
-    except Exception:
-        return {"version": 1, "skills": {}}
+        data = json.loads(p.read_text(encoding="utf-8"))
+        if (not isinstance(data, dict) or data.get('version') != 1
+                or not isinstance(data.get('skills'), dict)):
+            raise ValueError('安装清单格式不正确')
+        for name, record in data['skills'].items():
+            deployment.validate_name(name)
+            if (not isinstance(record, dict) or not isinstance(record.get('source'), str)
+                    or not record['source'] or not isinstance(record.get('content_hash'), str)):
+                raise ValueError('安装记录格式不正确')
+        return data
+    except (ValueError, TypeError) as exc:
+        raise ValueError(f'安装清单损坏，请先恢复备份：{p}') from exc
 
 
 def save_manifest(target: Path, data: dict) -> None:
-    p = manifest_path(target)
-    p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    deployment.atomic_json(deployment.metadata_dir(target) / MANIFEST_FILE, data)
+
+
+def mutation(func):
+    @wraps(func)
+    def run(args):
+        target = Path(args.target).expanduser() if args.target else default_target()
+        with deployment.target_lock(target):
+            return func(args)
+    return run
 
 
 # ========== 哈希 ==========
@@ -188,6 +210,7 @@ def cmd_info(args) -> int:
     return 0
 
 
+@mutation
 def cmd_install(args) -> int:
     db.init_db()
     target = Path(args.target).expanduser() if args.target else default_target()
@@ -212,7 +235,7 @@ def cmd_install(args) -> int:
             continue
 
         dest_name = args.as_name if (args.as_name and len(args.names) == 1) else skill["name"]
-        dest = target / dest_name
+        dest = deployment.managed_child(target, dest_name)
         if dest.exists() and not args.force:
             owned = dest_name in mf["skills"]
             print(f"[跳过] {name}: 目标已存在 {dest}"
@@ -220,22 +243,22 @@ def cmd_install(args) -> int:
             fail.append(name)
             continue
 
-        if dest.exists():
-            shutil.rmtree(dest)
-        shutil.copytree(
-            src, dest,
-            ignore=shutil.ignore_patterns(*SKIP_SUFFIX, ".git", "__pycache__", ".trash"),
-        )
-        mf["skills"][dest_name] = {
+        record = {
             "name": skill["name"],
             "namespace": skill.get("namespace", "default"),
-            "source": str(src),
-            "content_hash": dir_hash(src),
+            "source": str(src.resolve()),
             "installed_at": time.strftime("%Y-%m-%d %H:%M:%S"),
             "version": skill.get("version") or "",
             "trust_score": skill.get("trust_score"),
-            "files": sum(1 for _ in dest.rglob("*") if _.is_file()),
         }
+        try:
+            backup = deployment.deploy(target, dest_name, src, record, mf, save_manifest, force=args.force)
+        except (OSError, ValueError) as exc:
+            print(f'[失败] {name}: {exc}')
+            fail.append(name)
+            continue
+        if backup:
+            print(f'[备份] {dest_name}: {backup}（sm restore {dest_name} {backup}）')
         trust = skill.get("trust_score")
         t_s = f"{trust:.0f}" if isinstance(trust, (int, float)) else "-"
         print(f"[安装] {dest_name}  →  {dest}   （信任 {t_s}，"
@@ -243,7 +266,6 @@ def cmd_install(args) -> int:
         ok.append(dest_name)
 
     if ok:
-        save_manifest(target, mf)
         print(f"\n完成：成功 {len(ok)} 个，失败 {len(fail)} 个 → {target}")
     return 0 if not fail else 1
 
@@ -259,22 +281,18 @@ def cmd_list(args) -> int:
     print("-" * 86)
     stale = 0
     for name, rec in sorted(mf["skills"].items()):
-        src = Path(rec.get("source", ""))
-        dest = target / name
-        if not dest.exists():
-            status, stale = "缺失", stale + 1
-        elif not src.exists():
-            status = "源丢失"
-        elif dir_hash(src) != rec.get("content_hash"):
-            status, stale = "可更新", stale + 1
-        else:
-            status = "最新"
+        try:
+            status = deployment.installation_state(target, name, rec)
+        except (ValueError, OSError):
+            status = '路径或读取异常'
+        stale += status in ('缺失', '可更新')
         print(f"{name:<34} {rec.get('namespace', '-'):<16} {status:<12} {rec.get('installed_at', '-')}")
     if stale:
         print(f"\n{stale} 个技能有变更，运行 sm update --all 更新")
     return 0
 
 
+@mutation
 def cmd_update(args) -> int:
     target = Path(args.target).expanduser() if args.target else default_target()
     mf = load_manifest(target)
@@ -287,49 +305,75 @@ def cmd_update(args) -> int:
         print("请指定技能名或使用 --all")
         return 1
 
-    updated = skipped = 0
+    updated = skipped = failures = 0
     for name in names:
         rec = mf["skills"].get(name)
         if not rec:
             print(f"[跳过] {name}: 未安装")
             skipped += 1
+            failures += 1
             continue
         src = Path(rec.get("source", ""))
         dest = target / name
         if not src.exists():
             print(f"[跳过] {name}: 源目录已不存在（{src}）")
             skipped += 1
+            failures += 1
             continue
-        new_hash = dir_hash(src)
-        if new_hash == rec.get("content_hash") and dest.exists() and not args.force:
-            print(f"[最新] {name}")
-            skipped += 1
+        try:
+            status = deployment.installation_state(target, name, rec)
+            if '本地改动' in status and not args.force:
+                print(f'[冲突] {name}: {status}，保留原文件；使用 --force 可先备份再替换')
+                failures += 1
+                continue
+            if status == '最新' and not args.force:
+                print(f'[最新] {name}')
+                skipped += 1
+                continue
+            backup = deployment.deploy(target, name, src, rec, mf, save_manifest, force=args.force)
+        except (OSError, ValueError) as exc:
+            print(f'[失败] {name}: {exc}')
+            failures += 1
             continue
-        if dest.exists():
-            shutil.rmtree(dest)
-        shutil.copytree(
-            src, dest,
-            ignore=shutil.ignore_patterns(*SKIP_SUFFIX, ".git", "__pycache__", ".trash"),
-        )
-        rec["content_hash"] = new_hash
-        rec["installed_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
-        rec["files"] = sum(1 for _ in dest.rglob("*") if _.is_file())
-        print(f"[更新] {name}  →  {new_hash}")
+        if backup:
+            print(f'[备份] {name}: {backup}（sm restore {name} {backup}）')
+        print(f"[更新] {name}  →  {mf['skills'][name]['content_hash']}")
         updated += 1
 
     if updated:
-        save_manifest(target, mf)
         print(f"\n更新 {updated} 个，跳过 {skipped} 个")
+    return 1 if failures else 0
+
+
+def cmd_backups(args) -> int:
+    target = Path(args.target).expanduser() if args.target else default_target()
+    items = deployment.snapshots(target, args.name)
+    for item in items:
+        print(f"{item['id']}  {item['name']}  {item['created_at']}")
+    if not items:
+        print('没有可恢复的备份')
     return 0
 
 
+@mutation
+def cmd_restore(args) -> int:
+    target = Path(args.target).expanduser() if args.target else default_target()
+    manifest = load_manifest(target)
+    backup = deployment.restore_snapshot(target, args.name, args.snapshot, manifest, save_manifest, force=args.force)
+    print(f'[恢复] {args.name} ← {args.snapshot}')
+    if backup:
+        print(f'[备份] 恢复前的目录保留于 {backup}')
+    return 0
+
+
+@mutation
 def cmd_uninstall(args) -> int:
     target = Path(args.target).expanduser() if args.target else default_target()
     mf = load_manifest(target)
     removed = 0
     for name in args.names:
         rec = mf["skills"].get(name)
-        dest = target / name
+        dest = deployment.managed_child(target, name)
         if not rec and not dest.exists():
             print(f"[跳过] {name}: 未安装")
             continue
@@ -469,15 +513,26 @@ def cmd_doctor(args) -> int:
     mf = load_manifest(target)
     if mf["skills"]:
         miss = [n for n, r in mf["skills"].items() if not (target / n).exists()]
-        stale = [n for n, r in mf["skills"].items()
-                 if (target / n).exists() and Path(r.get("source", "")).exists()
-                 and dir_hash(Path(r["source"])) != r.get("content_hash")]
+        states = {}
+        for name, record in mf['skills'].items():
+            try:
+                states[name] = deployment.installation_state(target, name, record)
+            except (ValueError, OSError):
+                states[name] = '路径或读取异常'
+        stale = [name for name, state in states.items() if state == '可更新']
+        changed = [name for name, state in states.items() if '本地改动' in state]
+        invalid = [name for name, state in states.items() if state in ('路径或读取异常', '源丢失')]
         print(f"[OK]   已安装 {len(mf['skills'])} 个 → {target}")
         if miss:
             print(f"[WARN] {len(miss)} 个已安装技能缺失：{', '.join(miss[:5])}")
             problems.append("已安装技能缺失")
         if stale:
             print(f"[WARN] {len(stale)} 个技能可更新：{', '.join(stale[:5])}")
+        if changed:
+            print(f"[WARN] {len(changed)} 个技能有本地改动：{', '.join(changed[:5])}")
+        if invalid:
+            print(f"[WARN] {len(invalid)} 个技能路径或来源异常：{', '.join(invalid[:5])}")
+            problems.append('已安装技能路径或来源异常')
     else:
         print(f"[INFO] 尚未安装技能（目标目录：{target}）")
 
@@ -537,6 +592,18 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("-t", "--target", default=None)
     s.add_argument("-y", "--yes", action="store_true")
     s.set_defaults(func=cmd_uninstall)
+
+    s = sub.add_parser('backups', help='列出更新前备份')
+    s.add_argument('name', nargs='?', default=None)
+    s.add_argument('-t', '--target', default=None)
+    s.set_defaults(func=cmd_backups)
+
+    s = sub.add_parser('restore', help='恢复指定备份，恢复前也会备份当前目录')
+    s.add_argument('name')
+    s.add_argument('snapshot', help='backups 显示的备份 ID')
+    s.add_argument('-t', '--target', default=None)
+    s.add_argument('-f', '--force', action='store_true', help='允许恢复覆盖本地修改（先备份）')
+    s.set_defaults(func=cmd_restore)
 
     s = sub.add_parser("stats", help="库统计")
     s.set_defaults(func=cmd_stats)
