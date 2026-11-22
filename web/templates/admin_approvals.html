@@ -74,7 +74,10 @@
 <body>
 <div class="wrap">
   <h1>🔐 管理员审批台</h1>
-  <button class="btn-ghost" onclick="AdminSession.changePassword()">修改我的密码</button>
+  <div class="row" style="margin-bottom:8px">
+    <button class="btn-ghost" onclick="AdminSession.changePassword()">修改我的密码</button>
+    <button class="btn-ghost" id="logoutBtn">退出登录</button>
+  </div>
   <div class="sub">{% if proxy_auth %}管理员专用入口，使用独立账号和密码验证。{% else %}需输入管理员密钥进入。密钥以哈希形式存于数据库。{% endif %}</div>
 
   <!-- 密钥门禁 -->
@@ -464,6 +467,22 @@ async function runMailTest(){
   }catch(e){ box.innerHTML = '<div class="msg err">网络错误：'+e.message+'</div>'; }
 }
 
+function logout(){
+  try{ sessionStorage.removeItem('admin_key'); }catch(e){}
+  ADMIN_KEY='';
+  if(PROXY_AUTH){
+    // Basic Auth 凭据由浏览器缓存：跳转到 logout 端点触发 realm 变化的 401 challenge，
+    // 浏览器会重新弹出登录框（取消即退出，输入新凭据即切换账号）。
+    location.href='/admin/logout?n='+Date.now()+Math.random().toString(36).slice(2);
+  }else{
+    // 密钥门禁模式：清掉内存/会话中的密钥，回到门禁界面。
+    show('panel',false); show('createCard',false); show('keyCard',false); show('mailCard',false);
+    show('gate',true);
+    document.getElementById('key').value='';
+    document.getElementById('gateErr').textContent='';
+  }
+}
+
 async function setKey(){
   show('keyOk', false); show('keyErr', false);
   const key = document.getElementById('newKey').value.trim();
@@ -508,6 +527,7 @@ document.getElementById('publicRefresh').addEventListener('click', loadPublicReq
 document.getElementById('createBtn').addEventListener('click', createUser);
 document.getElementById('setKeyBtn').addEventListener('click', setKey);
 document.getElementById('mailTestBtn').addEventListener('click', runMailTest);
+document.getElementById('logoutBtn').addEventListener('click', logout);
 document.getElementById('permSave').addEventListener('click', savePerms);
 document.getElementById('permCancel').addEventListener('click', ()=>{ permEditing=null;show('permMask', false); });
 document.getElementById('permAll').addEventListener('click', ()=>{

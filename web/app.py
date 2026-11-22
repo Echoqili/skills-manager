@@ -1470,7 +1470,8 @@ def api_auth_register():
         return jsonify({"success": True, "status": "pending",
                         "message": "注册成功，请等待管理员审批"})
     cur = conn.execute(
-        "INSERT INTO users (username, password_hash, email, is_admin, status, created_at) VALUES (?,?,?,0,'pending',?)",
+        # 普通注册账号默认隐藏无权限功能；仍可通过顶栏按钮自助切换
+        "INSERT INTO users (username, password_hash, email, is_admin, hide_unauthorized, status, created_at) VALUES (?,?,?,0,1,'pending',?)",
         (username, generate_password_hash(password), email, now),
     )
     conn.commit()
@@ -1628,10 +1629,12 @@ def api_admin_create():
     # 普通账号拿基础权限；管理员账号保留全权限（管理员业务功能遵守分配权限，但系统功能默认可用）
     # 注意全权限须存为 JSON 数组 ["*"]，裸 "*" 会被 _parse_permissions 解析成空权限
     new_perms = json.dumps([ALL_PERMISSIONS]) if make_admin else DEFAULT_PERMISSIONS_JSON
+    # 普通用户默认隐藏无权限功能；管理员看全部（保持 0）
     conn.execute(
-        "INSERT INTO users (username, password_hash, email, is_admin, must_change_password, status, permissions, approved_at, approved_by, created_at) "
-        "VALUES (?,?,?,?,?,'approved',?,?,?,?)",
+        "INSERT INTO users (username, password_hash, email, is_admin, must_change_password, hide_unauthorized, status, permissions, approved_at, approved_by, created_at) "
+        "VALUES (?,?,?,?,?,?,'approved',?,?,?,?)",
         (username, generate_password_hash(password), email, 1 if make_admin else 0, 1 if make_admin else 0,
+         0 if make_admin else 1,
          new_perms, datetime.now(timezone.utc).isoformat(), "admin",
          datetime.now(timezone.utc).isoformat()),
     )

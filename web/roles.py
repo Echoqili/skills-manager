@@ -4,6 +4,8 @@ from datetime import datetime, timezone
 from functools import wraps
 import json
 import re
+import secrets
+import time
 from flask import jsonify, make_response, render_template, request
 from werkzeug.security import check_password_hash, generate_password_hash
 
@@ -125,6 +127,67 @@ def register(app, ctx):
             if not actor.get('is_super_admin'):
                 return jsonify({'error': '仅超级管理员可访问'}), 403
         return render_template('super_admin.html')
+
+    # HTTP Basic 凭据由浏览器缓存、没有服务端会话，无法靠清 session 退出。
+    # 退出方式：返回一个 realm 每次都不同的 401 challenge —— 浏览器无法用旧凭据
+    # 匹配新 realm，必然重新弹出登录框；用户取消即退出，输入凭据则以新身份继续。
+    _logout_nonces = {}
+
+    def _logout_page(title, text, link='/admin'):
+        return (
+            '<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">'
+            '<meta name="viewport" content="width=device-width,initial-scale=1">'
+            '<title>' + title + '</title><style>'
+            'body{margin:0;background:#f5f7fa;color:#1f2937;font:15px/1.7 -apple-system,'
+            'BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif}'
+            '.c{max-width:460px;margin:14vh auto;background:#fff;border:1px solid #e3e8ef;'
+            'border-radius:14px;padding:28px;text-align:center}'
+            'h1{font-size:20px;margin:0 0 10px}p{color:#64748b;margin:0 0 20px}'
+            'a{display:inline-block;background:#2563eb;color:#fff;text-decoration:none;'
+            'padding:10px 18px;border-radius:8px;font-weight:600}'
+            '</style></head><body><div class="c"><h1>' + title + '</h1><p>' + text + '</p>'
+            '<a href="' + link + '">返回管理后台</a></div></body></html>'
+        )
+
+    @app.get('/admin/logout')
+    @app.get('/super-admin/logout')
+    def admin_logout():
+        now = time.time()
+        # 清理 5 分钟前的 nonce，避免长期累积
+        for key in [k for k, ts in _logout_nonces.items() if now - ts > 300]:
+            _logout_nonces.pop(key, None)
+        nonce = request.args.get('n', '')
+        if not nonce:
+            # 直接访问：先跳到带 nonce 的地址。浏览器重试 401 时会原样带上 query，
+            # 后端据此区分「首次 challenge」和「用户已提交凭据的重试」。
+            new_nonce = secrets.token_hex(12)
+            html = ('<!doctype html><meta charset="utf-8"><meta http-equiv="refresh" '
+                    'content="0;url=' + request.path + '?n=' + new_nonce + '">')
+            resp = make_response(html, 200)
+            resp.headers['Cache-Control'] = 'no-store'
+            return resp
+        if _logout_nonces.get(nonce):
+            # 用户已在弹出的登录框里提交凭据并重试：消费 nonce，落到成功页，
+            # 不让同一 nonce 再次触发 challenge，避免循环弹框。
+            _logout_nonces.pop(nonce, None)
+            resp = make_response(_logout_page('登录已更新', '凭据已刷新，可以返回管理后台继续操作。'))
+            resp.headers['Cache-Control'] = 'no-store'
+            return resp
+        # 首次请求：记录 nonce 并返回 realm 每次都不同的 401 challenge。
+        # Chrome 按 realm 缓存 Basic 凭据，旧凭据对新 realm 无效 → 弹出登录框。
+        # 用户点“取消”即退出；输入凭据则带上同一 ?n= 重试并进入上面的消费分支。
+        _logout_nonces[nonce] = now
+        realm = 'Skills Manager - ' + nonce
+        html = _logout_page(
+            '已退出登录',
+            '若在弹出的登录框中点击“取消”即完成退出；'
+            '如需切换账号，请输入新的管理员凭据。'
+            '浏览器会缓存登录凭据，请关闭浏览器窗口以彻底退出。',
+        )
+        resp = make_response(html, 401)
+        resp.headers['WWW-Authenticate'] = 'Basic realm="' + realm + '", charset="UTF-8"'
+        resp.headers['Cache-Control'] = 'no-store'
+        return resp
 
     @app.get('/api/super-admin/users')
     @super_only

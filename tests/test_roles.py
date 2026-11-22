@@ -182,9 +182,46 @@ class RoleTests(unittest.TestCase):
         self.assertIn('WWW-Authenticate', self.client.get('/api/internal/admin-auth',headers=h).headers)
         self.assertEqual(self.client.get('/api/internal/admin-auth').status_code,401)
 
+    def test_logout_challenge_rotates_realm_and_consumes_nonce(self):
+        self.assertTrue(self.schema_ready)
+        # 无 nonce：先跳转到带 nonce 的地址
+        r = self.client.get('/admin/logout')
+        self.assertEqual(r.status_code, 200)
+
+        # 首次带 nonce：401 challenge，realm 每次都不同（浏览器无法复用旧 Basic 凭据）
+        n1 = 'nonce-one'
+        r1 = self.client.get('/admin/logout?n=' + n1)
+        self.assertEqual(r1.status_code, 401)
+        realm1 = r1.headers.get('WWW-Authenticate', '')
+        self.assertIn('Basic realm=', realm1)
+        n2 = 'nonce-two'
+        r2 = self.client.get('/admin/logout?n=' + n2)
+        self.assertEqual(r2.status_code, 401)
+        realm2 = r2.headers.get('WWW-Authenticate', '')
+        self.assertNotEqual(realm1, realm2, 'realm must rotate so cached Basic creds cannot be reused')
+
+        # 用户提交凭据后浏览器原样重试同一 URL：nonce 被消费，返回 200 成功页而非再次 challenge
+        r1b = self.client.get('/admin/logout?n=' + n1)
+        self.assertEqual(r1b.status_code, 200)
+        self.assertNotIn('WWW-Authenticate', r1b.headers)
+        # super-admin 同端点也走同一逻辑
+        rs = self.client.get('/super-admin/logout?n=super-one')
+        self.assertEqual(rs.status_code, 401)
+        self.assertIn('Basic realm=', rs.headers.get('WWW-Authenticate', ''))
+
     def test_manager_cannot_create_admin(self):
         r=self.client.post('/api/admin/create',headers=self.headers(),json={'username':'newManager','password':'RoleTest#123456','is_admin':True})
         self.assertEqual(r.status_code,403)
+
+    def test_new_plain_user_defaults_to_hidden_unauthorized(self):
+        # 普通用户默认隐藏无权限功能；管理员保持显示。
+        r=self.client.post('/api/admin/create',headers=self.headers(),json={'username':'plainNew','password':'RoleTest#123456'})
+        self.assertEqual(r.status_code,200,r.get_json())
+        self.assertEqual(self.conn.execute("SELECT hide_unauthorized FROM users WHERE username='plainNew'").fetchone()[0],1)
+        r2=self.client.post('/api/admin/create',headers=self.headers('superAdmin'),
+                            json={'username':'adminNew','password':'RoleTest#123456','is_admin':True})
+        self.assertEqual(r2.status_code,200,r2.get_json())
+        self.assertEqual(self.conn.execute("SELECT hide_unauthorized FROM users WHERE username='adminNew'").fetchone()[0],0)
 
     def test_seed_is_idempotent_and_password_change_required(self):
         import roles
