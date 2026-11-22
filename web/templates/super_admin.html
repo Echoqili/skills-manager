@@ -20,13 +20,14 @@ th{color:#64748b;font-size:12px}.tag{background:#eff6ff;color:#2563eb;padding:3p
 <body><main>
 <div class="row toolbar"><div><h1>超级管理员 · 管理员账户</h1><div class="muted">管理管理员角色、状态与功能权限。普通用户可晋升为管理员。</div></div>
 <div class="row"><a href="/admin">普通用户审批台</a><button id="ownPassword">修改我的密码</button></div></div>
+<div id="adminIdentity"></div>
 <section class="card"><h2>添加管理员</h2><div class="row"><select id="promoteUser" aria-label="选择普通账号"><option value="">加载中…</option></select><button class="primary" id="promoteBtn">晋升为管理员</button></div></section>
 <section class="card"><div class="row toolbar"><h2>管理员账户</h2><select id="adminStatus" aria-label="管理员状态" onchange="refresh()"><option value="active">未删除管理员</option><option value="deleted">已删除（可恢复）</option></select><button id="refreshBtn">刷新</button></div><p id="message" role="status"></p><div class="table-wrap" id="accounts">加载中…</div></section>
 </main>
 <div class="mask" id="permissionsMask" hidden><div class="dialog"><h2 id="permissionTitle">分配功能权限</h2>
 <div id="permissionOptions"></div>
 <p class="error" id="permissionError"></p><div class="row"><button class="primary" id="savePermissions">保存</button><button id="cancelPermissions">取消</button></div></div></div>
-<script src="/static/js/admin-session.js?v=user-lifecycle-20261018"></script>
+<script src="/static/js/admin-session.js?v=identity-20261122"></script>
 <script>
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let users=[],defs=[],editing=null;
@@ -78,4 +79,5 @@ document.getElementById('cancelPermissions').onclick=()=>document.getElementById
 document.getElementById('refreshBtn').onclick=()=>refresh().catch(e=>message(e.message,true));
 document.getElementById('ownPassword').onclick=()=>AdminSession.changePassword();
 AdminSession.ready.then(u=>{if(!u?.is_super_admin)throw new Error('需要超级管理员账号');return refresh();}).catch(e=>message(e.message,true));
+AdminSession.renderIdentity('adminIdentity');
 </script></body></html>

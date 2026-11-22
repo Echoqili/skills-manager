@@ -50,6 +50,9 @@
         if (data.user.must_change_password) { changePassword(true); return new Promise(() => {}); }
         return data.user;
     }) : Promise.resolve(null);
+    // 兜底：身份卡等组件会自行取 /me，不依赖 ready；避免页面漏挂 .catch 时出现
+    // unhandled rejection。原 Promise 仍保持 reject，外层 .catch 照常收到错误。
+    ready.catch(() => {});
     const manageUser = (user, action, headers = {}) => new Promise(resolve => {
         if (document.getElementById('userLifecycleDialog')) { resolve(false); return; }
         const deleting = action === 'delete';
@@ -91,5 +94,109 @@
         };
         document.body.appendChild(dialog); dialog.showModal(); cancel.focus();
     });
-    window.AdminSession = { api, ready, changePassword, manageUser, user: null };
+    // ---------- 当前管理员身份卡片 ----------
+    // 两个后台页共用：数据取自 /api/admin/me（/super-admin 页由 api() 自动改写路径），
+    // 权限中文名取自 /api/admin/permissions。纯前端渲染，不新增后端接口。
+    const IDENTITY_CSS = `
+.ai-card{background:#fff;border:1px solid #e3e8ef;border-radius:12px;padding:16px 18px;margin:0 0 18px;color:#1f2937}
+.ai-label{font-size:12px;color:#6b7280;font-weight:600;margin-bottom:10px}
+.ai-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.ai-avatar{width:42px;height:42px;border-radius:50%;flex:none;display:grid;place-items:center;
+  background:linear-gradient(135deg,#2563eb,#7c3aed);color:#fff;font-size:18px;font-weight:700}
+.ai-name{font-size:17px;font-weight:700;color:#1f2937;word-break:break-all}
+.ai-role{display:inline-block;padding:2px 9px;border-radius:999px;font-size:12px;font-weight:600;margin-left:8px}
+.ai-role.super{background:#ede9fe;color:#7c3aed}
+.ai-role.admin{background:#dbeafe;color:#1d4ed8}
+.ai-meta{color:#6b7280;font-size:12px;margin-top:4px}
+.ai-badges{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+.ai-badge{display:inline-block;padding:3px 9px;border-radius:6px;font-size:12px;background:#eef2f7;color:#334155}
+.ai-badge.ok{background:#dcfce7;color:#166534}
+.ai-badge.warn{background:#fef3c7;color:#92400e}
+.ai-badge.err{background:#fee2e2;color:#991b1b}
+.ai-perms{margin-top:12px;border-top:1px solid #f1f5f9;padding-top:10px}
+.ai-perms-title{font-size:12px;color:#6b7280;margin-bottom:6px}
+.ai-perm{display:inline-block;background:#f1f5f9;color:#334155;border-radius:6px;padding:2px 8px;font-size:12px;margin:2px 7px 2px 0}
+.ai-perm.all{background:#dcfce7;color:#166534;font-weight:600}
+.ai-actions{margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.ai-refresh{background:#eef2f7;color:#1f2937;border:0;border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer;font-weight:600}
+.ai-error{color:#dc2626;font-size:12px}
+`;
+    const escText = s => String(s ?? '').replace(/[&<>"']/g, c =>
+        ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const IDENTITY_STATUS = {
+        approved: ['已启用', 'ok'], disabled: ['已停用', 'warn'],
+        pending: ['待审批', 'warn'], rejected: ['已拒绝', 'err'], deleted: ['已删除', 'err']
+    };
+    let identityStyleInjected = false;
+
+    const renderIdentity = async (containerId) => {
+        const box = document.getElementById(containerId || 'adminIdentity');
+        if (!box) return;
+        if (!identityStyleInjected) {
+            const style = document.createElement('style');
+            style.textContent = IDENTITY_CSS;
+            document.head.appendChild(style);
+            identityStyleInjected = true;
+        }
+        box.className = 'ai-card';
+        if (!proxy) {
+            // 密钥门禁模式没有「当前管理员账号」，明确说明避免误解
+            box.innerHTML = '<div class="ai-label">当前登录身份</div>'
+                + '<div class="ai-head"><div class="ai-avatar">&#128273;</div>'
+                + '<div><div class="ai-name">管理员密钥模式</div>'
+                + '<div class="ai-meta">使用门禁密钥访问，未绑定具体管理员账号。</div></div></div>';
+            return;
+        }
+        try {
+            const me = await api('/api/admin/me');
+            const user = me.user;
+            if (!user) throw new Error('登录已失效，请重新认证');
+            window.AdminSession.user = user;
+            let defs = [];
+            try {
+                const d = await api('/api/admin/permissions');
+                defs = d.permissions || [];
+            } catch (e) { /* 权限定义不可用时退化为显示原始 key */ }
+            const nameMap = {};
+            defs.forEach(p => { nameMap[p.key] = p.name || p.key; });
+            const perms = Array.isArray(user.permissions) ? user.permissions : [];
+            const all = !!user.is_super_admin || perms.includes('*');
+            const permHtml = all
+                ? '<span class="ai-perm all">全部权限</span>'
+                : (perms.length
+                    ? perms.map(p => '<span class="ai-perm">' + escText(nameMap[p] || p) + '</span>').join('')
+                    : '<span class="ai-perm">无功能权限</span>');
+            const st = IDENTITY_STATUS[user.status] || [user.status || '未知', ''];
+            const role = user.is_super_admin ? '超级管理员' : (user.is_admin ? '管理员' : '普通用户');
+            const roleCls = user.is_super_admin ? 'super' : 'admin';
+            const initial = escText(String(user.username || '?').charAt(0).toUpperCase());
+            box.innerHTML = '<div class="ai-label">当前登录身份</div>'
+                + '<div class="ai-head"><div class="ai-avatar">' + initial + '</div>'
+                + '<div style="min-width:0;flex:1">'
+                + '<div class="ai-name">' + escText(user.username)
+                + '<span class="ai-role ' + roleCls + '">' + role + '</span></div>'
+                + '<div class="ai-meta">账号 ID #' + escText(user.id) + ' · 浏览器 Basic 认证</div>'
+                + '</div></div>'
+                + '<div class="ai-badges">'
+                + '<span class="ai-badge ' + st[1] + '">状态：' + escText(st[0]) + '</span>'
+                + (user.must_change_password ? '<span class="ai-badge warn">需修改初始密码</span>' : '')
+                + '<span class="ai-badge">权限：' + (all ? '全部' : perms.length + ' 项') + '</span>'
+                + '</div>'
+                + '<div class="ai-perms"><div class="ai-perms-title">已分配功能权限</div>' + permHtml + '</div>'
+                + '<div class="ai-actions"><button type="button" class="ai-refresh" id="aiRefreshBtn">刷新</button>'
+                + '<span class="ai-meta">信息来自当前登录凭据；切换账号后点刷新可更新。</span></div>';
+            const btn = document.getElementById('aiRefreshBtn');
+            if (btn) btn.addEventListener('click', () => renderIdentity(containerId));
+        } catch (err) {
+            box.innerHTML = '<div class="ai-label">当前登录身份</div>'
+                + '<div class="ai-head"><div class="ai-avatar">!</div>'
+                + '<div><div class="ai-name">无法读取管理员信息</div>'
+                + '<div class="ai-error">' + escText(err.message) + '</div></div></div>'
+                + '<div class="ai-actions"><button type="button" class="ai-refresh" id="aiRefreshBtn">重试</button></div>';
+            const btn = document.getElementById('aiRefreshBtn');
+            if (btn) btn.addEventListener('click', () => renderIdentity(containerId));
+        }
+    };
+
+    window.AdminSession = { api, ready, changePassword, manageUser, renderIdentity, user: null };
 })();
