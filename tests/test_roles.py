@@ -176,7 +176,10 @@ class RoleTests(unittest.TestCase):
         self.assertEqual(self.client.get('/api/internal/admin-auth',headers=h).status_code,401)
         h['X-Original-URI']='/admin'
         self.conn.execute("UPDATE users SET status='disabled' WHERE username='manager'");self.conn.commit()
-        self.assertEqual(self.client.get('/api/internal/admin-auth',headers=h).status_code,403)
+        # 被停用/删除的账号返回 401 challenge，让浏览器放弃失效凭据、换用其他管理员账号，
+        # 而不是返回 403 终态让前端只看到“请求失败 (403)”。
+        self.assertEqual(self.client.get('/api/internal/admin-auth',headers=h).status_code,401)
+        self.assertIn('WWW-Authenticate', self.client.get('/api/internal/admin-auth',headers=h).headers)
         self.assertEqual(self.client.get('/api/internal/admin-auth').status_code,401)
 
     def test_manager_cannot_create_admin(self):

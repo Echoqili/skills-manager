@@ -71,8 +71,11 @@ def register(app, ctx):
             pass
         if not user:
             return challenge()
+        # 账号被删/停用后必须用 401 challenge 让浏览器重新弹出凭据框，
+        # 否则浏览器会一直复用失效的 Basic 凭据并收到空 body 的 403，
+        # 前端只能显示“请求失败 (403)”而看不到真正原因。
         if user['status'] != 'approved' or not user['is_admin']:
-            return make_response('', 403)
+            return challenge()
         if super_scope and not user['is_super_admin']:
             return challenge()
         response = make_response('', 200)
